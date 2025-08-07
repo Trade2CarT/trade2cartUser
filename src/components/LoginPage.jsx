@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
@@ -22,7 +22,7 @@ const LoginPage = () => {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [confirmationResult, setConfirmationResult] = useState(null);
-  const [otpSent, setOtpSent] = useState(false);
+  const [otpSent, setOtpSent]=useState(false);
   const [loading, setLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
@@ -33,16 +33,24 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const auth = getAuth();
 
-  // The useEffect for reCAPTCHA has been removed from here.
-
-  const setupRecaptcha = () => {
-    // We create the verifier instance here, right when we need it.
-    // It is stored on the window object to be accessible.
-    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+  // --- THIS HOOK IS UPDATED WITH A CLEANUP FUNCTION ---
+  useEffect(() => {
+    const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
       'size': 'invisible',
       'callback': () => console.log("reCAPTCHA verified"),
     });
-  };
+
+    window.recaptchaVerifier = verifier;
+
+    // This cleanup function runs when the user navigates away from the login page.
+    // It destroys the reCAPTCHA widget so a new one can be created on the next login attempt.
+    return () => {
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+      }
+    };
+  }, [auth]);
+
 
   const handleGetOtp = async () => {
     if (!termsAccepted || !privacyAccepted) {
@@ -55,9 +63,6 @@ const LoginPage = () => {
     }
 
     setLoading(true);
-    // --- THIS IS THE FIX ---
-    // Set up the reCAPTCHA verifier on demand.
-    setupRecaptcha();
     const appVerifier = window.recaptchaVerifier;
     const phoneNumber = `+91${phone}`;
 
@@ -68,7 +73,7 @@ const LoginPage = () => {
       toast.success('OTP sent successfully!');
     } catch (error) {
       console.error("Error sending OTP:", error);
-      toast.error('Failed to send OTP. Refresh and try again.');
+      toast.error('Failed to send OTP. You may have too many requests. Please wait a while.');
     } finally {
       setLoading(false);
     }
