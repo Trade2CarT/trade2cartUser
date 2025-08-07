@@ -16,10 +16,8 @@ const AccountPage = () => {
   const [expandedSection, setExpandedSection] = useState('profile');
   const [userHistory, setUserHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
-
   const [originalUserData, setOriginalUserData] = useState(null);
   const [editableUserData, setEditableUserData] = useState(null);
-
   const [isEditing, setIsEditing] = useState(false);
   const [userLoading, setUserLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
@@ -82,15 +80,20 @@ const AccountPage = () => {
     setEditableUserData(prev => ({ ...prev, [name]: value }));
   };
 
+  // --- THIS IS THE ONLY MODIFIED FUNCTION ---
   const handleProfileUpdate = async () => {
     if (!currentUserId || !editableUserData) return;
 
-    const promise = update(ref(db, `users/${currentUserId}`), {
-      name: editableUserData.name,
-      address: editableUserData.address,
-      location: editableUserData.location,
-      language: editableUserData.language,
-    });
+    // This payload ensures that if a value is missing (undefined),
+    // it sends an empty string '' to Firebase instead, preventing the error.
+    const updatePayload = {
+      name: editableUserData.name || '',
+      address: editableUserData.address || '',
+      location: editableUserData.location || '',
+      language: editableUserData.language || '',
+    };
+
+    const promise = update(ref(db, `users/${currentUserId}`), updatePayload);
 
     toast.promise(promise, {
       loading: 'Updating profile...',
