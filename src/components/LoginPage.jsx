@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import '../assets/style/LoginPage.css';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { db } from '../firebase';
 import { ref, get, query, orderByChild, equalTo, set, push } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
+import '../assets/style/LoginPage.css';
 
+// --- FEATURE ADDED BACK: The Modal component from your original code ---
 const Modal = ({ content, onClose }) => (
   <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
     <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
@@ -17,16 +19,14 @@ const Modal = ({ content, onClose }) => (
   </div>
 );
 
-
 const LoginPage = () => {
   const [phone, setPhone] = useState('');
-  const [phoneError, setPhoneError] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
-  const [otpError, setOtpError] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('');
-  const [timer, setTimer] = useState(60);
-  const [resendStatus, setResendStatus] = useState('');
+  const [confirmationResult, setConfirmationResult] = useState(null);
+  const [otpSent, setOtpSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // --- FEATURE ADDED BACK: State for terms, privacy, and modal ---
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,95 +34,89 @@ const LoginPage = () => {
 
   const { setUserMobile, location, language } = useSettings();
   const navigate = useNavigate();
+  const auth = getAuth();
 
   useEffect(() => {
-    let interval;
-    if (otpSent && timer > 0) {
-      interval = setInterval(() => setTimer((prev) => prev - 1), 1000);
-    } else if (timer === 0) {
-      clearInterval(interval);
-    }
-    return () => clearInterval(interval);
-  }, [otpSent, timer]);
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      'size': 'invisible',
+      'callback': () => console.log("reCAPTCHA verified"),
+    });
+  }, [auth]);
 
-  const generateAndSendOtp = async () => {
-    const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
-    setGeneratedOtp(otpCode);
-    toast.success(`Your OTP is: ${otpCode}`);
-    setOtpSent(true);
-    setTimer(60);
-    setResendStatus('');
-  };
-
-  const handleGetOtp = () => {
+  const handleGetOtp = async () => {
+    // --- FEATURE ADDED BACK: Check for terms and privacy acceptance ---
     if (!termsAccepted || !privacyAccepted) {
       toast.error("Please accept the Terms & Conditions and Privacy Policy.");
       return;
     }
     if (!/^[6-9]\d{9}$/.test(phone)) {
-      setPhoneError('Enter a valid 10-digit Indian number');
+      toast.error('Enter a valid 10-digit Indian number');
       return;
     }
-    setPhoneError('');
-    generateAndSendOtp();
+
+    setLoading(true);
+    const appVerifier = window.recaptchaVerifier;
+    const phoneNumber = `+91${phone}`;
+
+    try {
+      const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+      setConfirmationResult(result);
+      setOtpSent(true);
+      toast.success('OTP sent successfully!');
+    } catch (error) {
+      console.error("Error sending OTP:", error);
+      toast.error('Failed to send OTP. Refresh and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // This function correctly checks if a user exists and creates one if not.
-  const ensureUserExistsInFirebase = async () => {
+  const ensureUserExistsInFirebase = async (userPhone) => {
     const usersRef = ref(db, 'users');
-    const userQuery = query(usersRef, orderByChild('phone'), equalTo(phone));
+    const userQuery = query(usersRef, orderByChild('phone'), equalTo(userPhone));
     const snapshot = await get(userQuery);
 
     if (!snapshot.exists()) {
       const newUserRef = push(usersRef);
       await set(newUserRef, {
-        phone: phone, location: location || 'Unknown', language: language || 'en',
-        createdAt: new Date().toISOString(), Status: 'Active'
+        phone: userPhone,
+        location: location || 'Unknown',
+        language: language || 'en',
+        createdAt: new Date().toISOString(),
+        Status: 'Active'
       });
     }
   };
 
   const handleVerify = async () => {
-    if (timer === 0) {
-      toast.error("OTP has expired!");
+    if (!otp || otp.length !== 6) {
+      toast.error('Please enter the 6-digit OTP.');
       return;
     }
-    if (otp !== generatedOtp) {
-      toast.error("The OTP entered is incorrect.");
-      return;
-    }
-    setOtpError('');
 
-    const promise = ensureUserExistsInFirebase();
-    toast.promise(promise, {
-      loading: 'Verifying user...',
-      success: 'Login Successful!',
-      error: 'Could not verify user on the server.',
-    });
-
+    setLoading(true);
     try {
-      await promise;
-      setUserMobile(phone); // Set the global state
+      const credential = await confirmationResult.confirm(otp);
+      const user = credential.user;
+      const userPhone = user.phoneNumber.slice(3);
 
-      // --- THE FIX ---
-      // This line navigates the user to the main app page after a successful login.
+      await ensureUserExistsInFirebase(userPhone);
+
+      setUserMobile(userPhone);
+      toast.success('Login Successful!');
       navigate('/hello', { replace: true });
 
     } catch (error) {
-      // The toast.promise function handles displaying the error message
+      console.error("Error verifying OTP:", error);
+      toast.error('The OTP is incorrect or has expired.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleResendOtp = () => {
-    generateAndSendOtp();
-    setOtp('');
-    setOtpError('');
-    setTimer(60);
-    setResendStatus('OTP resent successfully!');
-  };
-
-  const termsContent = `<h2>Terms & Conditions...</h2>`;
-  const privacyContent = `<h2>Privacy Policy...</h2>`;
+  // --- FEATURE ADDED BACK: Content and function for the modal ---
+  const termsContent = `<h2>Terms & Conditions</h2><p>Your full terms and conditions content goes here. This ensures users agree to your terms before they can receive an OTP.</p>`;
+  const privacyContent = `<h2>Privacy Policy</h2><p>Your full privacy policy content goes here. This ensures users agree to your policy before they can receive an OTP.</p>`;
 
   const openModal = (content) => {
     setModalContent(content);
@@ -131,34 +125,45 @@ const LoginPage = () => {
 
   return (
     <div className="login-container">
+      {/* This empty div is used by reCAPTCHA */}
+      <div id="recaptcha-container"></div>
+
+      {/* --- FEATURE ADDED BACK: Render the modal when it's open --- */}
       {isModalOpen && <Modal content={modalContent} onClose={() => setIsModalOpen(false)} />}
+
       <h2>Login to Start</h2>
-      <div className={`input-wrapper ${phoneError ? 'error' : ''}`}>
+
+      <div className="input-wrapper">
         <span className="country-code">+91 -</span>
-        <input type="tel" placeholder="Enter mobile number" value={phone} onChange={(e) => { setPhone(e.target.value); setPhoneError(''); }} maxLength={10} />
+        <input type="tel" placeholder="Enter mobile number" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={10} disabled={otpSent} />
       </div>
-      {phoneError && <p className="error-text">{phoneError}</p>}
-      <div className="terms-container mt-4 space-y-2">
-        <div className="flex items-center">
-          <input type="checkbox" id="terms" checked={termsAccepted} onChange={() => setTermsAccepted(!termsAccepted)} className="h-4 w-4 rounded" />
-          <label htmlFor="terms" className="ml-2 text-sm text-gray-600">I agree to the <span onClick={() => openModal(termsContent)} className="text-blue-600 cursor-pointer underline">Terms & Conditions</span></label>
-        </div>
-        <div className="flex items-center">
-          <input type="checkbox" id="privacy" checked={privacyAccepted} onChange={() => setPrivacyAccepted(!privacyAccepted)} className="h-4 w-4 rounded" />
-          <label htmlFor="privacy" className="ml-2 text-sm text-gray-600">I agree to the <span onClick={() => openModal(privacyContent)} className="text-blue-600 cursor-pointer underline">Privacy Policy</span></label>
-        </div>
-      </div>
-      <button onClick={handleGetOtp} className="get-otp-btn" disabled={!termsAccepted || !privacyAccepted}>GET OTP</button>
-      {otpSent && (
-        <>
-          <div className={`input-wrapper otp-field ${otpError ? 'error' : ''}`}>
-            <input type="text" placeholder="- - - -" value={otp} onChange={(e) => { setOtp(e.target.value); setOtpError(''); }} maxLength={4} />
+
+      {/* --- FEATURE ADDED BACK: The terms and privacy checkboxes --- */}
+      {!otpSent && (
+        <div className="terms-container mt-4 space-y-2">
+          <div className="flex items-center">
+            <input type="checkbox" id="terms" checked={termsAccepted} onChange={() => setTermsAccepted(!termsAccepted)} className="h-4 w-4 rounded" />
+            <label htmlFor="terms" className="ml-2 text-sm text-gray-600">I agree to the <span onClick={() => openModal(termsContent)} className="text-blue-600 cursor-pointer underline">Terms & Conditions</span></label>
           </div>
-          {otpError && <p className="error-text">{otpError}</p>}
-          <button className="verify-btn" onClick={handleVerify}>Verify & Continue</button>
-          <p className="timer-text">OTP valid for: {timer}s</p>
-          <button className="resend-btn" onClick={handleResendOtp} disabled={timer > 0}>{timer > 0 ? `Resend in ${timer}s` : 'Resend OTP'}</button>
-          {resendStatus && <p className="success-text">{resendStatus}</p>}
+          <div className="flex items-center">
+            <input type="checkbox" id="privacy" checked={privacyAccepted} onChange={() => setPrivacyAccepted(!privacyAccepted)} className="h-4 w-4 rounded" />
+            <label htmlFor="privacy" className="ml-2 text-sm text-gray-600">I agree to the <span onClick={() => openModal(privacyContent)} className="text-blue-600 cursor-pointer underline">Privacy Policy</span></label>
+          </div>
+        </div>
+      )}
+
+      {!otpSent ? (
+        <button onClick={handleGetOtp} className="get-otp-btn" disabled={loading || !termsAccepted || !privacyAccepted}>
+          {loading ? 'Sending...' : 'GET OTP'}
+        </button>
+      ) : (
+        <>
+          <div className="input-wrapper otp-field">
+            <input type="text" placeholder="Enter 6-digit OTP" value={otp} onChange={(e) => setOtp(e.target.value)} maxLength={6} />
+          </div>
+          <button className="verify-btn" onClick={handleVerify} disabled={loading}>
+            {loading ? 'Verifying...' : 'Verify & Continue'}
+          </button>
         </>
       )}
     </div>
