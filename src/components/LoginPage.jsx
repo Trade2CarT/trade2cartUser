@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
@@ -22,7 +22,7 @@ const LoginPage = () => {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [confirmationResult, setConfirmationResult] = useState(null);
-  const [otpSent, setOtpSent]=useState(false);
+  const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
@@ -33,25 +33,9 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const auth = getAuth();
 
-  // --- THIS HOOK IS UPDATED WITH A CLEANUP FUNCTION ---
-  useEffect(() => {
-    const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      'size': 'invisible',
-      'callback': () => console.log("reCAPTCHA verified"),
-    });
+  // The useEffect hook for reCAPTCHA has been removed.
 
-    window.recaptchaVerifier = verifier;
-
-    // This cleanup function runs when the user navigates away from the login page.
-    // It destroys the reCAPTCHA widget so a new one can be created on the next login attempt.
-    return () => {
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-      }
-    };
-  }, [auth]);
-
-
+  // --- THIS IS THE FINAL, CORRECTED OTP FUNCTION ---
   const handleGetOtp = async () => {
     if (!termsAccepted || !privacyAccepted) {
       toast.error("Please accept the Terms & Conditions and Privacy Policy.");
@@ -63,17 +47,33 @@ const LoginPage = () => {
     }
 
     setLoading(true);
-    const appVerifier = window.recaptchaVerifier;
-    const phoneNumber = `+91${phone}`;
 
     try {
-      const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+      // 1. Clear any old verifier instance to prevent errors
+      if (window.recaptchaVerifier) {
+        window.recaptchaVerifier.clear();
+      }
+
+      // 2. Create a brand new verifier for this specific attempt
+      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        'size': 'invisible',
+      });
+
+      // Store it on the window object so it can be cleared next time
+      window.recaptchaVerifier = verifier;
+
+      const phoneNumber = `+91${phone}`;
+
+      // 3. Use the new verifier to send the OTP
+      const result = await signInWithPhoneNumber(auth, phoneNumber, verifier);
+
       setConfirmationResult(result);
       setOtpSent(true);
       toast.success('OTP sent successfully!');
+
     } catch (error) {
       console.error("Error sending OTP:", error);
-      toast.error('Failed to send OTP. You may have too many requests. Please wait a while.');
+      toast.error('Failed to send OTP. Please try again.');
     } finally {
       setLoading(false);
     }
