@@ -2,12 +2,11 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getDatabase } from "firebase/database";
 import { getAnalytics } from "firebase/analytics";
+// Import the new App Check functions
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
-// --- SECURE CONFIGURATION USING ENVIRONMENT VARIABLES ---
-// This approach is more secure as it prevents your sensitive API keys
-// from being hardcoded and exposed in your source code repository.
-// You will need to create a '.env.local' file in the root of your project
-// to store these values.
+// Your Firebase configuration object.
+// It correctly uses environment variables for security.
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_API_KEY,
   authDomain: import.meta.env.VITE_AUTH_DOMAIN,
@@ -19,21 +18,25 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_MEASUREMENT_ID
 };
 
-// Initialize Firebase
+// Initialize the main Firebase app
 const app = initializeApp(firebaseConfig);
 
-// Initialize and export Firebase services
+// Initialize App Check with your NEW reCAPTCHA v3 Site Key
+// **IMPORTANT**: After deleting your old key, create a new one and paste the new Site Key here.
+initializeAppCheck(app, {
+  provider: new ReCaptchaV3Provider('6Lewip0rAAAAAEzYExHo2ICd1jNBOsRMkoYJ0NLy'),
+  isTokenAutoRefreshEnabled: true
+});
+
+// Initialize and export other Firebase services
 const analytics = getAnalytics(app);
 export const auth = getAuth(app);
 export const db = getDatabase(app);
 
-
 /**
- * Converts a Firebase snapshot object into an array of objects.
- * Each object in the array is enhanced with its Firebase key as the 'id'.
- * This is a helper function used across the app.
- * @param {DataSnapshot} snapshot The snapshot from a Firebase Realtime Database query.
- * @returns {Array} An array of the data, or an empty array if no data exists.
+ * A helper function to convert Firebase snapshot objects into arrays.
+ * @param {DataSnapshot} snapshot The snapshot from a Firebase query.
+ * @returns {Array} An array of the data.
  */
 export const firebaseObjectToArray = (snapshot) => {
   const data = snapshot.val();
