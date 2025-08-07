@@ -67,6 +67,7 @@ const LoginPage = () => {
     generateAndSendOtp();
   };
 
+  // This function correctly checks if a user exists and creates one if not.
   const ensureUserExistsInFirebase = async () => {
     const usersRef = ref(db, 'users');
     const userQuery = query(usersRef, orderByChild('phone'), equalTo(phone));
@@ -103,7 +104,7 @@ const LoginPage = () => {
       await promise;
       setUserMobile(phone); // Set the global state
 
-      // --- THIS IS THE FIX ---
+      // --- THE FIX ---
       // This line navigates the user to the main app page after a successful login.
       navigate('/hello', { replace: true });
 
@@ -120,9 +121,8 @@ const LoginPage = () => {
     setResendStatus('OTP resent successfully!');
   };
 
-  // You can keep your full HTML content for terms and privacy here
-  const termsContent = `<h2>Terms & Conditions...</h2><p>Your full terms content goes here.</p>`;
-  const privacyContent = `<h2>Privacy Policy...</h2><p>Your full privacy policy content goes here.</p>`;
+  const termsContent = `<h2>Terms & Conditions...</h2>`;
+  const privacyContent = `<h2>Privacy Policy...</h2>`;
 
   const openModal = (content) => {
     setModalContent(content);
