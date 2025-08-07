@@ -102,9 +102,13 @@ const LoginPage = () => {
     try {
       await promise;
       setUserMobile(phone); // Set the global state
-      navigate('/hello', { replace: true }); // **THIS IS THE CRUCIAL ADDITION**
+
+      // --- THIS IS THE FIX ---
+      // This line navigates the user to the main app page after a successful login.
+      navigate('/hello', { replace: true });
+
     } catch (error) {
-      // toast.promise handles the error message
+      // The toast.promise function handles displaying the error message
     }
   };
 
@@ -116,8 +120,9 @@ const LoginPage = () => {
     setResendStatus('OTP resent successfully!');
   };
 
-  const termsContent = `<h2>Terms & Conditions...</h2>`; // Keep your HTML content here
-  const privacyContent = `<h2>Privacy Policy...</h2>`; // Keep your HTML content here
+  // You can keep your full HTML content for terms and privacy here
+  const termsContent = `<h2>Terms & Conditions...</h2><p>Your full terms content goes here.</p>`;
+  const privacyContent = `<h2>Privacy Policy...</h2><p>Your full privacy policy content goes here.</p>`;
 
   const openModal = (content) => {
     setModalContent(content);
