@@ -1,15 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { db } from '../firebase';
-// Make sure to import 'ref' and 'set'
 import { get, query, orderByChild, equalTo, ref, set } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
 import '../assets/style/LoginPage.css';
 
 const Modal = ({ content, onClose }) => (
-  // ... Modal code is unchanged ...
   <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
     <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
       <div className="prose">
@@ -35,16 +33,18 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const auth = getAuth();
 
-  useEffect(() => {
-    // ... useEffect for reCAPTCHA is unchanged ...
+  // The useEffect for reCAPTCHA has been removed from here.
+
+  const setupRecaptcha = () => {
+    // We create the verifier instance here, right when we need it.
+    // It is stored on the window object to be accessible.
     window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
       'size': 'invisible',
       'callback': () => console.log("reCAPTCHA verified"),
     });
-  }, [auth]);
+  };
 
   const handleGetOtp = async () => {
-    // ... handleGetOtp function is unchanged ...
     if (!termsAccepted || !privacyAccepted) {
       toast.error("Please accept the Terms & Conditions and Privacy Policy.");
       return;
@@ -53,9 +53,14 @@ const LoginPage = () => {
       toast.error('Enter a valid 10-digit Indian number');
       return;
     }
+
     setLoading(true);
+    // --- THIS IS THE FIX ---
+    // Set up the reCAPTCHA verifier on demand.
+    setupRecaptcha();
     const appVerifier = window.recaptchaVerifier;
     const phoneNumber = `+91${phone}`;
+
     try {
       const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
       setConfirmationResult(result);
@@ -69,14 +74,11 @@ const LoginPage = () => {
     }
   };
 
-  // --- THIS FUNCTION IS UPDATED ---
-  // It now accepts the user's auth UID and phone number to create the document correctly.
   const ensureUserExistsInFirebase = async (userId, userPhone) => {
-    const userRef = ref(db, `users/${userId}`); // Use the auth UID directly
+    const userRef = ref(db, `users/${userId}`);
     const snapshot = await get(userRef);
 
     if (!snapshot.exists()) {
-      // Use set() with the specific userRef, NOT push()
       await set(userRef, {
         phone: userPhone,
         location: location || 'Unknown',
@@ -87,8 +89,6 @@ const LoginPage = () => {
     }
   };
 
-  // --- THIS FUNCTION IS UPDATED ---
-  // It now passes the user's real UID to the function above.
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
       toast.error('Please enter the 6-digit OTP.');
@@ -99,11 +99,9 @@ const LoginPage = () => {
     try {
       const credential = await confirmationResult.confirm(otp);
       const user = credential.user;
+      const userPhone = user.phoneNumber.slice(3);
+      const userId = user.uid;
 
-      const userPhone = user.phoneNumber.slice(3); // Removes '+91'
-      const userId = user.uid; // Get the user's actual Authentication UID
-
-      // Pass both the UID and phone number to the updated function
       await ensureUserExistsInFirebase(userId, userPhone);
 
       setUserMobile(userPhone);
@@ -127,15 +125,18 @@ const LoginPage = () => {
   };
 
   return (
-    // ... return statement with JSX is unchanged ...
     <div className="login-container">
       <div id="recaptcha-container"></div>
+
       {isModalOpen && <Modal content={modalContent} onClose={() => setIsModalOpen(false)} />}
+
       <h2>Login to Start</h2>
+
       <div className="input-wrapper">
         <span className="country-code">+91 -</span>
         <input type="tel" placeholder="Enter mobile number" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={10} disabled={otpSent} />
       </div>
+
       {!otpSent && (
         <div className="terms-container mt-4 space-y-2">
           <div className="flex items-center">
@@ -148,6 +149,7 @@ const LoginPage = () => {
           </div>
         </div>
       )}
+
       {!otpSent ? (
         <button onClick={handleGetOtp} className="get-otp-btn" disabled={loading || !termsAccepted || !privacyAccepted}>
           {loading ? 'Sending...' : 'GET OTP'}
