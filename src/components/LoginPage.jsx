@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { db } from '../firebase';
-import { ref, get, query, orderByChild, equalTo, set, push } from 'firebase/database';
+// Make sure to import 'ref' and 'set'
+import { get, query, orderByChild, equalTo, ref, set } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
 import '../assets/style/LoginPage.css';
 
-// Modal component to display terms and privacy policy
 const Modal = ({ content, onClose }) => (
+  // ... Modal code is unchanged ...
   <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
     <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
       <div className="prose">
@@ -25,7 +26,6 @@ const LoginPage = () => {
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
-
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -35,16 +35,16 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const auth = getAuth();
 
-  // Sets up the invisible reCAPTCHA verifier required by Firebase
   useEffect(() => {
+    // ... useEffect for reCAPTCHA is unchanged ...
     window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
       'size': 'invisible',
       'callback': () => console.log("reCAPTCHA verified"),
     });
   }, [auth]);
 
-  // Handles sending the OTP to the user's phone
   const handleGetOtp = async () => {
+    // ... handleGetOtp function is unchanged ...
     if (!termsAccepted || !privacyAccepted) {
       toast.error("Please accept the Terms & Conditions and Privacy Policy.");
       return;
@@ -53,11 +53,9 @@ const LoginPage = () => {
       toast.error('Enter a valid 10-digit Indian number');
       return;
     }
-
     setLoading(true);
     const appVerifier = window.recaptchaVerifier;
     const phoneNumber = `+91${phone}`;
-
     try {
       const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
       setConfirmationResult(result);
@@ -71,15 +69,15 @@ const LoginPage = () => {
     }
   };
 
-  // This function handles the "enroll" part: it creates a new user if they don't exist
-  const ensureUserExistsInFirebase = async (userPhone) => {
-    const usersRef = ref(db, 'users');
-    const userQuery = query(usersRef, orderByChild('phone'), equalTo(userPhone));
-    const snapshot = await get(userQuery);
+  // --- THIS FUNCTION IS UPDATED ---
+  // It now accepts the user's auth UID and phone number to create the document correctly.
+  const ensureUserExistsInFirebase = async (userId, userPhone) => {
+    const userRef = ref(db, `users/${userId}`); // Use the auth UID directly
+    const snapshot = await get(userRef);
 
     if (!snapshot.exists()) {
-      const newUserRef = push(usersRef);
-      await set(newUserRef, {
+      // Use set() with the specific userRef, NOT push()
+      await set(userRef, {
         phone: userPhone,
         location: location || 'Unknown',
         language: language || 'en',
@@ -89,7 +87,8 @@ const LoginPage = () => {
     }
   };
 
-  // Verifies the OTP and completes the login/enrollment
+  // --- THIS FUNCTION IS UPDATED ---
+  // It now passes the user's real UID to the function above.
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
       toast.error('Please enter the 6-digit OTP.');
@@ -100,9 +99,12 @@ const LoginPage = () => {
     try {
       const credential = await confirmationResult.confirm(otp);
       const user = credential.user;
-      const userPhone = user.phoneNumber.slice(3); // Removes '+91'
 
-      await ensureUserExistsInFirebase(userPhone);
+      const userPhone = user.phoneNumber.slice(3); // Removes '+91'
+      const userId = user.uid; // Get the user's actual Authentication UID
+
+      // Pass both the UID and phone number to the updated function
+      await ensureUserExistsInFirebase(userId, userPhone);
 
       setUserMobile(userPhone);
       toast.success('Login Successful!');
@@ -125,18 +127,15 @@ const LoginPage = () => {
   };
 
   return (
+    // ... return statement with JSX is unchanged ...
     <div className="login-container">
       <div id="recaptcha-container"></div>
-
       {isModalOpen && <Modal content={modalContent} onClose={() => setIsModalOpen(false)} />}
-
       <h2>Login to Start</h2>
-
       <div className="input-wrapper">
         <span className="country-code">+91 -</span>
         <input type="tel" placeholder="Enter mobile number" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={10} disabled={otpSent} />
       </div>
-
       {!otpSent && (
         <div className="terms-container mt-4 space-y-2">
           <div className="flex items-center">
@@ -149,7 +148,6 @@ const LoginPage = () => {
           </div>
         </div>
       )}
-
       {!otpSent ? (
         <button onClick={handleGetOtp} className="get-otp-btn" disabled={loading || !termsAccepted || !privacyAccepted}>
           {loading ? 'Sending...' : 'GET OTP'}
@@ -169,4 +167,3 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
-
