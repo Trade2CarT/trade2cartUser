@@ -1,0 +1,122 @@
+.login-container {
+  max-width: 350px;
+  margin: 5rem auto;
+  padding: 2rem;
+  background-color: #f8fbff;
+  border-radius: 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.login-container h2 {
+  font-size: 22px;
+  margin-bottom: 1.5rem;
+  color: #2d3748;
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: center;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+.input-wrapper.error {
+  border-color: #ff4d4f;
+}
+
+.country-code {
+  margin-right: 0.5rem;
+  font-size: 16px;
+  color: #333;
+}
+
+input[type="tel"],
+input[type="text"] {
+  border: none;
+  outline: none;
+  flex: 1;
+  font-size: 16px;
+  background-color: transparent;
+}
+
+.get-otp-btn,
+.verify-btn {
+  width: 100%;
+  background: linear-gradient(to right, #00c6ff, #0072ff);
+  color: white;
+  font-size: 16px;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  transition: background 0.3s ease;
+}
+
+.get-otp-btn:hover,
+.verify-btn:hover {
+  background: linear-gradient(to right, #0072ff, #00c6ff);
+}
+
+.error-text {
+  color: #ff4d4f;
+  font-size: 13px;
+  margin-top: -0.5rem;
+  margin-bottom: 0.5rem;
+  text-align: left;
+  padding-left: 0.5rem;
+}
+
+.otp-field {
+  justify-content: center;
+}
+.error-text {
+  color: red;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.timer-text {
+  font-size: 14px;
+  margin-top: 8px;
+  color: #333;
+}
+
+.input-wrapper.error input {
+  border: 1px solid red;
+}
+/* .resend-btn {
+  margin-top: 10px;
+  background-color: #eee;
+  border: 1px solid #ccc;
+  padding: 8px 16px;
+  cursor: pointer;
+} */
+
+.resend-btn:disabled {
+  background-color: #ddd;
+  cursor: not-allowed;
+}
+
+/* .success-text {
+  color: green;
+  font-size: 14px;
+  margin-top: 6px;
+} */
+.resend-btn {
+  margin-top: 10px;
+  background-color: #eee;
+  border: 1px solid #ccc;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.success-text {
+  color: green;
+  font-size: 14px;
+  margin-top: 6px;
+}

@@ -1,0 +1,44 @@
+.splash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: linear-gradient(to bottom right, #7dd3fc, #c084fc);
+  color: white;
+  font-family: sans-serif;
+  text-align: center;
+}
+
+.icon {
+  width: 80px;
+  margin-bottom: 20px;
+}
+
+.logo h1 {
+  font-size: 32px;
+  margin: 0;
+}
+
+.logo p {
+  margin-top: 10px;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.quote {
+  margin-top: auto;
+  font-size: 14px;
+  padding-bottom: 20px;
+}
+
+.next-btn {
+  margin-top: 30px;
+  background-color: white;
+  color: #4f46e5;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 20px;
+  font-weight: bold;
+  cursor: pointer;
+}
