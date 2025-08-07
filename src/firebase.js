@@ -27,6 +27,7 @@ const analytics = getAnalytics(app);
 export const auth = getAuth(app);
 export const db = getDatabase(app);
 
+
 /**
  * Converts a Firebase snapshot object into an array of objects.
  * Each object in the array is enhanced with its Firebase key as the 'id'.
