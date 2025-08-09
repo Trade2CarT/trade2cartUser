@@ -24,7 +24,7 @@ const app = initializeApp(firebaseConfig);
 // Initialize App Check with your NEW reCAPTCHA v3 Site Key
 // **IMPORTANT**: After deleting your old key, create a new one and paste the new Site Key here.
 initializeAppCheck(app, {
-  provider: new ReCaptchaV3Provider('6Lewip0rAAAAAEzYExHo2ICd1jNBOsRMkoYJ0NLy'),
+  provider: new ReCaptchaV3Provider('import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY'),
   isTokenAutoRefreshEnabled: true
 });
 
