@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { FaHome, FaTasks, FaUserAlt, FaMapMarkerAlt, FaBell, FaShoppingCart, FaTruck, FaPhoneAlt } from 'react-icons/fa';
+import { FaHome, FaTasks, FaUserAlt, FaMapMarkerAlt, FaBell, FaShoppingCart, FaTruck, FaPhoneAlt, FaClipboardList, FaCheckCircle, FaHourglassHalf } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
 import { db } from '../firebase';
 import { ref, query, orderByChild, equalTo, get, onValue } from 'firebase/database';
@@ -14,7 +14,7 @@ const firebaseObjectToArray = (snapshot) => {
 };
 
 const TaskPage = () => {
-  // --- YOUR BUSINESS LOGIC (UNCHANGED) ---
+  // --- YOUR BUSINESS LOGIC (100% UNCHANGED) ---
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [otp, setOtp] = useState('');
@@ -27,36 +27,29 @@ const TaskPage = () => {
       setLoading(false);
       return;
     }
-
     setLoading(true);
     const userQuery = query(ref(db, 'users'), orderByChild('phone'), equalTo(userMobile));
-
     const unsubscribe = onValue(userQuery, async (snapshot) => {
       if (snapshot.exists()) {
         const user = firebaseObjectToArray(snapshot)[0];
         const currentStatus = user.Status || 'Pending';
         setStatus(currentStatus);
-
         if (currentStatus.toLowerCase() !== 'on-schedule') {
           setVendorDetails(null);
           setOtp('');
           otpGeneratedForAssignment.current = null;
         }
-
         if (currentStatus.toLowerCase() === 'on-schedule' && user.currentAssignmentId) {
           try {
             const assignmentRef = ref(db, `assignments/${user.currentAssignmentId}`);
             const assignmentSnapshot = await get(assignmentRef);
-
             if (assignmentSnapshot.exists()) {
               const activeAssignment = assignmentSnapshot.val();
               setVendorDetails({ name: activeAssignment.vendorName, phone: activeAssignment.vendorPhone });
             }
-
             if (user.otp) {
               setOtp(user.otp);
             }
-
           } catch (error) {
             console.error("Error fetching assignment details:", error);
             toast.error("Failed to fetch assignment details.");
@@ -71,11 +64,14 @@ const TaskPage = () => {
       toast.error("Failed to sync task status.");
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, [userMobile]);
 
-  const statusSteps = [{ title: 'Ordered' }, { title: 'On-Schedule' }, { title: 'Completed' }];
+  const statusSteps = [
+    { title: 'Ordered', icon: FaClipboardList },
+    { title: 'On-Schedule', icon: FaTruck },
+    { title: 'Completed', icon: FaCheckCircle }
+  ];
 
   const getStatusIndex = () => {
     const lowerCaseStatus = status.toLowerCase();
@@ -87,7 +83,7 @@ const TaskPage = () => {
 
   const statusIndex = getStatusIndex();
 
-  // --- RESPONSIVE & SEO STRUCTURE ---
+  // --- NEW & IMPROVED RESPONSIVE & SEO STRUCTURE ---
   return (
     <>
       <SEO
@@ -110,67 +106,80 @@ const TaskPage = () => {
         </header>
 
         <main className="flex-grow p-4 overflow-y-auto">
-          <div className="max-w-2xl mx-auto">
-            <h1 className="text-2xl font-bold mb-6 text-gray-800">🚚 Your Trade Status</h1>
+          <div className="max-w-3xl mx-auto">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-8 text-gray-800 flex items-center gap-3">
+              <FaTruck className="text-green-600" />
+              Your Trade Status
+            </h1>
+
             {loading ? (
               <p className="text-center text-gray-500 mt-10">Loading status...</p>
             ) : statusIndex === -1 ? (
+              // --- IMPROVED "NO ACTIVE TASKS" VIEW ---
               <div className="text-center mt-10 bg-white p-8 rounded-xl shadow-md">
-                <FaTasks className="text-5xl text-gray-400 mb-4 mx-auto" />
-                <h2 className="text-xl font-bold text-gray-700">No Active Tasks</h2>
-                <p className="text-gray-500 mt-2">Your scheduled pickups will appear here once confirmed.</p>
+                <FaTasks className="text-5xl text-gray-300 mb-4 mx-auto" />
+                <h2 className="text-2xl font-bold text-gray-700">No Active Tasks</h2>
+                <p className="text-gray-500 mt-2 mb-6">Schedule a pickup and your progress will appear here.</p>
+                <Link to="/hello" className="bg-green-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-green-700 transition-colors">
+                  Schedule Pickup
+                </Link>
               </div>
             ) : (
-              <div className='space-y-6'>
-                <div className="relative pt-4">
-                  <div className="flex mb-2 items-center justify-between">
+              <div className='space-y-8'>
+                {/* --- REDESIGNED STATUS TRACKER --- */}
+                <div className="w-full">
+                  <div className="flex justify-between items-center">
                     {statusSteps.map((step, index) => (
-                      <div className="text-center w-1/3" key={step.title}>
-                        <div className={`w-8 h-8 mx-auto rounded-full flex items-center justify-center text-lg ${index <= statusIndex ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-600'}`}>
-                          {index < statusIndex ? '✓' : index + 1}
+                      <React.Fragment key={step.title}>
+                        <div className="flex flex-col items-center z-10">
+                          <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center text-xl transition-all duration-300 ${index <= statusIndex ? 'bg-green-600 text-white shadow-lg' : 'bg-gray-200 text-gray-500'}`}>
+                            <step.icon className={index === statusIndex ? 'animate-pulse' : ''} />
+                          </div>
+                          <p className={`mt-2 text-xs md:text-sm text-center font-semibold ${index <= statusIndex ? 'text-gray-800' : 'text-gray-500'}`}>{step.title}</p>
                         </div>
-                        <div className={`mt-2 text-xs text-center font-semibold ${index <= statusIndex ? 'text-gray-800' : 'text-gray-500'}`}>{step.title}</div>
-                      </div>
+                        {index < statusSteps.length - 1 && <div className={`flex-1 h-1 transition-all duration-500 -mx-2 ${index < statusIndex ? 'bg-green-600' : 'bg-gray-200'}`}></div>}
+                      </React.Fragment>
                     ))}
-                  </div>
-                  <div className="absolute top-[30px] left-0 w-full h-1 bg-gray-300">
-                    <div className="h-1 bg-green-500" style={{ width: `${(statusIndex / (statusSteps.length - 1)) * 100}%` }}></div>
                   </div>
                 </div>
 
+                {/* --- IMPROVED INFORMATION CARDS & MESSAGES --- */}
+                {status.toLowerCase() === 'pending' && (
+                  <div className="p-6 bg-white rounded-xl shadow-md text-center">
+                    <FaHourglassHalf className="text-4xl text-blue-500 mx-auto mb-3" />
+                    <h3 className="text-xl font-bold text-gray-800">Your Order is Pending</h3>
+                    <p className="text-gray-500 mt-1">We are currently assigning a collection agent for your pickup. Thank you for your patience!</p>
+                  </div>
+                )}
+
                 {status.toLowerCase() === 'on-schedule' && (
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {vendorDetails ? (
-                      <div className="p-4 bg-white rounded-lg shadow-md text-center border-t-4 border-yellow-500">
-                        <p className="text-sm text-gray-600">Your pickup is assigned to:</p>
-                        <div className="flex items-center justify-center gap-3 mt-2">
-                          <FaTruck className="text-yellow-600" />
-                          <p className="text-lg font-bold text-gray-800">{vendorDetails.name}</p>
-                        </div>
+                      <div className="p-5 bg-white rounded-xl shadow-md text-center">
+                        <p className="text-sm font-medium text-gray-500 mb-2">Assigned Agent</p>
+                        <FaTruck className="text-3xl text-yellow-500 mx-auto mb-2" />
+                        <p className="text-xl font-bold text-gray-800">{vendorDetails.name}</p>
                         <a href={`tel:${vendorDetails.phone}`} className="text-blue-600 inline-flex items-center gap-2 mt-1 hover:underline">
                           <FaPhoneAlt size={12} /> {vendorDetails.phone}
                         </a>
                       </div>
-                    ) : <p className="text-center text-gray-500">Fetching vendor details...</p>}
+                    ) : <p className="text-center text-gray-500">Fetching agent details...</p>}
 
                     {otp ? (
-                      <div className="p-4 bg-white rounded-lg shadow-md text-center border-t-4 border-green-500">
-                        <p className="text-sm text-gray-600">Show this OTP to the collection agent:</p>
-                        <p className="text-3xl font-bold tracking-[0.2em] text-green-700 mt-2 p-2 bg-green-50 rounded-md">{otp}</p>
+                      <div className="p-5 bg-white rounded-xl shadow-md text-center">
+                        <p className="text-sm font-medium text-gray-500 mb-2">Your Secure OTP</p>
+                        <p className="text-4xl font-extrabold tracking-[0.2em] text-green-700 p-3 bg-green-50 rounded-lg">{otp}</p>
+                        <p className="text-xs text-gray-500 mt-2">Share this only with the agent upon arrival.</p>
                       </div>
                     ) : <p className="text-center text-gray-500">Generating OTP...</p>}
                   </div>
                 )}
+
                 {status.toLowerCase() === 'completed' && (
-                  <div className="mt-5 p-4 bg-white rounded-lg shadow-md text-center border-t-4 border-blue-500">
-                    <p className="text-lg font-semibold text-blue-700">✅ This trade has been completed!</p>
-                    <p className="text-sm text-gray-600 mt-1">Check your account history for details.</p>
-                  </div>
-                )}
-                {status.toLowerCase() === 'pending' && (
-                  <div className="mt-5 p-4 bg-white rounded-lg shadow-md text-center border-t-4 border-gray-400">
-                    <p className="text-lg font-semibold text-gray-700">⏳ Your order is pending</p>
-                    <p className="text-sm text-gray-600 mt-1">We are assigning a vendor for your pickup.</p>
+                  <div className="p-6 bg-white rounded-xl shadow-md text-center">
+                    <FaCheckCircle className="text-4xl text-green-500 mx-auto mb-3" />
+                    <h3 className="text-xl font-bold text-gray-800">This trade has been completed!</h3>
+                    <p className="text-gray-500 mt-1">Thank you for contributing to a greener planet. Check your account for details.</p>
                   </div>
                 )}
               </div>
