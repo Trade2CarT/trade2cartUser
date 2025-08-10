@@ -8,18 +8,12 @@ import BillTemplate from '../BillTemplate';
 import { toast } from 'react-hot-toast';
 
 const StatusBadge = ({ status }) => {
-    const lowerCaseStatus = status.toLowerCase();
-    let bgColor, textColor, text;
-    switch (lowerCaseStatus) {
-        case 'completed':
-            bgColor = 'bg-green-100'; textColor = 'text-green-800'; text = 'Completed'; break;
-        case 'assigned':
-        case 'on-schedule':
-            bgColor = 'bg-yellow-100'; textColor = 'text-yellow-800'; text = 'On Schedule'; break;
-        default:
-            bgColor = 'bg-blue-100'; textColor = 'text-blue-800'; text = 'Pending';
-    }
-    return <div className={`px-2.5 py-1 text-xs font-bold rounded-full ${bgColor} ${textColor}`}>{text}</div>;
+    // This will always show "Completed" now, but is kept for consistency
+    return (
+        <div className="px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800">
+            Completed
+        </div>
+    );
 };
 
 const TradeHistorySection = ({ userMobile, originalUserData }) => {
@@ -59,7 +53,9 @@ const TradeHistorySection = ({ userMobile, originalUserData }) => {
                 const remainingDays = Math.ceil(remainingTime / (1000 * 60 * 60 * 24));
                 return { ...entry, remainingDays };
             })
-            .filter(Boolean)
+            .filter(Boolean) // Removes expired entries
+            // --- NEW: Only include trades with a 'completed' status ---
+            .filter(entry => entry.status && entry.status.toLowerCase() === 'completed')
             .sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt));
     }, [userHistory]);
 
@@ -124,7 +120,7 @@ const TradeHistorySection = ({ userMobile, originalUserData }) => {
                 <BillTemplate trade={billData} billRef={billTemplateRef} />
             </div>
             <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-3 rounded-md mb-4 text-sm" role="alert">
-                <div className="flex items-center gap-2"><FaExclamationTriangle /> <p>To protect your privacy, trade history is deleted after 7 days.</p></div>
+                <div className="flex items-center gap-2"><FaExclamationTriangle /> <p>Completed trade history is deleted after 7 days.</p></div>
             </div>
 
             {historyLoading ? <p>Loading history...</p> : processedUserHistory.length > 0 ? (
@@ -141,20 +137,21 @@ const TradeHistorySection = ({ userMobile, originalUserData }) => {
                             </div>
                             <div className="p-3 bg-gray-50 flex justify-between items-center">
                                 <div className="flex items-center gap-1"><FaRupeeSign className="text-green-600" /><p className="text-lg font-bold text-green-600">{entry.totalAmount}</p></div>
-                                {entry.status && entry.status.toLowerCase() === 'completed' ? (
+
+                                {/* --- MODIFIED: Shows both countdown and button --- */}
+                                <div className="flex items-center gap-4">
+                                    <p className="text-xs text-red-600 font-medium">Deletes in {entry.remainingDays} {entry.remainingDays > 1 ? 'days' : 'day'}</p>
                                     <button onClick={() => handleDownloadBill(entry)} disabled={isDownloading === entry.id} className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:bg-blue-400">
                                         {isDownloading === entry.id ? <FaSpinner className="animate-spin" /> : <FaDownload />}
                                         {isDownloading === entry.id ? 'Preparing...' : 'Download Bill'}
                                     </button>
-                                ) : (
-                                    <p className="text-xs text-red-600 font-medium">Deletes in {entry.remainingDays} {entry.remainingDays > 1 ? 'days' : 'day'}</p>
-                                )}
+                                </div>
                             </div>
                         </div>
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-4 text-gray-500">No trade history found.</div>
+                <div className="text-center py-4 text-gray-500">No completed trades found.</div>
             )}
         </>
     );
