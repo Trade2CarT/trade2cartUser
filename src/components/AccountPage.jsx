@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaHome, FaTasks, FaUserAlt, FaChevronDown, FaChevronUp, FaMapMarkerAlt, FaBell, FaShoppingCart, FaSignOutAlt } from 'react-icons/fa';
-import { db, get } from '../firebase';
-import { ref, update } from 'firebase/database';
+// --- CORRECTED IMPORTS ---
+import { db } from '../firebase';
+import { ref, update, get } from 'firebase/database';
+// ---
 import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
@@ -11,7 +13,7 @@ import SEO from './SEO';
 
 // Import the modular components
 import ProfileSection from './account/ProfileSection';
-import PoliciesAndTerms from './account/PoliciesAndTerms'; // Updated import
+import PoliciesAndTerms from './account/PoliciesAndTerms';
 import TradeHistorySection from './account/TradeHistorySection';
 
 const AccountPage = () => {
@@ -31,6 +33,7 @@ const AccountPage = () => {
       if (user) {
         setCurrentUserId(user.uid);
         const userRef = ref(db, `users/${user.uid}`);
+        // This 'get' function now correctly refers to the imported function
         get(userRef).then((snapshot) => {
           if (snapshot.exists()) {
             const data = { id: snapshot.key, ...snapshot.val() };
@@ -110,7 +113,6 @@ const AccountPage = () => {
               />
             </Section>
 
-            {/* --- MODIFIED: Uses the new self-contained component --- */}
             <Section title="Policies & Terms" sectionKey="policies">
               <PoliciesAndTerms />
             </Section>
