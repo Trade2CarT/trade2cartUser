@@ -1,11 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { FaHome, FaTasks, FaUserAlt, FaMapMarkerAlt, FaBell, FaShoppingCart, FaTruck, FaPhoneAlt } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
-import { db, firebaseObjectToArray } from '../firebase';
-import { ref, query, orderByChild, equalTo, get, update, onValue } from 'firebase/database';
+import { db } from '../firebase'; // Assuming firebaseObjectToArray is also exported from firebase.js
+import { ref, query, orderByChild, equalTo, get, onValue } from 'firebase/database';
 import assetlogo from '../assets/images/logo.PNG';
 import { useSettings } from '../context/SettingsContext';
 import { toast } from 'react-hot-toast';
+
+// Helper function to convert Firebase snapshot to an array
+const firebaseObjectToArray = (snapshot) => {
+  const data = snapshot.val();
+  return data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+};
 
 const TaskPage = () => {
   const [status, setStatus] = useState('');
@@ -14,11 +20,13 @@ const TaskPage = () => {
   const [vendorDetails, setVendorDetails] = useState(null);
   const { userMobile, location } = useSettings();
 
+  // This ref helps prevent infinite loops by ensuring OTP generation logic runs only once per assignment
+  const otpGeneratedForAssignment = useRef(null);
+
   useEffect(() => {
     if (!userMobile) {
       setLoading(false);
       return;
-      
     }
 
     setLoading(true);
@@ -29,12 +37,18 @@ const TaskPage = () => {
         const user = firebaseObjectToArray(snapshot)[0];
         const currentStatus = user.Status || 'Pending';
         setStatus(currentStatus);
-        setVendorDetails(null); // Reset vendor details on each status update
 
-        // If status is on-schedule AND there is a current assignmentId on the user object
+        // Reset details if status is not 'on-schedule'
+        if (currentStatus.toLowerCase() !== 'on-schedule') {
+          setVendorDetails(null);
+          setOtp('');
+          otpGeneratedForAssignment.current = null; // Reset the ref for the next assignment
+        }
+
+        // If status is on-schedule AND there is a current assignmentId
         if (currentStatus.toLowerCase() === 'on-schedule' && user.currentAssignmentId) {
           try {
-            // Directly fetch the specific assignment using the ID
+            // Fetch the specific assignment using the ID
             const assignmentRef = ref(db, `assignments/${user.currentAssignmentId}`);
             const assignmentSnapshot = await get(assignmentRef);
 
@@ -43,14 +57,11 @@ const TaskPage = () => {
               setVendorDetails({ name: activeAssignment.vendorName, phone: activeAssignment.vendorPhone });
             }
 
-            // Generate OTP if needed
-            let newOtp = user.otp;
-            if (!newOtp || newOtp.length !== 4) {
-              newOtp = Math.floor(1000 + Math.random() * 9000).toString();
-              const userRefToUpdate = ref(db, `users/${user.id}`);
-              await update(userRefToUpdate, { otp: newOtp });
+            // Simply read the OTP from the user record and display it.
+            // All OTP generation logic has been moved to the admin panel.
+            if (user.otp) {
+              setOtp(user.otp);
             }
-            setOtp(newOtp);
 
           } catch (error) {
             console.error("Error fetching assignment details:", error);
@@ -62,6 +73,7 @@ const TaskPage = () => {
       }
       setLoading(false);
     }, (error) => {
+      console.error("Task Page sync error:", error);
       toast.error("Failed to sync task status.");
       setLoading(false);
     });
@@ -76,7 +88,7 @@ const TaskPage = () => {
     if (lowerCaseStatus === 'pending') return 0;
     if (lowerCaseStatus === 'on-schedule') return 1;
     if (lowerCaseStatus === 'completed') return 2;
-    return -1;
+    return -1; // No active task state
   };
 
   const statusIndex = getStatusIndex();
@@ -88,7 +100,7 @@ const TaskPage = () => {
           <img src={assetlogo} alt="Trade2Cart Logo" className="h-8 w-auto" />
           <div className="flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full">
             <FaMapMarkerAlt className="text-green-500" />
-            <span className="text-sm font-medium">{location}</span>
+            <span className="text-sm font-medium">{location || '...'}</span>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -98,10 +110,11 @@ const TaskPage = () => {
           </div>
         </div>
       </header>
+
       <main className="flex-grow p-4 overflow-y-auto">
         <h2 className="text-xl font-bold mb-6">🚚 Your Trade Status</h2>
         {loading ? (
-          <p className="text-center">Loading status...</p>
+          <p className="text-center text-gray-500">Loading status...</p>
         ) : !userMobile ? (
           <p className="text-center text-red-500">Please log in to see your task status.</p>
         ) : statusIndex === -1 ? (
@@ -122,7 +135,7 @@ const TaskPage = () => {
             </div>
             {status.toLowerCase() === 'on-schedule' && (
               <div className="mt-5 space-y-4">
-                {vendorDetails && (
+                {vendorDetails ? (
                   <div className="p-4 bg-white rounded-lg shadow text-center border-t-4 border-yellow-500">
                     <p className="text-sm text-gray-600">Your pickup has been assigned to:</p>
                     <div className="flex items-center justify-center gap-3 mt-2">
@@ -133,13 +146,15 @@ const TaskPage = () => {
                       <FaPhoneAlt size={12} /> {vendorDetails.phone}
                     </a>
                   </div>
-                )}
-                {otp && (
+                ) : <p className="text-center text-gray-500">Fetching vendor details...</p>
+                }
+                {otp ? (
                   <div className="p-4 bg-white rounded-lg shadow text-center border-t-4 border-green-500">
                     <p className="text-sm text-gray-600">Show this OTP to the collection agent:</p>
                     <p className="text-2xl font-bold tracking-widest text-green-700 mt-1">{otp}</p>
                   </div>
-                )}
+                ) : <p className="text-center text-gray-500">Generating OTP...</p>
+                }
               </div>
             )}
             {status.toLowerCase() === 'completed' && (
@@ -151,6 +166,7 @@ const TaskPage = () => {
           </>
         )}
       </main>
+
       <footer className="sticky bottom-0 flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-inner flex-shrink-0 z-30">
         <Link to="/hello" className="flex flex-col items-center text-gray-500 no-underline">
           <FaHome />
