@@ -8,7 +8,6 @@ import BillTemplate from '../BillTemplate';
 import { toast } from 'react-hot-toast';
 
 const StatusBadge = ({ status }) => {
-    // This will always show "Completed" now, but is kept for consistency
     return (
         <div className="px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800">
             Completed
@@ -23,6 +22,7 @@ const TradeHistorySection = ({ userMobile, originalUserData }) => {
     const [isDownloading, setIsDownloading] = useState(null);
     const billTemplateRef = useRef(null);
 
+    // Fetch history
     useEffect(() => {
         if (!userMobile) return;
         const fetchHistory = async () => {
@@ -39,6 +39,7 @@ const TradeHistorySection = ({ userMobile, originalUserData }) => {
         fetchHistory();
     }, [userMobile]);
 
+    // Filter & sort history
     const processedUserHistory = useMemo(() => {
         const now = new Date();
         const SEVEN_DAYS_IN_MS = 7 * 24 * 60 * 60 * 1000;
@@ -53,12 +54,39 @@ const TradeHistorySection = ({ userMobile, originalUserData }) => {
                 const remainingDays = Math.ceil(remainingTime / (1000 * 60 * 60 * 24));
                 return { ...entry, remainingDays };
             })
-            .filter(Boolean) // Removes expired entries
-            // --- NEW: Only include trades with a 'completed' status ---
+            .filter(Boolean)
             .filter(entry => entry.status && entry.status.toLowerCase() === 'completed')
             .sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt));
     }, [userHistory]);
 
+    // Generate PDF when billData is ready
+    useEffect(() => {
+        if (billData && billTemplateRef.current) {
+            setTimeout(() => {
+                html2canvas(billTemplateRef.current, { scale: 2 })
+                    .then((canvas) => {
+                        const imgData = canvas.toDataURL('image/png');
+                        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                        pdf.addImage(
+                            imgData,
+                            'PNG',
+                            0,
+                            0,
+                            pdf.internal.pageSize.getWidth(),
+                            pdf.internal.pageSize.getHeight()
+                        );
+                        pdf.save(`invoice-${billData.id.slice(-6)}.pdf`);
+                    })
+                    .catch(() => toast.error("Could not generate PDF."))
+                    .finally(() => {
+                        setBillData(null);
+                        setIsDownloading(null);
+                    });
+            }, 200); // slight delay to ensure render
+        }
+    }, [billData]);
+
+    // Handle click to prepare bill data
     const handleDownloadBill = async (tradeEntry) => {
         const assignmentId = tradeEntry.id;
         setIsDownloading(assignmentId);
@@ -90,24 +118,9 @@ const TradeHistorySection = ({ userMobile, originalUserData }) => {
                 }))
             };
 
+            // Just set billData — useEffect will handle the PDF
             setBillData(completeBillData);
 
-            setTimeout(() => {
-                const input = billTemplateRef.current;
-                if (input) {
-                    html2canvas(input, { scale: 2 }).then((canvas) => {
-                        const imgData = canvas.toDataURL('image/png');
-                        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-                        pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
-                        pdf.save(`invoice-${assignmentId.slice(-6)}.pdf`);
-                    }).finally(() => {
-                        setBillData(null);
-                        setIsDownloading(null);
-                    });
-                } else {
-                    setIsDownloading(null);
-                }
-            }, 500);
         } catch (error) {
             toast.error("Could not download bill.");
             setIsDownloading(null);
@@ -116,32 +129,59 @@ const TradeHistorySection = ({ userMobile, originalUserData }) => {
 
     return (
         <>
+            {/* Hidden bill template for capture */}
             <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
                 <BillTemplate trade={billData} billRef={billTemplateRef} />
             </div>
+
+            {/* Info banner */}
             <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-3 rounded-md mb-4 text-sm" role="alert">
-                <div className="flex items-center gap-2"><FaExclamationTriangle /> <p>Completed trade history is deleted after 7 days.</p></div>
+                <div className="flex items-center gap-2">
+                    <FaExclamationTriangle />
+                    <p>Completed trade history is deleted after 7 days.</p>
+                </div>
             </div>
 
-            {historyLoading ? <p>Loading history...</p> : processedUserHistory.length > 0 ? (
+            {historyLoading ? (
+                <p>Loading history...</p>
+            ) : processedUserHistory.length > 0 ? (
                 <div className="space-y-4">
                     {processedUserHistory.map((entry) => (
                         <div key={entry.id} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
                             <div className="p-3 bg-gray-50 flex justify-between items-center">
                                 <StatusBadge status={entry.status} />
-                                <p className="text-xs text-gray-500 font-medium">{new Date(entry.assignedAt).toLocaleDateString()}</p>
+                                <p className="text-xs text-gray-500 font-medium">
+                                    {new Date(entry.assignedAt).toLocaleDateString()}
+                                </p>
                             </div>
                             <div className="p-4 space-y-3">
-                                <div className="flex items-center gap-3"><FaUser className="text-gray-400" /><p className="text-sm text-gray-700">Vendor: <span className="font-bold">{entry.vendorName}</span></p></div>
-                                <div className="flex items-center gap-3"><FaBoxOpen className="text-gray-400" /><p className="text-sm text-gray-700">Products: <span className="font-semibold">{entry.products}</span></p></div>
+                                <div className="flex items-center gap-3">
+                                    <FaUser className="text-gray-400" />
+                                    <p className="text-sm text-gray-700">
+                                        Vendor: <span className="font-bold">{entry.vendorName}</span>
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <FaBoxOpen className="text-gray-400" />
+                                    <p className="text-sm text-gray-700">
+                                        Products: <span className="font-semibold">{entry.products}</span>
+                                    </p>
+                                </div>
                             </div>
                             <div className="p-3 bg-gray-50 flex justify-between items-center">
-                                <div className="flex items-center gap-1"><FaRupeeSign className="text-green-600" /><p className="text-lg font-bold text-green-600">{entry.totalAmount}</p></div>
-
-                                {/* --- MODIFIED: Shows both countdown and button --- */}
+                                <div className="flex items-center gap-1">
+                                    <FaRupeeSign className="text-green-600" />
+                                    <p className="text-lg font-bold text-green-600">{entry.totalAmount}</p>
+                                </div>
                                 <div className="flex items-center gap-4">
-                                    <p className="text-xs text-red-600 font-medium">Deletes in {entry.remainingDays} {entry.remainingDays > 1 ? 'days' : 'day'}</p>
-                                    <button onClick={() => handleDownloadBill(entry)} disabled={isDownloading === entry.id} className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:bg-blue-400">
+                                    <p className="text-xs text-red-600 font-medium">
+                                        Deletes in {entry.remainingDays} {entry.remainingDays > 1 ? 'days' : 'day'}
+                                    </p>
+                                    <button
+                                        onClick={() => handleDownloadBill(entry)}
+                                        disabled={isDownloading === entry.id}
+                                        className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:bg-blue-400"
+                                    >
                                         {isDownloading === entry.id ? <FaSpinner className="animate-spin" /> : <FaDownload />}
                                         {isDownloading === entry.id ? 'Preparing...' : 'Download Bill'}
                                     </button>
