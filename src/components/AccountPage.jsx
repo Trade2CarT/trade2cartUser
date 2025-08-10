@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaHome, FaTasks, FaUserAlt, FaChevronDown, FaChevronUp, FaMapMarkerAlt, FaBell, FaShoppingCart, FaSignOutAlt } from 'react-icons/fa';
 import { db } from '../firebase';
-import { ref, update } from 'firebase/database';
+// --- FIX: Added 'get' to this import statement ---
+import { ref, update, get } from 'firebase/database';
 import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
@@ -31,6 +32,7 @@ const AccountPage = () => {
       if (user) {
         setCurrentUserId(user.uid);
         const userRef = ref(db, `users/${user.uid}`);
+        // This 'get' function was causing the error because it wasn't imported
         get(userRef).then((snapshot) => {
           if (snapshot.exists()) {
             const data = { id: snapshot.key, ...snapshot.val() };
