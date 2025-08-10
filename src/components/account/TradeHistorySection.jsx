@@ -90,18 +90,35 @@ const TradeHistorySection = ({ userMobile, originalUserData }) => {
     const handleDownloadBill = async (tradeEntry) => {
         const assignmentId = tradeEntry.id;
         setIsDownloading(assignmentId);
+
         try {
+            console.log("🔍 Fetching bill for assignment ID:", assignmentId);
+
             const billsRef = ref(db, 'bills');
             const billQuery = query(billsRef, orderByChild('assignmentID'), equalTo(assignmentId));
             const snapshot = await get(billQuery);
 
+            // Log raw snapshot for debugging
+            console.log("📦 Raw bill snapshot value:", snapshot.val());
+
             if (!snapshot.exists()) {
-                toast.error("Bill details not found.");
+                toast.error("Bill details not found for this trade.");
                 setIsDownloading(null);
                 return;
             }
 
-            const billDetails = firebaseObjectToArray(snapshot)[0];
+            const billsArray = firebaseObjectToArray(snapshot);
+            console.log("📜 Parsed bill array:", billsArray);
+
+            const billDetails = billsArray[0];
+            if (!billDetails) {
+                toast.error("Bill data is empty.");
+                setIsDownloading(null);
+                return;
+            }
+
+            console.log("✅ Bill details found:", billDetails);
+
             const completeBillData = {
                 id: assignmentId,
                 assignedAt: tradeEntry.assignedAt,
@@ -118,14 +135,15 @@ const TradeHistorySection = ({ userMobile, originalUserData }) => {
                 }))
             };
 
-            // Just set billData — useEffect will handle the PDF
             setBillData(completeBillData);
 
         } catch (error) {
+            console.error("❌ Error fetching bill:", error);
             toast.error("Could not download bill.");
             setIsDownloading(null);
         }
     };
+
 
     return (
         <>
