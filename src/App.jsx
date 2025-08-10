@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
-import SEO from './components/SEO';
+import SEO from './components/SEO'; // Import the SEO component
 import Splash from './components/Splash';
 import LanguageSelection from './components/LanguageSelection';
 import LocationPage from './components/LocationPage';
@@ -14,19 +14,17 @@ import AccountPage from './components/AccountPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useSettings } from './context/SettingsContext';
 
-// A layout for routes that are only accessible when logged OUT
+// Public and Protected route logic remains the same...
 const PublicRoutes = () => {
   const { userMobile } = useSettings();
-  // If the user IS logged in, navigate them away from public pages like login
   return userMobile ? <Navigate to="/hello" replace /> : <Outlet />;
 };
 
-// A layout for routes that require a user to be logged IN
 const ProtectedRoutes = () => {
   const { userMobile } = useSettings();
-  // If the user is NOT logged in, send them to the start of the login flow
   return userMobile ? <Outlet /> : <Navigate to="/language" replace />;
 };
+
 
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
@@ -43,7 +41,9 @@ const App = () => {
     "description": "Trade2Cart is an online scrap pickup service in India that connects sellers with verified scrap buyers. Book pickup online and get instant payment.",
     "address": {
       "@type": "PostalAddress",
-      "addressCountry": "IN"
+      "addressCountry": "IN",
+      "addressLocality": "Bengaluru",
+      "addressRegion": "KA"
     },
     "sameAs": [
       "https://www.facebook.com/trade2cart",
@@ -63,9 +63,8 @@ const App = () => {
 
   return (
     <ErrorBoundary>
-      {/* Default SEO for the entire App. Can be overridden by pages. */}
+      {/* Default SEO and sitewide Schema */}
       <SEO>
-        {/* Adding the JSON-LD Schema */}
         <script type="application/ld+json">
           {JSON.stringify(schemaMarkup)}
         </script>
@@ -74,7 +73,7 @@ const App = () => {
       <Router>
         <Toaster position="top-center" reverseOrder={false} />
         <Routes>
-          {/* --- Protected Routes (what logged-in users see) --- */}
+          {/* --- Protected Routes --- */}
           <Route element={<ProtectedRoutes />}>
             <Route path="/hello" element={<HelloUser />} />
             <Route path="/trade" element={<TradePage />} />
@@ -82,14 +81,14 @@ const App = () => {
             <Route path="/account" element={<AccountPage />} />
           </Route>
 
-          {/* --- Public Routes (what new/logged-out users see) --- */}
+          {/* --- Public Routes --- */}
           <Route element={<PublicRoutes />}>
             <Route path="/language" element={<LanguageSelection />} />
             <Route path="/location" element={<LocationPage />} />
             <Route path="/login" element={<LoginPage />} />
           </Route>
 
-          {/* --- A fallback to redirect any stray URL to a safe place --- */}
+          {/* --- Fallback Redirect --- */}
           <Route path="*" element={<Navigate to="/hello" replace />} />
         </Routes>
       </Router>

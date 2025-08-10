@@ -1,18 +1,17 @@
 import React from 'react';
-import { Helmet } from 'react-helmet-async';
 
 /**
- * A reusable component to manage SEO-related head tags.
- * It sets the page title, meta description, and keywords.
- * @param {object} props - The component props.
+ * Manages SEO-related head tags using React 19's built-in support.
+ * It renders <title>, <meta>, and other head tags directly.
+ * @param {object} props
  * @param {string} props.title - The title for the page.
  * @param {string} props.description - The meta description for search engines.
- * @param {string} [props.keywords] - Comma-separated keywords for the page.
- * @param {React.ReactNode} [props.children] - To include additional head elements like schemas.
+ * @param {string} [props.keywords] - Comma-separated keywords.
+ * @param {React.ReactNode} [props.children] - For additional head elements like schemas.
  */
 const SEO = ({ title, description, keywords, children }) => {
     return (
-        <Helmet>
+        <>
             <title>{title}</title>
             <meta name="description" content={description} />
             {keywords && <meta name="keywords" content={keywords} />}
@@ -27,7 +26,7 @@ const SEO = ({ title, description, keywords, children }) => {
             <meta name="twitter:description" content={description} />
             <meta name="twitter:image" content="https://trade2cart.in/logo.png" />
             {children}
-        </Helmet>
+        </>
     );
 };
 
@@ -36,6 +35,5 @@ SEO.defaultProps = {
     description: 'Trade2Cart connects you with verified scrap buyers. Book scrap pickup online, get instant payment, and contribute to eco-friendly recycling in India.',
     keywords: 'Trade2Cart, scrap pickup service, sell scrap online, scrap buyer India, online scrap selling, eco-friendly recycling, waste management service'
 };
-
 
 export default SEO;

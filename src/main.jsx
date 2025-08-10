@@ -1,16 +1,13 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { HelmetProvider } from 'react-helmet-async';
 import './App.css';
 import App from './App.jsx';
-import { SettingsProvider } from './context/SettingsContext';
+import { SettingsProvider } from './context/SettingsContext.jsx'; // Corrected path
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <HelmetProvider>
-      <SettingsProvider>
-        <App />
-      </SettingsProvider>
-    </HelmetProvider>
+    <SettingsProvider>
+      <App />
+    </SettingsProvider>
   </StrictMode>,
 );
