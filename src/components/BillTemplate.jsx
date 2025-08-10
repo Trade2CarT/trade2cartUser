@@ -18,71 +18,82 @@ const BillTemplate = ({ trade, billRef }) => {
         <div
             ref={billRef}
             id={`bill-${trade.id}`}
-            className="p-8 bg-white text-gray-800"
-            style={{ width: '210mm', minHeight: '297mm' }} // A4 paper size
+            className="bg-white text-gray-800"
+            style={{
+                width: '210mm',
+                minHeight: '297mm',
+                padding: '20mm',
+                fontFamily: 'Arial, sans-serif',
+                boxSizing: 'border-box'
+            }}
         >
-            <header className="flex justify-between items-center pb-4 border-b-2 border-gray-200">
-                <div className="flex flex-col">
-                    <h1 className="text-3xl font-bold text-gray-900">Tax Invoice</h1>
-                    <p className="text-sm text-gray-500">Invoice ID: {trade.id.slice(-8)}</p>
-                    <p className="text-sm text-gray-500">Date: {tradeDate}</p>
+            {/* Header */}
+            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ccc', paddingBottom: '10px', marginBottom: '20px' }}>
+                <div>
+                    <h1 style={{ fontSize: '26px', fontWeight: 'bold', marginBottom: '4px' }}>Tax Invoice</h1>
+                    <p style={{ fontSize: '12px', color: '#555' }}>Invoice ID: {trade.id.slice(-8)}</p>
+                    <p style={{ fontSize: '12px', color: '#555' }}>Date: {tradeDate}</p>
                 </div>
-                <img src={assetlogo} alt="Trade2Cart Logo" className="h-16 w-auto" />
+                <img src={assetlogo} alt="Trade2Cart Logo" style={{ height: '60px', width: 'auto' }} />
             </header>
 
-            <section className="my-8">
-                <div className="grid grid-cols-2 gap-4">
+            {/* Customer & Vendor Info */}
+            <section style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '40px' }}>
                     <div>
-                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Billed To</h2>
-                        <p className="font-bold text-gray-900">{trade.userName || 'Valued Customer'}</p>
-                        <p className="text-gray-600">{trade.address || 'User Address Not Provided'}</p>
+                        <h2 style={{ fontSize: '12px', fontWeight: 'bold', color: '#555', marginBottom: '4px' }}>Billed To</h2>
+                        <p style={{ fontWeight: 'bold' }}>{trade.userName || 'Valued Customer'}</p>
+                        <p style={{ fontSize: '12px', color: '#555' }}>{trade.address || 'User Address Not Provided'}</p>
                     </div>
                     <div>
-                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">From</h2>
-                        <p className="font-bold text-gray-900">{trade.vendorName || 'Assigned Vendor'}</p>
-                        <p className="text-gray-600">Trade2Cart Platform</p>
+                        <h2 style={{ fontSize: '12px', fontWeight: 'bold', color: '#555', marginBottom: '4px' }}>From</h2>
+                        <p style={{ fontWeight: 'bold' }}>{trade.vendorName || 'Assigned Vendor'}</p>
+                        <p style={{ fontSize: '12px', color: '#555' }}>Trade2Cart Platform</p>
                     </div>
                 </div>
             </section>
 
+            {/* Order Table */}
             <section>
-                <h3 className="text-lg font-semibold border-b pb-2 mb-2">Order Summary</h3>
-                <table className="w-full text-left">
+                <h3 style={{ fontSize: '16px', fontWeight: 'bold', borderBottom: '1px solid #ccc', paddingBottom: '4px', marginBottom: '8px' }}>Order Summary</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                     <thead>
-                        <tr className="bg-gray-100">
-                            <th className="p-2">Item</th>
-                            <th className="p-2 text-center">Weight</th>
-                            <th className="p-2 text-center">Rate</th>
-                            <th className="p-2 text-right">Amount</th>
+                        <tr style={{ backgroundColor: '#f8f8f8', borderBottom: '1px solid #ccc' }}>
+                            <th style={{ padding: '8px', border: '1px solid #ccc' }}>Item</th>
+                            <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Weight</th>
+                            <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Rate</th>
+                            <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc' }}>Amount</th>
                         </tr>
                     </thead>
                     <tbody>
                         {items.map((item, index) => (
-                            <tr key={index} className="border-b">
-                                <td className="p-2">{item.name}</td>
-                                <td className="p-2 text-center">{item.quantity} {item.unit}</td>
-                                <td className="p-2 text-center">₹{item.rate}</td>
-                                <td className="p-2 text-right">₹{item.total}</td>
+                            <tr key={index}>
+                                <td style={{ padding: '8px', border: '1px solid #ccc' }}>{item.name}</td>
+                                <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>{item.quantity} {item.unit}</td>
+                                <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>₹{item.rate}</td>
+                                <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc' }}>₹{item.total}</td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </section>
 
-            <section className="mt-8 flex justify-end">
-                <div className="w-1/2">
-                    <div className="flex justify-between border-t pt-2">
-                        <p className="font-semibold">Subtotal</p>
+            {/* Totals */}
+            <section style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ width: '50%' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ccc', paddingTop: '8px' }}>
+                        <p style={{ fontWeight: 'bold' }}>Subtotal</p>
                         <p>₹{trade.totalAmount}</p>
                     </div>
-                    <div className="flex justify-between mt-2 bg-gray-200 p-2 rounded-lg">
-                        <p className="text-xl font-bold">Total Amount</p>
-                        <p className="text-xl font-bold">₹{trade.totalAmount}</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', backgroundColor: '#f0f0f0', padding: '8px', borderRadius: '6px', marginTop: '8px' }}>
+                        <p style={{ fontSize: '14px', fontWeight: 'bold' }}>Total Amount</p>
+                        <p style={{ fontSize: '14px', fontWeight: 'bold' }}>₹{trade.totalAmount}</p>
                     </div>
                 </div>
             </section>
 
-            <footer className="mt-16 pt-4 border-t text-center text-xs text-gray-500">
+            {/* Footer */}
+            <footer style={{ marginTop: '40px', paddingTop: '10px', borderTop: '1px solid #ccc', textAlign: 'center', fontSize: '10px', color: '#777' }}>
                 <p>Thank you for choosing Trade2Cart!</p>
                 <p>This is a computer-generated invoice and does not require a signature.</p>
             </footer>
