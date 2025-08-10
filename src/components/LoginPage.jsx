@@ -3,17 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { db } from '../firebase';
-import { get, query, orderByChild, equalTo, ref, set } from 'firebase/database';
+import { get, ref, set } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
-import '../assets/style/LoginPage.css';
+import SEO from './SEO';
 
 const Modal = ({ content, onClose }) => (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
-      <div className="prose">
-        <div dangerouslySetInnerHTML={{ __html: content }} />
-      </div>
-      <button onClick={onClose} className="mt-4 w-full py-2 bg-gray-300 text-black rounded-lg">Close</button>
+  <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4 transition-opacity">
+    <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-lg mx-auto max-h-[90vh] overflow-y-auto">
+      <article className="prose max-w-none" dangerouslySetInnerHTML={{ __html: content }} />
+      <button onClick={onClose} className="mt-6 w-full py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 font-semibold transition-colors">Close</button>
     </div>
   </div>
 );
@@ -33,11 +31,13 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const auth = getAuth();
 
-  // Set up the reCAPTCHA verifier once when the component loads
   React.useEffect(() => {
     if (!window.recaptchaVerifier) {
       window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
         'size': 'invisible',
+        'callback': (response) => {
+          // reCAPTCHA solved, allow signInWithPhoneNumber.
+        }
       });
     }
   }, [auth]);
@@ -48,7 +48,7 @@ const LoginPage = () => {
       return;
     }
     if (!/^[6-9]\d{9}$/.test(phone)) {
-      toast.error('Enter a valid 10-digit Indian number');
+      toast.error('Enter a valid 10-digit Indian mobile number.');
       return;
     }
 
@@ -57,13 +57,12 @@ const LoginPage = () => {
       const verifier = window.recaptchaVerifier;
       const phoneNumber = `+91${phone}`;
       const result = await signInWithPhoneNumber(auth, phoneNumber, verifier);
-
       setConfirmationResult(result);
       setOtpSent(true);
       toast.success('OTP sent successfully!');
     } catch (error) {
       console.error("Error sending OTP:", error);
-      toast.error('Failed to send OTP. Please try again.');
+      toast.error('Failed to send OTP. Please refresh and try again.');
     } finally {
       setLoading(false);
     }
@@ -94,25 +93,21 @@ const LoginPage = () => {
     try {
       const credential = await confirmationResult.confirm(otp);
       const user = credential.user;
-      const userPhone = user.phoneNumber.slice(3);
-      const userId = user.uid;
-
-      await ensureUserExistsInFirebase(userId, userPhone);
-
+      const userPhone = user.phoneNumber.slice(3); // Remove +91
+      await ensureUserExistsInFirebase(user.uid, userPhone);
       setUserMobile(userPhone);
       toast.success('Login Successful!');
       navigate('/hello', { replace: true });
-
     } catch (error) {
       console.error("Error verifying OTP:", error);
-      toast.error('The OTP is incorrect or has expired.');
+      toast.error('The OTP is incorrect or has expired. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const termsContent = `<h2>Terms & Conditions</h2><p>Your full terms and conditions content goes here.</p>`;
-  const privacyContent = `<h2>Privacy Policy</h2><p>Your full privacy policy content goes here.</p>`;
+  const termsContent = `<h2>Terms & Conditions</h2><p>Your full terms and conditions content goes here.</p>`; // Replace with your actual content
+  const privacyContent = `<h2>Privacy Policy</h2><p>Your full privacy policy content goes here.</p>`; // Replace with your actual content
 
   const openModal = (content) => {
     setModalContent(content);
@@ -120,46 +115,65 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="login-container">
-      <div id="recaptcha-container"></div>
+    <>
+      <SEO
+        title="Login to Trade2Cart"
+        description="Login to your Trade2Cart account to schedule scrap pickups, view history, and manage your profile."
+      />
+      <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+        <div id="recaptcha-container"></div>
+        {isModalOpen && <Modal content={modalContent} onClose={() => setIsModalOpen(false)} />}
 
-      {isModalOpen && <Modal content={modalContent} onClose={() => setIsModalOpen(false)} />}
+        <div className="w-full max-w-md bg-white p-6 md:p-8 rounded-2xl shadow-lg">
+          <h1 className="text-2xl md:text-3xl font-bold text-center text-gray-800 mb-6">Login to Start</h1>
 
-      <h2>Login to Start</h2>
-
-      <div className="input-wrapper">
-        <span className="country-code">+91 -</span>
-        <input type="tel" placeholder="Enter mobile number" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={10} disabled={otpSent} />
-      </div>
-
-      {!otpSent && (
-        <div className="terms-container mt-4 space-y-2">
-          <div className="flex items-center">
-            <input type="checkbox" id="terms" checked={termsAccepted} onChange={() => setTermsAccepted(!termsAccepted)} className="h-4 w-4 rounded" />
-            <label htmlFor="terms" className="ml-2 text-sm text-gray-600">I agree to the <span onClick={() => openModal(termsContent)} className="text-blue-600 cursor-pointer underline">Terms & Conditions</span></label>
+          <div className="relative mb-4">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">+91</span>
+            <input
+              type="tel"
+              placeholder="Enter mobile number"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              maxLength={10}
+              disabled={otpSent}
+              className="w-full pl-12 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition disabled:bg-gray-100"
+            />
           </div>
-          <div className="flex items-center">
-            <input type="checkbox" id="privacy" checked={privacyAccepted} onChange={() => setPrivacyAccepted(!privacyAccepted)} className="h-4 w-4 rounded" />
-            <label htmlFor="privacy" className="ml-2 text-sm text-gray-600">I agree to the <span onClick={() => openModal(privacyContent)} className="text-blue-600 cursor-pointer underline">Privacy Policy</span></label>
-          </div>
+
+          {!otpSent ? (
+            <>
+              <div className="space-y-3 my-4">
+                <label htmlFor="terms" className="flex items-center space-x-3 cursor-pointer">
+                  <input type="checkbox" id="terms" checked={termsAccepted} onChange={() => setTermsAccepted(!termsAccepted)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                  <span className="text-sm text-gray-600">I agree to the <button onClick={() => openModal(termsContent)} className="text-blue-600 hover:underline font-medium">Terms & Conditions</button></span>
+                </label>
+                <label htmlFor="privacy" className="flex items-center space-x-3 cursor-pointer">
+                  <input type="checkbox" id="privacy" checked={privacyAccepted} onChange={() => setPrivacyAccepted(!privacyAccepted)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                  <span className="text-sm text-gray-600">I agree to the <button onClick={() => openModal(privacyContent)} className="text-blue-600 hover:underline font-medium">Privacy Policy</button></span>
+                </label>
+              </div>
+              <button onClick={handleGetOtp} className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400" disabled={loading || !termsAccepted || !privacyAccepted}>
+                {loading ? 'Sending...' : 'GET OTP'}
+              </button>
+            </>
+          ) : (
+            <>
+              <input
+                type="text"
+                placeholder="Enter 6-digit OTP"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                maxLength={6}
+                className="w-full p-3 mb-4 text-center tracking-[0.5em] border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+              />
+              <button onClick={handleVerify} className="w-full py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400" disabled={loading}>
+                {loading ? 'Verifying...' : 'Verify & Continue'}
+              </button>
+            </>
+          )}
         </div>
-      )}
-
-      {!otpSent ? (
-        <button onClick={handleGetOtp} className="get-otp-btn" disabled={loading || !termsAccepted || !privacyAccepted}>
-          {loading ? 'Sending...' : 'GET OTP'}
-        </button>
-      ) : (
-        <>
-          <div className="input-wrapper otp-field">
-            <input type="text" placeholder="Enter 6-digit OTP" value={otp} onChange={(e) => setOtp(e.target.value)} maxLength={6} />
-          </div>
-          <button className="verify-btn" onClick={handleVerify} disabled={loading}>
-            {loading ? 'Verifying...' : 'Verify & Continue'}
-          </button>
-        </>
-      )}
-    </div>
+      </main>
+    </>
   );
 };
 

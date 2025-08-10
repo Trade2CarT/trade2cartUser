@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
+import SEO from './components/SEO';
 import Splash from './components/Splash';
 import LanguageSelection from './components/LanguageSelection';
 import LocationPage from './components/LocationPage';
@@ -30,6 +31,27 @@ const ProtectedRoutes = () => {
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
 
+  // Your Schema Markup for Google
+  const schemaMarkup = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "name": "Trade2Cart",
+    "image": "https://trade2cart.in/logo.png",
+    "@id": "https://trade2cart.in",
+    "url": "https://trade2cart.in",
+    "telephone": "+91-9876543210", // Example phone number
+    "description": "Trade2Cart is an online scrap pickup service in India that connects sellers with verified scrap buyers. Book pickup online and get instant payment.",
+    "address": {
+      "@type": "PostalAddress",
+      "addressCountry": "IN"
+    },
+    "sameAs": [
+      "https://www.facebook.com/trade2cart",
+      "https://www.instagram.com/trade2cart",
+      "https://www.linkedin.com/company/trade2cart"
+    ]
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 2500);
     return () => clearTimeout(timer);
@@ -41,6 +63,14 @@ const App = () => {
 
   return (
     <ErrorBoundary>
+      {/* Default SEO for the entire App. Can be overridden by pages. */}
+      <SEO>
+        {/* Adding the JSON-LD Schema */}
+        <script type="application/ld+json">
+          {JSON.stringify(schemaMarkup)}
+        </script>
+      </SEO>
+
       <Router>
         <Toaster position="top-center" reverseOrder={false} />
         <Routes>

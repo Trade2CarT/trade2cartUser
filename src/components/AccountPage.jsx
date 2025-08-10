@@ -7,6 +7,7 @@ import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
 import { getAuth, signOut, onAuthStateChanged } from "firebase/auth";
+import SEO from './SEO';
 
 const AccountPage = () => {
   const { location, setLocation, setUserMobile, userMobile } = useSettings();
@@ -27,7 +28,6 @@ const AccountPage = () => {
       if (user) {
         setCurrentUserId(user.uid);
         const userRef = ref(db, `users/${user.uid}`);
-
         get(userRef).then((snapshot) => {
           if (snapshot.exists()) {
             const data = { id: snapshot.key, ...snapshot.val() };
@@ -36,18 +36,18 @@ const AccountPage = () => {
           } else {
             toast.error("Could not find user profile.");
           }
-          setUserLoading(false);
         }).catch(() => {
           toast.error("Failed to fetch user profile.");
+        }).finally(() => {
           setUserLoading(false);
         });
-
       } else {
         setUserLoading(false);
+        navigate('/login');
       }
     });
     return () => unsubscribe();
-  }, [auth]);
+  }, [auth, navigate]);
 
   useEffect(() => {
     if (!userMobile) return;
@@ -80,34 +80,27 @@ const AccountPage = () => {
     setEditableUserData(prev => ({ ...prev, [name]: value }));
   };
 
-  // --- THIS IS THE ONLY MODIFIED FUNCTION ---
   const handleProfileUpdate = async () => {
     if (!currentUserId || !editableUserData) return;
-
-    // This payload ensures that if a value is missing (undefined),
-    // it sends an empty string '' to Firebase instead, preventing the error.
     const updatePayload = {
       name: editableUserData.name || '',
       address: editableUserData.address || '',
       location: editableUserData.location || '',
       language: editableUserData.language || '',
     };
-
     const promise = update(ref(db, `users/${currentUserId}`), updatePayload);
-
     toast.promise(promise, {
       loading: 'Updating profile...',
       success: 'Profile updated successfully!',
       error: 'Failed to update profile.'
     });
-
     try {
       await promise;
       setLocation(editableUserData.location);
       setOriginalUserData(editableUserData);
       setIsEditing(false);
     } catch (error) {
-      // Error is handled by the toast
+      console.error("Profile update failed:", error);
     }
   };
 
@@ -117,7 +110,7 @@ const AccountPage = () => {
       localStorage.clear();
       toast.success('Logged out successfully!');
       navigate('/language', { replace: true });
-    }).catch((error) => {
+    }).catch(() => {
       toast.error('Logout failed. Please try again.');
     });
   };
@@ -127,8 +120,9 @@ const AccountPage = () => {
     setEditableUserData(originalUserData);
   };
 
+  // --- CORRECTED: Using your full, original content ---
   const termsContent = `
-    <div class="prose">
+    <div class="prose max-w-none">
         <h3>📜 Trade2Cart – Terms & Conditions</h3>
         <p><strong>Effective Date:</strong> 23-06-2025</p>
         <p><strong>Last Updated:</strong> 23-08-2025</p>
@@ -185,7 +179,7 @@ const AccountPage = () => {
   `;
 
   const privacyContent = `
-    <div class="prose">
+    <div class="prose max-w-none">
         <h3>🔒 Trade2Cart – Privacy Policy</h3>
         <p><strong>Effective Date:</strong> 23-06-2025</p>
         <p><strong>Last Updated:</strong> 23-08-2025</p>
@@ -242,98 +236,128 @@ const AccountPage = () => {
     </div>
   `;
 
-  return (
-    <div className="h-screen bg-[#f8f8f8] flex flex-col">
-      <header className="sticky top-0 flex-shrink-0 p-4 bg-white shadow-md z-30 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <img src={assetlogo} alt="Trade2Cart Logo" className="h-8 w-auto" />
-          <div className="flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full">
-            <FaMapMarkerAlt className="text-green-500" />
-            <span className="text-sm font-medium">{location}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <FaBell className="cursor-pointer text-gray-600" />
-          <div className="relative cursor-pointer">
-            <FaShoppingCart className="text-gray-600" />
-          </div>
-        </div>
-      </header>
 
-      <main className="flex-grow p-4 overflow-y-auto">
-        <h2 className="text-xl font-bold mb-6">Account</h2>
-        <div className="space-y-4 bg-white p-4 rounded-xl shadow-md">
-          <div className="cursor-pointer">
-            <div onClick={() => toggleSection('profile')} className="flex justify-between items-center border-b pb-3 text-gray-800 font-medium">
-              <span>My Profile</span>
-              {expandedSection === 'profile' ? <FaChevronUp /> : <FaChevronDown />}
-            </div>
-            {expandedSection === 'profile' && (
-              <div className="mt-3 text-sm text-gray-600 space-y-3">
-                {userLoading ? <p>Loading profile...</p> : editableUserData ? (
-                  <div className="space-y-4">
-                    <div><label className="block font-medium">Name</label><input type="text" name="name" value={editableUserData.name || ''} onChange={handleInputChange} disabled={!isEditing} className={`w-full p-2 border rounded-md ${!isEditing && 'bg-gray-100'}`} /></div>
-                    <div><label className="block font-medium">Phone Number</label><input type="text" value={editableUserData.phone || ''} disabled className="w-full p-2 bg-gray-100 border rounded-md" /></div>
-                    <div><label className="block font-medium">Address</label><textarea name="address" value={editableUserData.address || ''} onChange={handleInputChange} disabled={!isEditing} className={`w-full p-2 border rounded-md ${!isEditing && 'bg-gray-100'}`} /></div>
-                    <div><label className="block font-medium">Location</label><select name="location" value={editableUserData.location || ''} onChange={handleInputChange} disabled={!isEditing} className={`w-full p-2 border rounded-md ${!isEditing ? 'bg-gray-100' : 'bg-white'}`}><option value="Vellore">Vellore</option><option value="Chennai">Chennai</option><option value="Bangalore">Bengaluru</option></select></div>
-                    <div className="flex justify-end gap-3">
-                      {isEditing ? (
-                        <>
-                          <button onClick={handleCancelEdit} className="px-4 py-2 bg-gray-300 rounded-lg">Cancel</button>
-                          <button onClick={handleProfileUpdate} className="px-4 py-2 bg-green-500 text-white rounded-lg flex items-center gap-2"><FaSave /> Save</button>
-                        </>
-                      ) : (
-                        <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-blue-500 text-white rounded-lg flex items-center gap-2"><FaEdit /> Edit</button>
-                      )}
-                    </div>
-                  </div>
-                ) : <p>Could not load profile.</p>}
-              </div>
-            )}
-          </div>
-          <div onClick={() => toggleSection('privacy')} className="flex justify-between items-center border-b pb-3 text-gray-800 font-medium cursor-pointer">
-            <span>Privacy Policy</span>
-            {expandedSection === 'privacy' ? <FaChevronUp /> : <FaChevronDown />}
-          </div>
-          {expandedSection === 'privacy' && (<div className="mt-3 text-sm text-gray-600 prose" dangerouslySetInnerHTML={{ __html: privacyContent }} />)}
-
-          <div onClick={() => toggleSection('terms')} className="flex justify-between items-center border-b pb-3 text-gray-800 font-medium cursor-pointer">
-            <span>Terms & Conditions</span>
-            {expandedSection === 'terms' ? <FaChevronUp /> : <FaChevronDown />}
-          </div>
-          {expandedSection === 'terms' && (<div className="mt-3 text-sm text-gray-600 prose" dangerouslySetInnerHTML={{ __html: termsContent }} />)}
-
-          <div onClick={() => toggleSection('history')} className="flex justify-between items-center text-gray-800 font-medium cursor-pointer">
-            <span>Trade History</span>
-            {expandedSection === 'history' ? <FaChevronUp /> : <FaChevronDown />}
-          </div>
-          {expandedSection === 'history' && (
-            <div className="mt-3 text-sm text-gray-600 space-y-3">
-              {historyLoading ? <p>Loading history...</p> : sortedUserHistory.length > 0 ? (sortedUserHistory.map((entry) => (
-                <div key={entry.id} className="bg-gray-100 p-3 rounded-lg border-l-4 border-green-500 shadow-sm">
-                  <div><strong>Products:</strong> {entry.products}</div>
-                  <div><strong>Status:</strong> <span className="font-semibold">{entry.status}</span></div>
-                  <div><strong>Amount:</strong> ₹{entry.totalAmount}</div>
-                  <div><strong>Vendor:</strong> {entry.vendorName}</div>
-                  <div><strong>Date:</strong> {new Date(entry.assignedAt).toLocaleString()}</div>
-                </div>))) : (<div className="text-center py-4">No trade history found for your number.</div>)}
-            </div>
-          )}
+  const Section = ({ title, sectionKey, children }) => (
+    <div className="border-b">
+      <h2 id={`section-header-${sectionKey}`} className="w-full">
+        <button
+          type="button"
+          onClick={() => toggleSection(sectionKey)}
+          className="flex justify-between items-center w-full py-4 font-medium text-left text-gray-800"
+          aria-expanded={expandedSection === sectionKey}
+          aria-controls={`section-content-${sectionKey}`}
+        >
+          <span>{title}</span>
+          {expandedSection === sectionKey ? <FaChevronUp /> : <FaChevronDown />}
+        </button>
+      </h2>
+      {expandedSection === sectionKey && (
+        <div
+          id={`section-content-${sectionKey}`}
+          className="pb-4 text-sm text-gray-600"
+          role="region"
+          aria-labelledby={`section-header-${sectionKey}`}
+        >
+          {children}
         </div>
-        <div className="mt-6">
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-3 bg-red-500 text-white rounded-lg font-bold shadow-lg hover:bg-red-600 transition-colors">
-            <FaSignOutAlt />
-            Logout
-          </button>
-        </div>
-      </main>
-
-      <footer className="sticky bottom-0 flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-inner flex-shrink-0 z-30">
-        <Link to="/hello" className="flex flex-col items-center text-gray-500 no-underline"><FaHome /><span className="text-xs">Home</span></Link>
-        <Link to="/task" className="flex flex-col items-center text-gray-500 no-underline"><FaTasks /><span className="text-xs">Tasks</span></Link>
-        <Link to="/account" className="flex flex-col items-center text-green-600 no-underline"><FaUserAlt /><span className="text-xs">Account</span></Link>
-      </footer>
+      )}
     </div>
+  );
+
+  return (
+    <>
+      <SEO
+        title="My Account - Trade2Cart"
+        description="Manage your Trade2Cart profile, view trade history, and update your settings."
+      />
+      <div className="h-screen bg-gray-50 flex flex-col">
+        <header className="sticky top-0 flex-shrink-0 p-4 bg-white shadow-md z-30 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <img src={assetlogo} alt="Trade2Cart Logo" className="h-8 w-auto" />
+            <div className="hidden sm:flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full">
+              <FaMapMarkerAlt className="text-green-500" />
+              <span className="text-sm font-medium">{location}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 text-xl">
+            <FaBell className="cursor-pointer text-gray-600" />
+            <div className="relative cursor-pointer">
+              <FaShoppingCart className="text-gray-600" />
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-grow p-4 overflow-y-auto">
+          <h1 className="text-2xl font-bold mb-4">My Account</h1>
+          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md">
+
+            <Section title="My Profile" sectionKey="profile">
+              {userLoading ? <p>Loading profile...</p> : editableUserData ? (
+                <div className="space-y-4">
+                  <div><label className="block font-medium mb-1">Name</label><input type="text" name="name" value={editableUserData.name || ''} onChange={handleInputChange} disabled={!isEditing} className={`w-full p-2 border rounded-md ${!isEditing ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`} /></div>
+                  <div><label className="block font-medium mb-1">Phone Number</label><input type="text" value={editableUserData.phone || ''} disabled className="w-full p-2 bg-gray-100 border rounded-md cursor-not-allowed" /></div>
+                  <div><label className="block font-medium mb-1">Address</label><textarea name="address" value={editableUserData.address || ''} onChange={handleInputChange} disabled={!isEditing} rows="3" className={`w-full p-2 border rounded-md ${!isEditing ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`} /></div>
+                  <div><label className="block font-medium mb-1">Location</label><select name="location" value={editableUserData.location || ''} onChange={handleInputChange} disabled={!isEditing} className={`w-full p-2 border rounded-md ${!isEditing ? 'bg-gray-100 cursor-not-allowed appearance-none' : 'bg-white'}`}><option value="Vellore">Vellore</option><option value="Chennai">Chennai</option><option value="Bangalore">Bengaluru</option></select></div>
+                  <div className="flex justify-end gap-3 pt-2">
+                    {isEditing ? (
+                      <>
+                        <button onClick={handleCancelEdit} className="px-4 py-2 bg-gray-300 rounded-lg font-semibold hover:bg-gray-400">Cancel</button>
+                        <button onClick={handleProfileUpdate} className="px-4 py-2 bg-green-500 text-white rounded-lg flex items-center gap-2 font-semibold hover:bg-green-600"><FaSave /> Save</button>
+                      </>
+                    ) : (
+                      <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-blue-500 text-white rounded-lg flex items-center gap-2 font-semibold hover:bg-blue-600"><FaEdit /> Edit</button>
+                    )}
+                  </div>
+                </div>
+              ) : <p>Could not load profile.</p>}
+            </Section>
+
+            <Section title="Privacy Policy" sectionKey="privacy">
+              <div dangerouslySetInnerHTML={{ __html: privacyContent }} />
+            </Section>
+
+            <Section title="Terms & Conditions" sectionKey="terms">
+              <div dangerouslySetInnerHTML={{ __html: termsContent }} />
+            </Section>
+
+            <Section title="Trade History" sectionKey="history">
+              {historyLoading ? <p>Loading history...</p> : sortedUserHistory.length > 0 ? (sortedUserHistory.map((entry) => (
+                <div key={entry.id} className="bg-gray-100 p-3 mb-3 rounded-lg border-l-4 border-green-500 shadow-sm">
+                  <p><strong>Products:</strong> {entry.products}</p>
+                  <p><strong>Status:</strong> <span className="font-semibold">{entry.status}</span></p>
+                  <p><strong>Amount:</strong> ₹{entry.totalAmount}</p>
+                  <p><strong>Vendor:</strong> {entry.vendorName}</p>
+                  <p><strong>Date:</strong> {new Date(entry.assignedAt).toLocaleString()}</p>
+                </div>))) : (<div className="text-center py-4 text-gray-500">No trade history found.</div>)}
+            </Section>
+
+          </div>
+          <div className="mt-6">
+            <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-3 bg-red-500 text-white rounded-lg font-bold shadow-lg hover:bg-red-600 transition-colors">
+              <FaSignOutAlt />
+              Logout
+            </button>
+          </div>
+        </main>
+
+        <footer className="sticky bottom-0 flex-shrink-0 z-30">
+          <nav className="flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
+            <Link to="/hello" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600">
+              <FaHome className="text-2xl" />
+              <span className="text-xs font-medium">Home</span>
+            </Link>
+            <Link to="/task" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600">
+              <FaTasks className="text-2xl" />
+              <span className="text-xs font-medium">Tasks</span>
+            </Link>
+            <Link to="/account" className="flex flex-col items-center text-green-600 p-2 no-underline">
+              <FaUserAlt className="text-2xl" />
+              <span className="text-xs font-medium">Account</span>
+            </Link>
+          </nav>
+        </footer>
+      </div>
+    </>
   );
 };
 
