@@ -1,18 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaHome, FaTasks, FaUserAlt, FaChevronDown, FaChevronUp, FaMapMarkerAlt, FaBell, FaShoppingCart, FaSignOutAlt } from 'react-icons/fa';
-import { db } from '../firebase';
-// --- FIX: Added 'get' to this import statement ---
-import { ref, update, get } from 'firebase/database';
+import { db, get } from '../firebase';
+import { ref, update } from 'firebase/database';
 import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
 import { getAuth, signOut, onAuthStateChanged } from "firebase/auth";
 import SEO from './SEO';
 
-// Import the new components
+// Import the modular components
 import ProfileSection from './account/ProfileSection';
-import PolicySection from './account/PolicySection';
+import PoliciesAndTerms from './account/PoliciesAndTerms'; // Updated import
 import TradeHistorySection from './account/TradeHistorySection';
 
 const AccountPage = () => {
@@ -32,7 +31,6 @@ const AccountPage = () => {
       if (user) {
         setCurrentUserId(user.uid);
         const userRef = ref(db, `users/${user.uid}`);
-        // This 'get' function was causing the error because it wasn't imported
         get(userRef).then((snapshot) => {
           if (snapshot.exists()) {
             const data = { id: snapshot.key, ...snapshot.val() };
@@ -89,9 +87,6 @@ const AccountPage = () => {
     </div>
   );
 
-  const termsContent = `...`; // Your full T&C HTML
-  const privacyContent = `...`; // Your full Privacy Policy HTML
-
   return (
     <>
       <SEO title="My Account - Trade2Cart" description="Manage your profile, view history, and download bills." />
@@ -115,12 +110,9 @@ const AccountPage = () => {
               />
             </Section>
 
-            <Section title="Privacy Policy" sectionKey="privacy">
-              <PolicySection content={privacyContent} />
-            </Section>
-
-            <Section title="Terms & Conditions" sectionKey="terms">
-              <PolicySection content={termsContent} />
+            {/* --- MODIFIED: Uses the new self-contained component --- */}
+            <Section title="Policies & Terms" sectionKey="policies">
+              <PoliciesAndTerms />
             </Section>
 
             <Section title="Trade History" sectionKey="history">
