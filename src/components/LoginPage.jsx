@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
@@ -19,23 +19,29 @@ const Modal = ({ content, onClose }) => (
 );
 
 const LoginPage = () => {
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [confirmationResult, setConfirmationResult] = useState(null);
-  const [otpSent, setOtpSent] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalContent, setModalContent] = useState('');
+  const [phone, setPhone] = React.useState('');
+  const [otp, setOtp] = React.useState('');
+  const [confirmationResult, setConfirmationResult] = React.useState(null);
+  const [otpSent, setOtpSent] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [termsAccepted, setTermsAccepted] = React.useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = React.useState(false);
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [modalContent, setModalContent] = React.useState('');
 
   const { setUserMobile, location, language } = useSettings();
   const navigate = useNavigate();
   const auth = getAuth();
 
-  // The useEffect hook for reCAPTCHA has been removed.
+  // Set up the reCAPTCHA verifier once when the component loads
+  React.useEffect(() => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        'size': 'invisible',
+      });
+    }
+  }, [auth]);
 
-  // --- THIS IS THE FINAL, CORRECTED OTP FUNCTION ---
   const handleGetOtp = async () => {
     if (!termsAccepted || !privacyAccepted) {
       toast.error("Please accept the Terms & Conditions and Privacy Policy.");
@@ -47,30 +53,14 @@ const LoginPage = () => {
     }
 
     setLoading(true);
-
     try {
-      // 1. Clear any old verifier instance to prevent errors
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-      }
-
-      // 2. Create a brand new verifier for this specific attempt
-      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        'size': 'invisible',
-      });
-
-      // Store it on the window object so it can be cleared next time
-      window.recaptchaVerifier = verifier;
-
+      const verifier = window.recaptchaVerifier;
       const phoneNumber = `+91${phone}`;
-
-      // 3. Use the new verifier to send the OTP
       const result = await signInWithPhoneNumber(auth, phoneNumber, verifier);
 
       setConfirmationResult(result);
       setOtpSent(true);
       toast.success('OTP sent successfully!');
-
     } catch (error) {
       console.error("Error sending OTP:", error);
       toast.error('Failed to send OTP. Please try again.');
