@@ -1,8 +1,11 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaHome, FaTasks, FaUserAlt, FaChevronDown, FaChevronUp, FaMapMarkerAlt, FaBell, FaShoppingCart, FaEdit, FaSave, FaSignOutAlt, FaExclamationTriangle } from 'react-icons/fa';
+import { FaHome, FaTasks, FaUserAlt, FaChevronDown, FaChevronUp, FaMapMarkerAlt, FaBell, FaShoppingCart, FaEdit, FaSave, FaSignOutAlt, FaExclamationTriangle, FaDownload, FaSpinner } from 'react-icons/fa';
 import { db, firebaseObjectToArray } from '../firebase';
 import { ref, query, orderByChild, equalTo, get, update } from 'firebase/database';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import BillTemplate from './BillTemplate';
 import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
@@ -22,6 +25,9 @@ const AccountPage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [userLoading, setUserLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [billData, setBillData] = useState(null);
+  const [isDownloading, setIsDownloading] = useState(null);
+  const billTemplateRef = useRef(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -36,11 +42,8 @@ const AccountPage = () => {
           } else {
             toast.error("Could not find user profile.");
           }
-        }).catch(() => {
-          toast.error("Failed to fetch user profile.");
-        }).finally(() => {
-          setUserLoading(false);
-        });
+        }).catch(() => toast.error("Failed to fetch user profile."))
+          .finally(() => setUserLoading(false));
       } else {
         setUserLoading(false);
         navigate('/login');
@@ -70,7 +73,6 @@ const AccountPage = () => {
   const processedUserHistory = useMemo(() => {
     const now = new Date();
     const SEVEN_DAYS_IN_MS = 7 * 24 * 60 * 60 * 1000;
-
     return userHistory
       .map(entry => {
         if (!entry.assignedAt) return null;
@@ -78,11 +80,7 @@ const AccountPage = () => {
         if (isNaN(assignedDate.getTime())) return null;
         const expiryDate = new Date(assignedDate.getTime() + SEVEN_DAYS_IN_MS);
         const remainingTime = expiryDate.getTime() - now.getTime();
-
-        if (remainingTime < 0) {
-          return null;
-        }
-
+        if (remainingTime < 0) return null;
         const remainingDays = Math.ceil(remainingTime / (1000 * 60 * 60 * 24));
         return { ...entry, remainingDays };
       })
@@ -90,14 +88,64 @@ const AccountPage = () => {
       .sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt));
   }, [userHistory]);
 
-  const toggleSection = (section) => {
-    setExpandedSection(prev => (prev === section ? null : section));
+  const handleDownloadBill = async (tradeEntry) => {
+    const assignmentId = tradeEntry.id;
+    setIsDownloading(assignmentId);
+    try {
+      const billsRef = ref(db, 'bills');
+      const billQuery = query(billsRef, orderByChild('assignmentID'), equalTo(assignmentId));
+      const snapshot = await get(billQuery);
+
+      if (!snapshot.exists()) {
+        toast.error("Bill details not found for this trade.");
+        setIsDownloading(null);
+        return;
+      }
+
+      const billDetails = firebaseObjectToArray(snapshot)[0];
+      const completeBillData = {
+        id: assignmentId,
+        assignedAt: tradeEntry.assignedAt,
+        vendorName: tradeEntry.vendorName,
+        userName: originalUserData?.name,
+        address: originalUserData?.address,
+        totalAmount: billDetails.totalBill,
+        products: billDetails.billItems.map(item => ({
+          name: item.name,
+          quantity: item.weight,
+          unit: 'kg',
+          rate: item.rate,
+          total: item.total
+        }))
+      };
+
+      setBillData(completeBillData);
+
+      setTimeout(() => {
+        const input = billTemplateRef.current;
+        if (input) {
+          html2canvas(input, { scale: 2 }).then((canvas) => {
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`invoice-${assignmentId.slice(-6)}.pdf`);
+            setBillData(null);
+            setIsDownloading(null);
+          });
+        } else {
+          setIsDownloading(null);
+        }
+      }, 500);
+    } catch (error) {
+      toast.error("Could not download bill. Please try again.");
+      setIsDownloading(null);
+    }
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setEditableUserData(prev => ({ ...prev, [name]: value }));
-  };
+  const toggleSection = (section) => setExpandedSection(prev => (prev === section ? null : section));
+  const handleInputChange = (e) => setEditableUserData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
   const handleProfileUpdate = async () => {
     if (!currentUserId || !editableUserData) return;
@@ -113,13 +161,14 @@ const AccountPage = () => {
       success: 'Profile updated successfully!',
       error: 'Failed to update profile.'
     });
+
     try {
       await promise;
       setLocation(editableUserData.location);
       setOriginalUserData(editableUserData);
       setIsEditing(false);
     } catch (error) {
-      console.error("Profile update failed:", error);
+      // Error is handled by the toast
     }
   };
 
@@ -129,7 +178,7 @@ const AccountPage = () => {
       localStorage.clear();
       toast.success('Logged out successfully!');
       navigate('/language', { replace: true });
-    }).catch(() => {
+    }).catch((error) => {
       toast.error('Logout failed. Please try again.');
     });
   };
@@ -139,7 +188,6 @@ const AccountPage = () => {
     setEditableUserData(originalUserData);
   };
 
-  // --- CORRECTED: Full Privacy Policy and Terms & Conditions content restored ---
   const termsContent = `
     <div class="prose max-w-none">
         <h3>📜 Trade2Cart – Terms & Conditions</h3>
@@ -192,37 +240,21 @@ const AccountPage = () => {
 
   const Section = ({ title, sectionKey, children }) => (
     <div className="border-b">
-      <h2 id={`section-header-${sectionKey}`} className="w-full">
-        <button
-          type="button"
-          onClick={() => toggleSection(sectionKey)}
-          className="flex justify-between items-center w-full py-4 font-medium text-left text-gray-800"
-          aria-expanded={expandedSection === sectionKey}
-          aria-controls={`section-content-${sectionKey}`}
-        >
-          <span>{title}</span>
-          {expandedSection === sectionKey ? <FaChevronUp /> : <FaChevronDown />}
-        </button>
-      </h2>
-      {expandedSection === sectionKey && (
-        <div
-          id={`section-content-${sectionKey}`}
-          className="pb-4 text-sm text-gray-600"
-          role="region"
-          aria-labelledby={`section-header-${sectionKey}`}
-        >
-          {children}
-        </div>
-      )}
+      <button onClick={() => toggleSection(sectionKey)} className="flex justify-between items-center w-full py-4 font-medium text-left text-gray-800">
+        <span>{title}</span>
+        {expandedSection === sectionKey ? <FaChevronUp /> : <FaChevronDown />}
+      </button>
+      {expandedSection === sectionKey && <div className="pb-4 text-sm text-gray-600">{children}</div>}
     </div>
   );
 
   return (
     <>
-      <SEO
-        title="My Account - Trade2Cart"
-        description="Manage your Trade2Cart profile, view trade history, and update your settings."
-      />
+      <SEO title="My Account - Trade2Cart" description="Manage your profile, view history, and download bills." />
+      <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+        <BillTemplate trade={billData} billRef={billTemplateRef} />
+      </div>
+
       <div className="h-screen bg-gray-50 flex flex-col">
         <header className="sticky top-0 flex-shrink-0 p-4 bg-white shadow-md z-30 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -241,25 +273,32 @@ const AccountPage = () => {
         <main className="flex-grow p-4 overflow-y-auto">
           <h1 className="text-2xl font-bold mb-4">My Account</h1>
           <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md">
-
             <Section title="My Profile" sectionKey="profile">
-              {/* Profile editing UI remains the same */}
+              {userLoading ? <p>Loading profile...</p> : editableUserData ? (
+                <div className="space-y-4">
+                  <div><label className="block font-medium mb-1">Name</label><input type="text" name="name" value={editableUserData.name || ''} onChange={handleInputChange} disabled={!isEditing} className={`w-full p-2 border rounded-md ${!isEditing ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`} /></div>
+                  <div><label className="block font-medium mb-1">Phone Number</label><input type="text" value={editableUserData.phone || ''} disabled className="w-full p-2 bg-gray-100 border rounded-md cursor-not-allowed" /></div>
+                  <div><label className="block font-medium mb-1">Address</label><textarea name="address" value={editableUserData.address || ''} onChange={handleInputChange} disabled={!isEditing} rows="3" className={`w-full p-2 border rounded-md ${!isEditing ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`} /></div>
+                  <div><label className="block font-medium mb-1">Location</label><select name="location" value={editableUserData.location || ''} onChange={handleInputChange} disabled={!isEditing} className={`w-full p-2 border rounded-md ${!isEditing ? 'bg-gray-100 cursor-not-allowed appearance-none' : 'bg-white'}`}><option value="Vellore">Vellore</option><option value="Chennai">Chennai</option><option value="Bangalore">Bengaluru</option></select></div>
+                  <div className="flex justify-end gap-3 pt-2">
+                    {isEditing ? (
+                      <>
+                        <button onClick={handleCancelEdit} className="px-4 py-2 bg-gray-300 rounded-lg font-semibold hover:bg-gray-400">Cancel</button>
+                        <button onClick={handleProfileUpdate} className="px-4 py-2 bg-green-500 text-white rounded-lg flex items-center gap-2 font-semibold hover:bg-green-600"><FaSave /> Save</button>
+                      </>
+                    ) : (
+                      <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-blue-500 text-white rounded-lg flex items-center gap-2 font-semibold hover:bg-blue-600"><FaEdit /> Edit</button>
+                    )}
+                  </div>
+                </div>
+              ) : <p>Could not load profile.</p>}
             </Section>
-
-            <Section title="Privacy Policy" sectionKey="privacy">
-              <div dangerouslySetInnerHTML={{ __html: privacyContent }} />
-            </Section>
-
-            <Section title="Terms & Conditions" sectionKey="terms">
-              <div dangerouslySetInnerHTML={{ __html: termsContent }} />
-            </Section>
+            <Section title="Privacy Policy" sectionKey="privacy"><div dangerouslySetInnerHTML={{ __html: privacyContent }} /></Section>
+            <Section title="Terms & Conditions" sectionKey="terms"><div dangerouslySetInnerHTML={{ __html: termsContent }} /></Section>
 
             <Section title="Trade History" sectionKey="history">
               <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-3 rounded-md mb-4 text-sm" role="alert">
-                <div className="flex items-center gap-2">
-                  <FaExclamationTriangle />
-                  <p>To protect your privacy, trade history is deleted after 7 days.</p>
-                </div>
+                <div className="flex items-center gap-2"><FaExclamationTriangle /> <p>To protect your privacy, trade history is deleted after 7 days.</p></div>
               </div>
 
               {historyLoading ? <p>Loading history...</p> : processedUserHistory.length > 0 ? (
@@ -272,9 +311,15 @@ const AccountPage = () => {
                       <p><strong>Vendor:</strong> {entry.vendorName}</p>
                       <p><strong>Date:</strong> {new Date(entry.assignedAt).toLocaleString()}</p>
                     </div>
-                    <p className="text-xs text-center text-red-600 font-semibold">
-                      Deletes in {entry.remainingDays} {entry.remainingDays > 1 ? 'days' : 'day'}
-                    </p>
+                    <div className="flex justify-between items-center pt-2">
+                      <p className="text-xs text-red-600 font-semibold">Deletes in {entry.remainingDays} {entry.remainingDays > 1 ? 'days' : 'day'}</p>
+                      {entry.status === 'Completed' && (
+                        <button onClick={() => handleDownloadBill(entry)} disabled={isDownloading === entry.id} className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold py-1 px-3 rounded-md hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-wait">
+                          {isDownloading === entry.id ? <FaSpinner className="animate-spin" /> : <FaDownload />}
+                          {isDownloading === entry.id ? 'Preparing...' : 'Download Bill'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))
               ) : (
@@ -284,14 +329,13 @@ const AccountPage = () => {
           </div>
 
           <div className="mt-6">
-            <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-3 bg-red-500 text-white rounded-lg font-bold shadow-lg hover:bg-red-600 transition-colors">
-              <FaSignOutAlt />
-              Logout
+            <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-3 bg-red-500 text-white rounded-lg font-bold shadow-lg hover:bg-red-600">
+              <FaSignOutAlt /> Logout
             </button>
           </div>
         </main>
 
-        <footer className="sticky bottom-0 flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)] flex-shrink-0 z-30">
+        <footer className="sticky bottom-0 flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
           <Link to="/hello" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaHome className="text-2xl" /><span className="text-xs font-medium">Home</span></Link>
           <Link to="/task" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaTasks className="text-2xl" /><span className="text-xs font-medium">Tasks</span></Link>
           <Link to="/account" className="flex flex-col items-center text-green-600 p-2 no-underline"><FaUserAlt className="text-2xl" /><span className="text-xs font-medium">Account</span></Link>
