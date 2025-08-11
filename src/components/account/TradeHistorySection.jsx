@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { FaExclamationTriangle, FaDownload, FaSpinner, FaUser, FaBoxOpen, FaRupeeSign } from 'react-icons/fa';
+import { FaExclamationTriangle, FaDownload, FaSpinner, FaUser, FaBoxOpen, FaRupeeSign, FaEye } from 'react-icons/fa'; // --- MODIFIED: Added FaEye icon
 import { db, firebaseObjectToArray } from '../../firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
 import jsPDF from 'jspdf';
@@ -15,11 +15,12 @@ const StatusBadge = ({ status }) => {
     );
 };
 
-const TradeHistorySection = ({ userMobile, originalUserData }) => {
+// --- MODIFIED: Component now accepts the `onViewBill` prop ---
+const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     const [userHistory, setUserHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(true);
-    const [billData, setBillData] = useState(null);
-    const [isDownloading, setIsDownloading] = useState(null);
+    const [billDataForPdf, setBillDataForPdf] = useState(null);
+    const [isProcessing, setIsProcessing] = useState(null); // --- MODIFIED: Generic loading state
     const billTemplateRef = useRef(null);
 
     // Fetch history
@@ -61,103 +62,97 @@ const TradeHistorySection = ({ userMobile, originalUserData }) => {
 
     // Generate PDF when billData is ready
     useEffect(() => {
-        if (billData && billTemplateRef.current) {
+        if (billDataForPdf && billTemplateRef.current) {
             setTimeout(() => {
                 html2canvas(billTemplateRef.current, { scale: 2 })
                     .then((canvas) => {
                         const imgData = canvas.toDataURL('image/png');
                         const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-                        pdf.addImage(
-                            imgData,
-                            'PNG',
-                            0,
-                            0,
-                            pdf.internal.pageSize.getWidth(),
-                            pdf.internal.pageSize.getHeight()
-                        );
-                        pdf.save(`invoice-${billData.id.slice(-6)}.pdf`);
+                        pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+                        pdf.save(`invoice-${billDataForPdf.id.slice(-6)}.pdf`);
                     })
                     .catch(() => toast.error("Could not generate PDF."))
                     .finally(() => {
-                        setBillData(null);
-                        setIsDownloading(null);
+                        setBillDataForPdf(null);
+                        setIsProcessing(null);
                     });
-            }, 200); // slight delay to ensure render
+            }, 200);
         }
-    }, [billData]);
+    }, [billDataForPdf]);
 
-    // Handle click to prepare bill data
-    const handleDownloadBill = async (tradeEntry) => {
+    // --- ADDED: Reusable function to fetch and construct bill data ---
+    const fetchAndConstructBill = async (tradeEntry) => {
         const assignmentId = tradeEntry.id;
-        setIsDownloading(assignmentId);
-
         try {
-            console.log("🔍 Fetching bill for assignment ID:", assignmentId);
-
             const billsRef = ref(db, 'bills');
             const billQuery = query(billsRef, orderByChild('assignmentID'), equalTo(assignmentId));
             const snapshot = await get(billQuery);
 
-            // Log raw snapshot for debugging
-            console.log("📦 Raw bill snapshot value:", snapshot.val());
-
             if (!snapshot.exists()) {
                 toast.error("Bill details not found for this trade.");
-                setIsDownloading(null);
-                return;
+                return null;
             }
 
-            const billsArray = firebaseObjectToArray(snapshot.val());
-            console.log("📜 Parsed bill array:", billsArray);
-
+            const billsArray = firebaseObjectToArray(snapshot);
             const billDetails = billsArray[0];
+
             if (!billDetails) {
                 toast.error("Bill data is empty.");
-                setIsDownloading(null);
-                return;
+                return null;
             }
 
-            console.log("✅ Bill details found:", billDetails);
-
-            const completeBillData = {
+            return {
                 id: assignmentId,
                 assignedAt: tradeEntry.assignedAt,
                 vendorName: tradeEntry.vendorName,
                 userName: originalUserData?.name,
                 address: originalUserData?.address,
+                phone: userMobile, // Pass phone to bill template
                 totalAmount: billDetails.totalBill,
                 products: billDetails.billItems.map(item => ({
-                    name: item.name,
+                    name: item.item, // Corrected mapping
                     quantity: item.weight,
-                    unit: 'kg',
+                    unit: item.unit || 'kg', // Use unit from bill or default
                     rate: item.rate,
                     total: item.total
                 }))
             };
-
-            setBillData(completeBillData);
-
         } catch (error) {
-            console.error("❌ Error fetching bill:", error);
-            toast.error("Could not download bill.");
-            setIsDownloading(null);
+            console.error("Error fetching bill:", error);
+            toast.error("Could not retrieve bill details.");
+            return null;
         }
+    };
+
+    const handleDownloadBill = async (tradeEntry) => {
+        setIsProcessing({ id: tradeEntry.id, type: 'download' });
+        const completeBillData = await fetchAndConstructBill(tradeEntry);
+        if (completeBillData) {
+            setBillDataForPdf(completeBillData); // This triggers the PDF generation useEffect
+        } else {
+            setIsProcessing(null);
+        }
+    };
+
+    // --- ADDED: Handler for the new 'View Bill' button ---
+    const handleViewBill = async (tradeEntry) => {
+        setIsProcessing({ id: tradeEntry.id, type: 'view' });
+        const completeBillData = await fetchAndConstructBill(tradeEntry);
+        if (completeBillData) {
+            onViewBill(completeBillData); // Pass data up to AccountPage to open the modal
+        }
+        setIsProcessing(null); // Reset loading state
     };
 
 
     return (
         <>
-            {/* Hidden bill template for capture */}
             <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-                <BillTemplate trade={billData} billRef={billTemplateRef} />
+                <BillTemplate trade={billDataForPdf} billRef={billTemplateRef} />
             </div>
 
-            {/* Info banner */}
             <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-3 rounded-md mb-4 text-sm" role="alert">
-                <div className="flex items-center gap-2">
-                    <FaExclamationTriangle />
-                    <p>Completed trade history is deleted after 7 days.</p>
-                </div>
+                <div className="flex items-center gap-2"><FaExclamationTriangle /><p>Completed trade history is deleted after 7 days.</p></div>
             </div>
 
             {historyLoading ? (
@@ -168,40 +163,33 @@ const TradeHistorySection = ({ userMobile, originalUserData }) => {
                         <div key={entry.id} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
                             <div className="p-3 bg-gray-50 flex justify-between items-center">
                                 <StatusBadge status={entry.status} />
-                                <p className="text-xs text-gray-500 font-medium">
-                                    {new Date(entry.assignedAt).toLocaleDateString()}
-                                </p>
+                                <p className="text-xs text-gray-500 font-medium">{new Date(entry.assignedAt).toLocaleDateString()}</p>
                             </div>
                             <div className="p-4 space-y-3">
-                                <div className="flex items-center gap-3">
-                                    <FaUser className="text-gray-400" />
-                                    <p className="text-sm text-gray-700">
-                                        Vendor: <span className="font-bold">{entry.vendorName}</span>
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <FaBoxOpen className="text-gray-400" />
-                                    <p className="text-sm text-gray-700">
-                                        Products: <span className="font-semibold">{entry.products}</span>
-                                    </p>
-                                </div>
+                                <div className="flex items-center gap-3"><FaUser className="text-gray-400" /><p className="text-sm text-gray-700">Vendor: <span className="font-bold">{entry.vendorName}</span></p></div>
+                                <div className="flex items-center gap-3"><FaBoxOpen className="text-gray-400" /><p className="text-sm text-gray-700">Products: <span className="font-semibold">{entry.products}</span></p></div>
                             </div>
                             <div className="p-3 bg-gray-50 flex justify-between items-center">
-                                <div className="flex items-center gap-1">
-                                    <FaRupeeSign className="text-green-600" />
-                                    <p className="text-lg font-bold text-green-600">{entry.totalAmount}</p>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    <p className="text-xs text-red-600 font-medium">
-                                        Deletes in {entry.remainingDays} {entry.remainingDays > 1 ? 'days' : 'day'}
-                                    </p>
+                                <div className="flex items-center gap-1"><FaRupeeSign className="text-green-600" /><p className="text-lg font-bold text-green-600">{entry.totalAmount}</p></div>
+                                <div className="flex items-center gap-2 sm:gap-4">
+                                    <p className="text-xs text-red-600 font-medium hidden sm:block">Deletes in {entry.remainingDays} {entry.remainingDays > 1 ? 'days' : 'day'}</p>
+
+                                    {/* --- ADDED: 'View Bill' button --- */}
+                                    <button
+                                        onClick={() => handleViewBill(entry)}
+                                        disabled={isProcessing?.id === entry.id}
+                                        className="flex items-center gap-2 bg-gray-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-gray-700 disabled:bg-gray-400"
+                                    >
+                                        {isProcessing?.id === entry.id && isProcessing?.type === 'view' ? <FaSpinner className="animate-spin" /> : <FaEye />}
+                                        View
+                                    </button>
                                     <button
                                         onClick={() => handleDownloadBill(entry)}
-                                        disabled={isDownloading === entry.id}
+                                        disabled={isProcessing?.id === entry.id}
                                         className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:bg-blue-400"
                                     >
-                                        {isDownloading === entry.id ? <FaSpinner className="animate-spin" /> : <FaDownload />}
-                                        {isDownloading === entry.id ? 'Preparing...' : 'Download Bill'}
+                                        {isProcessing?.id === entry.id && isProcessing?.type === 'download' ? <FaSpinner className="animate-spin" /> : <FaDownload />}
+                                        Download
                                     </button>
                                 </div>
                             </div>

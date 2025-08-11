@@ -8,12 +8,13 @@ import { toast } from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
 import { getAuth, signOut, onAuthStateChanged } from "firebase/auth";
 import SEO from './SEO';
-import Loader from './Loader'; // Import Loader
+import Loader from './Loader';
 
 // Import the modular components
 import ProfileSection from './account/ProfileSection';
 import PoliciesAndTerms from './account/PoliciesAndTerms';
 import TradeHistorySection from './account/TradeHistorySection';
+import BillModal from './account/BillModal'; // --- ADDED: Import the new modal component ---
 
 const AccountPage = () => {
   const { location, setLocation, setUserMobile, userMobile } = useSettings();
@@ -26,9 +27,10 @@ const AccountPage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [userLoading, setUserLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [billToView, setBillToView] = useState(null); // --- ADDED: State for the bill modal ---
 
   useEffect(() => {
-    setUserLoading(true); // Start loading
+    setUserLoading(true);
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setCurrentUserId(user.uid);
@@ -39,9 +41,9 @@ const AccountPage = () => {
             setOriginalUserData(data);
             setEditableUserData(data);
           }
-        }).finally(() => setUserLoading(false)); // Stop loading
+        }).finally(() => setUserLoading(false));
       } else {
-        setUserLoading(false); // Stop loading
+        setUserLoading(false);
         navigate('/login');
       }
     });
@@ -77,6 +79,15 @@ const AccountPage = () => {
       toast.success('Logged out successfully!');
       navigate('/language', { replace: true });
     }).catch(() => toast.error('Logout failed.'));
+  };
+
+  // --- ADDED: Functions to open and close the modal ---
+  const handleOpenBillModal = (billData) => {
+    setBillToView(billData);
+  };
+
+  const handleCloseBillModal = () => {
+    setBillToView(null);
   };
 
   const Section = ({ title, sectionKey, children }) => (
@@ -119,7 +130,12 @@ const AccountPage = () => {
                 </Section>
 
                 <Section title="Trade History" sectionKey="history">
-                  <TradeHistorySection userMobile={userMobile} originalUserData={originalUserData} />
+                  {/* --- MODIFIED: Pass the new handler function as a prop --- */}
+                  <TradeHistorySection
+                    userMobile={userMobile}
+                    originalUserData={originalUserData}
+                    onViewBill={handleOpenBillModal}
+                  />
                 </Section>
               </div>
 
@@ -135,6 +151,9 @@ const AccountPage = () => {
           <Link to="/task" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaTasks className="text-2xl" /><span className="text-xs font-medium">Tasks</span></Link>
           <Link to="/account" className="flex flex-col items-center text-green-600 p-2 no-underline"><FaUserAlt className="text-2xl" /><span className="text-xs font-medium">Account</span></Link>
         </footer>
+
+        {/* --- ADDED: Conditionally render the modal --- */}
+        {billToView && <BillModal bill={billToView} onClose={handleCloseBillModal} />}
       </div>
     </>
   );
