@@ -3,7 +3,6 @@ import { getAuth } from "firebase/auth";
 import { getDatabase } from "firebase/database";
 import { getAnalytics } from "firebase/analytics";
 // Import the new App Check functions
-import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
 // Your Firebase configuration object.
 // It correctly uses environment variables for security.
@@ -21,12 +20,7 @@ const firebaseConfig = {
 // Initialize the main Firebase app
 const app = initializeApp(firebaseConfig);
 
-// Initialize App Check with your NEW reCAPTCHA v3 Site Key
-// **IMPORTANT**: After deleting your old key, create a new one and paste the new Site Key here.
-initializeAppCheck(app, {
-  provider: new ReCaptchaV3Provider('import.meta.env.VITE_RECAPTCHA_V3_SITE_KEY'),
-  isTokenAutoRefreshEnabled: true
-});
+
 
 // Initialize and export other Firebase services
 const analytics = getAnalytics(app);
