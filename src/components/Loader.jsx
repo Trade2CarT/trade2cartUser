@@ -1,94 +1,63 @@
 import React from 'react';
-import styled, { keyframes } from 'styled-components';
-
-// --- Keyframes for Animations ---
-
-const l6_0 = keyframes`
-  0%,30%   {background-position: 0 0   ,50% 0   }
-  33%      {background-position: 0 100%,50% 0   }
-  41%,63% {background-position: 0 0   ,50% 0   }
-  66%      {background-position: 0 0   ,50% 100%}
-  74%,100%{background-position: 0 0   ,50% 0   }
-`;
-
-const l6_1 = keyframes`
-  90%  {transform:translateY(0)}
-  95%  {transform:translateY(15px)}
-  100% {transform:translateY(15px);left:calc(100% - 8px)}
-`;
-
-const l6_2 = keyframes`
-  100% {top:-0.1px}
-`;
-
-const l6_3 = keyframes`
-  0%,80%,100% {transform:translate(0)}
-  90%          {transform:translate(26px)}
-`;
-
-// --- Styled Components ---
-
-const StyledLoader = styled.div`
-  width: 40px;
-  height: 20px;
-  --c: no-repeat radial-gradient(farthest-side, #000 93%, #0000);
-  background:
-    var(--c) 0    0,
-    var(--c) 50%  0;
-  background-size: 8px 8px;
-  position: relative;
-  clip-path: inset(-200% -100% 0 0);
-  animation: ${l6_0} 1.5s linear infinite;
-
-  &::before {
-    content: "";
-    position: absolute;
-    width: 8px;
-    height: 12px;
-    background: #000;
-    left: -16px;
-    top: 0;
-    animation: 
-      ${l6_1} 1.5s linear infinite,
-      ${l6_2} 0.5s cubic-bezier(0,200,.8,200) infinite;
-  }
-
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto auto;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #000;  
-    animation: ${l6_3} 1.5s linear infinite;
-  }
-`;
-
-// A wrapper to center the loader on the page for display
-const AppWrapper = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background-color: #f0f2f5;
-  font-family: 'Inter', sans-serif;
-`;
-
-// --- React Component ---
+import styled from 'styled-components';
 
 const Loader = () => {
-    return <StyledLoader />;
-};
-
-// Main App component to render the loader
-const App = () => {
     return (
-        <AppWrapper>
-            <Loader />
-        </AppWrapper>
-    )
+        <StyledWrapper>
+            <div className="spinner" />
+        </StyledWrapper>
+    );
 }
 
+const StyledWrapper = styled.div`
+  /* Normal Usage */
+  .spinner:before {
+    transform: rotateX(60deg) rotateY(45deg) rotateZ(45deg);
+    animation: 750ms rotateBefore infinite linear reverse;
+  }
 
-export default App;
+  .spinner:after {
+    transform: rotateX(240deg) rotateY(45deg) rotateZ(45deg);
+    animation: 750ms rotateAfter infinite linear;
+  }
+
+  .spinner:before,
+  .spinner:after {
+    box-sizing: border-box;
+    content: '';
+    display: block;
+    position: absolute;
+    margin-top: -5em;
+    margin-left: -5em;
+    width: 10em;
+    height: 10em;
+    transform-style: preserve-3d;
+    transform-origin: 50%;
+    transform: rotateY(50%);
+    perspective-origin: 50% 50%;
+    perspective: 340px;
+    background-size: 10em 10em;
+    background-image: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+Cjxzdmcgd2lkdGg9IjI2NnB4IiBoZWlnaHQ9IjI5N3B4IiB2aWV3Qm94PSIwIDAgMjY2IDI5NyIgdmVyc2lvbj0iMS4xIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4bWxuczpza2V0Y2g9Imh0dHA6Ly93d3cuYm9oZW1pYW5jb2RpbmcuY29tL3NrZXRjaC9ucyI+CiAgICA8dGl0bGU+c3Bpbm5lcjwvdGl0bGU+CiAgICA8ZGVzY3JpcHRpb24+Q3JlYXRlZCB3aXRoIFNrZXRjaCAoaHR0cDovL3d3dy5ib2hlbWlhbmNvZGluZy5jb20vc2tldGNoKTwvZGVzY3JpcHRpb24+CiAgICA8ZGVmcz48L2RlZnM+CiAgICA8ZyBpZD0iUGFnZS0xIiBzdHJva2U9Im5vbmUiIHN0cm9rZS13aWR0aD0iMSIgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIiBza2V0Y2g6dHlwZT0iTVNQYWdlIj4KICAgICAgICA8cGF0aCBkPSJNMTcxLjUwNzgxMywzLjI1MDAwMDM4IEMyMjYuMjA4MTgzLDEyLjg1NzcxMTEgMjk3LjExMjcyMiw3MS40OTEyODIzIDI1MC44OTU1OTksMTA4LjQxMDE1NSBDMjE2LjU4MjAyNCwxMzUuODIwMzEgMTg2LjUyODQwNSw5Ny4wNjI0OTY0IDE1Ni44MDA3NzQsODUuNzczNDM0NiBDMTI3LjA3MzE0Myw3NC40ODQzNzIxIDc2Ljg4ODQ2MzIsODQuMjE2MTQ2MiA2MC4xMjg5MDY1LDEwOC40MTAxNTMgQy0xNS45ODA0Njg1LDIxOC4yODEyNDcgMTQ1LjI3NzM0NCwyOTYuNjY3OTY4IDE0NS4yNzczNDQsMjk2LjY2Nzk2OCBDMTQ1LjI3NzM0NCwyOTYuNjY3OTY4IC0yNS40NDkyMTg3LDI1Ny4yNDIxOTggMy4zOTg0Mzc1LDEwOC40MTAxNTUgQzE2LjMwNzA2NjEsNDEuODExNDE3NCA4NC43Mjc1ODI5LC0xMS45OTIyOTg1IDE3MS41MDc4MTMsMy4yNTAwMDAzOCBaIiBpZD0iUGF0aC0xIiBmaWxsPSIjMDAwMDAwIiBza2V0Y2g6dHlwZT0iTVNTaGFwZUdyb3VwIj48L3BhdGg+CiAgICA8L2c+Cjwvc3ZnPg==);
+  }
+  /* sitNSpin.less */
+  @keyframes rotateBefore {
+    from {
+      transform: rotateX(60deg) rotateY(45deg) rotateZ(0deg);
+    }
+
+    to {
+      transform: rotateX(60deg) rotateY(45deg) rotateZ(-360deg);
+    }
+  }
+
+  @keyframes rotateAfter {
+    from {
+      transform: rotateX(240deg) rotateY(45deg) rotateZ(0deg);
+    }
+
+    to {
+      transform: rotateX(240deg) rotateY(45deg) rotateZ(360deg);
+    }
+  }`;
+
+export default Loader;
