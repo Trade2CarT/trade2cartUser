@@ -7,6 +7,7 @@ import { useSettings } from '../context/SettingsContext';
 import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
 import SEO from './SEO';
+import Loader from './Loader'; // Import Loader
 
 const HelloUser = () => {
   const { location, userMobile } = useSettings();
@@ -149,33 +150,36 @@ const HelloUser = () => {
         </nav>
 
         <main className="flex-grow p-4 overflow-y-auto z-10">
-          {loading && <p className="text-center mt-8 text-gray-500">Loading products...</p>}
-          {!loading && !showCart && (
-            <section>
-              <h1 className="text-xl font-bold mb-4 text-center text-gray-700 sr-only">Available Products in {location}</h1>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredProducts.length > 0 ? filteredProducts.map((product) => (<ProductCard key={product.id} product={product} />)) : <p className="col-span-full text-center text-gray-500 mt-8">No products available for this category in {location}.</p>}
-              </div>
-            </section>
-          )}
-
-          {!loading && showCart && (
-            <section className="bg-white p-4 rounded-lg shadow-lg mt-4 max-w-2xl mx-auto">
-              <h2 className="text-xl font-semibold mb-4 border-b pb-2">Your Cart</h2>
-              {savedData.length === 0 ? (<p className="text-gray-500 text-center py-8">Your cart is empty.</p>) : (savedData.map((entry, idx) => (
-                <div key={entry.id || idx} className="mb-2 p-3 border rounded-md flex justify-between items-center bg-gray-50">
-                  <div>
-                    <p className="font-semibold">{entry.text || entry.name}</p>
-                    <p className="text-sm text-gray-600">{entry.quantity} {entry.unit} x ₹{entry.rate}</p>
+          {loading ? <Loader /> : (
+            <>
+              {!showCart && (
+                <section>
+                  <h1 className="text-xl font-bold mb-4 text-center text-gray-700 sr-only">Available Products in {location}</h1>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredProducts.length > 0 ? filteredProducts.map((product) => (<ProductCard key={product.id} product={product} />)) : <p className="col-span-full text-center text-gray-500 mt-8">No products available for this category in {location}.</p>}
                   </div>
-                  <p className="font-bold text-lg">₹{entry.total}</p>
-                </div>
-              )))}
-              <div className="flex gap-3 mt-6">
-                <button onClick={() => setShowCart(false)} className="flex-1 py-3 bg-gray-300 text-black font-semibold rounded-lg hover:bg-gray-400 transition-colors">⬅️ Back to Products</button>
-                <button onClick={handleCheckout} className="flex-1 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400" disabled={savedData.length === 0}>🛒 Checkout</button>
-              </div>
-            </section>
+                </section>
+              )}
+
+              {showCart && (
+                <section className="bg-white p-4 rounded-lg shadow-lg mt-4 max-w-2xl mx-auto">
+                  <h2 className="text-xl font-semibold mb-4 border-b pb-2">Your Cart</h2>
+                  {savedData.length === 0 ? (<p className="text-gray-500 text-center py-8">Your cart is empty.</p>) : (savedData.map((entry, idx) => (
+                    <div key={entry.id || idx} className="mb-2 p-3 border rounded-md flex justify-between items-center bg-gray-50">
+                      <div>
+                        <p className="font-semibold">{entry.text || entry.name}</p>
+                        <p className="text-sm text-gray-600">{entry.quantity} {entry.unit} x ₹{entry.rate}</p>
+                      </div>
+                      <p className="font-bold text-lg">₹{entry.total}</p>
+                    </div>
+                  )))}
+                  <div className="flex gap-3 mt-6">
+                    <button onClick={() => setShowCart(false)} className="flex-1 py-3 bg-gray-300 text-black font-semibold rounded-lg hover:bg-gray-400 transition-colors">⬅️ Back to Products</button>
+                    <button onClick={handleCheckout} className="flex-1 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400" disabled={savedData.length === 0}>🛒 Checkout</button>
+                  </div>
+                </section>
+              )}
+            </>
           )}
         </main>
 

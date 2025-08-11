@@ -1,15 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaHome, FaTasks, FaUserAlt, FaChevronDown, FaChevronUp, FaMapMarkerAlt, FaBell, FaShoppingCart, FaSignOutAlt } from 'react-icons/fa';
-// --- CORRECTED IMPORTS ---
 import { db } from '../firebase';
 import { ref, update, get } from 'firebase/database';
-// ---
 import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
 import { getAuth, signOut, onAuthStateChanged } from "firebase/auth";
 import SEO from './SEO';
+import Loader from './Loader'; // Import Loader
 
 // Import the modular components
 import ProfileSection from './account/ProfileSection';
@@ -29,20 +28,20 @@ const AccountPage = () => {
   const [currentUserId, setCurrentUserId] = useState(null);
 
   useEffect(() => {
+    setUserLoading(true); // Start loading
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setCurrentUserId(user.uid);
         const userRef = ref(db, `users/${user.uid}`);
-        // This 'get' function now correctly refers to the imported function
         get(userRef).then((snapshot) => {
           if (snapshot.exists()) {
             const data = { id: snapshot.key, ...snapshot.val() };
             setOriginalUserData(data);
             setEditableUserData(data);
           }
-        }).finally(() => setUserLoading(false));
+        }).finally(() => setUserLoading(false)); // Stop loading
       } else {
-        setUserLoading(false);
+        setUserLoading(false); // Stop loading
         navigate('/login');
       }
     });
@@ -100,31 +99,35 @@ const AccountPage = () => {
         </header>
 
         <main className="flex-grow p-4 overflow-y-auto">
-          <h1 className="text-2xl font-bold mb-4">My Account</h1>
-          <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md space-y-2">
-            <Section title="My Profile" sectionKey="profile">
-              <ProfileSection
-                userData={editableUserData}
-                isEditing={isEditing}
-                onInputChange={(e) => setEditableUserData(prev => ({ ...prev, [e.target.name]: e.target.value }))}
-                onEditClick={() => setIsEditing(true)}
-                onSaveClick={handleProfileUpdate}
-                onCancelClick={() => { setIsEditing(false); setEditableUserData(originalUserData); }}
-              />
-            </Section>
+          {userLoading ? <Loader /> : (
+            <>
+              <h1 className="text-2xl font-bold mb-4">My Account</h1>
+              <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md space-y-2">
+                <Section title="My Profile" sectionKey="profile">
+                  <ProfileSection
+                    userData={editableUserData}
+                    isEditing={isEditing}
+                    onInputChange={(e) => setEditableUserData(prev => ({ ...prev, [e.target.name]: e.target.value }))}
+                    onEditClick={() => setIsEditing(true)}
+                    onSaveClick={handleProfileUpdate}
+                    onCancelClick={() => { setIsEditing(false); setEditableUserData(originalUserData); }}
+                  />
+                </Section>
 
-            <Section title="Policies & Terms" sectionKey="policies">
-              <PoliciesAndTerms />
-            </Section>
+                <Section title="Policies & Terms" sectionKey="policies">
+                  <PoliciesAndTerms />
+                </Section>
 
-            <Section title="Trade History" sectionKey="history">
-              <TradeHistorySection userMobile={userMobile} originalUserData={originalUserData} />
-            </Section>
-          </div>
+                <Section title="Trade History" sectionKey="history">
+                  <TradeHistorySection userMobile={userMobile} originalUserData={originalUserData} />
+                </Section>
+              </div>
 
-          <div className="mt-6">
-            <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-3 bg-red-500 text-white rounded-lg font-bold shadow-lg hover:bg-red-600"><FaSignOutAlt /> Logout</button>
-          </div>
+              <div className="mt-6">
+                <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-3 bg-red-500 text-white rounded-lg font-bold shadow-lg hover:bg-red-600"><FaSignOutAlt /> Logout</button>
+              </div>
+            </>
+          )}
         </main>
 
         <footer className="sticky bottom-0 flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">

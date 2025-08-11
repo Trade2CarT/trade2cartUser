@@ -7,6 +7,7 @@ import assetlogo from '../assets/images/logo.PNG';
 import { useSettings } from '../context/SettingsContext';
 import { toast } from 'react-hot-toast';
 import SEO from './SEO';
+import Loader from './Loader'; // Import Loader
 
 const firebaseObjectToArray = (snapshot) => {
   const data = snapshot.val();
@@ -14,7 +15,6 @@ const firebaseObjectToArray = (snapshot) => {
 };
 
 const TaskPage = () => {
-  // --- YOUR BUSINESS LOGIC (100% UNCHANGED) ---
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [otp, setOtp] = useState('');
@@ -83,7 +83,6 @@ const TaskPage = () => {
 
   const statusIndex = getStatusIndex();
 
-  // --- NEW & IMPROVED RESPONSIVE & SEO STRUCTURE ---
   return (
     <>
       <SEO
@@ -113,9 +112,8 @@ const TaskPage = () => {
             </h1>
 
             {loading ? (
-              <p className="text-center text-gray-500 mt-10">Loading status...</p>
+              <Loader /> // Replaced text with Loader component
             ) : statusIndex === -1 ? (
-              // --- IMPROVED "NO ACTIVE TASKS" VIEW ---
               <div className="text-center mt-10 bg-white p-8 rounded-xl shadow-md">
                 <FaTasks className="text-5xl text-gray-300 mb-4 mx-auto" />
                 <h2 className="text-2xl font-bold text-gray-700">No Active Tasks</h2>
@@ -126,7 +124,6 @@ const TaskPage = () => {
               </div>
             ) : (
               <div className='space-y-8'>
-                {/* --- REDESIGNED STATUS TRACKER --- */}
                 <div className="w-full">
                   <div className="flex justify-between items-center">
                     {statusSteps.map((step, index) => (
@@ -143,7 +140,6 @@ const TaskPage = () => {
                   </div>
                 </div>
 
-                {/* --- IMPROVED INFORMATION CARDS & MESSAGES --- */}
                 {status.toLowerCase() === 'pending' && (
                   <div className="p-6 bg-white rounded-xl shadow-md text-center">
                     <FaHourglassHalf className="text-4xl text-blue-500 mx-auto mb-3" />

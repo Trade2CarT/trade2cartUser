@@ -5,16 +5,17 @@ import { FaHome, FaTasks, FaUserAlt } from 'react-icons/fa';
 import { db, firebaseObjectToArray } from '../firebase';
 import { ref, query, orderByChild, equalTo, get, update, push } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
-import SEO from './SEO'; // Import SEO component
+import SEO from './SEO';
+import Loader from './Loader'; // Import Loader
 
 const TradePage = () => {
-  // --- YOUR BUSINESS LOGIC (UNCHANGED) ---
   const [entries, setEntries] = useState([]);
   const [userName, setUserName] = useState('');
   const [address, setAddress] = useState('');
   const [existingUserId, setExistingUserId] = useState(null);
   const [tradeImage, setTradeImage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // State for initial data load
   const navigate = useNavigate();
   const { userMobile } = useSettings();
 
@@ -43,7 +44,11 @@ const TradePage = () => {
           }
         } catch (err) {
           toast.error("Failed to load your user data.");
+        } finally {
+          setIsLoading(false); // Stop loading once fetch is complete
         }
+      } else {
+        setIsLoading(false); // Stop loading if no mobile number
       }
     };
     fetchUserData();
@@ -95,7 +100,6 @@ const TradePage = () => {
     }
   };
 
-  // --- RESPONSIVE & SEO STRUCTURE ---
   return (
     <>
       <SEO
@@ -104,38 +108,40 @@ const TradePage = () => {
       />
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <main className="flex-grow p-4">
-          <div className="max-w-2xl mx-auto">
-            <h1 className="text-2xl font-bold text-gray-800 mb-4">Confirm Your Trade</h1>
+          {isLoading ? <Loader /> : (
+            <div className="max-w-2xl mx-auto">
+              <h1 className="text-2xl font-bold text-gray-800 mb-4">Confirm Your Trade</h1>
 
-            <section className="bg-white p-4 sm:p-6 rounded-xl shadow-md mb-6">
-              <h2 className="text-lg font-semibold mb-3 text-gray-700">Pickup Details</h2>
-              <div className="space-y-4">
-                <input type="text" placeholder="Enter your full name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
-                <textarea placeholder="Enter your full address for pickup" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Upload a photo of your items (optional)</label>
-                  <input type="file" accept="image/*" onChange={(e) => setTradeImage(e.target.files[0])} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
-                </div>
-              </div>
-            </section>
-
-            <section className="space-y-3">
-              <h2 className="text-lg font-semibold text-gray-700">Items in Your Trade</h2>
-              {entries.map((entry, idx) => (
-                <div key={idx} className="border p-3 rounded-lg bg-white shadow-sm flex justify-between items-center">
+              <section className="bg-white p-4 sm:p-6 rounded-xl shadow-md mb-6">
+                <h2 className="text-lg font-semibold mb-3 text-gray-700">Pickup Details</h2>
+                <div className="space-y-4">
+                  <input type="text" placeholder="Enter your full name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                  <textarea placeholder="Enter your full address for pickup" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
                   <div>
-                    <p className="font-bold text-gray-800">{entry.text || entry.name}</p>
-                    <p className="text-sm text-gray-600">{entry.quantity} {entry.unit} x ₹{entry.rate}</p>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Upload a photo of your items (optional)</label>
+                    <input type="file" accept="image/*" onChange={(e) => setTradeImage(e.target.files[0])} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
                   </div>
-                  <p className="font-semibold text-green-600 text-lg">₹{entry.total}</p>
                 </div>
-              ))}
-            </section>
+              </section>
 
-            <button onClick={handleConfirmTrade} disabled={isSubmitting} className="w-full mt-6 py-3 bg-green-600 text-white rounded-lg font-bold shadow-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors">
-              {isSubmitting ? 'Submitting...' : '✅ Confirm Trade & Schedule Pickup'}
-            </button>
-          </div>
+              <section className="space-y-3">
+                <h2 className="text-lg font-semibold text-gray-700">Items in Your Trade</h2>
+                {entries.map((entry, idx) => (
+                  <div key={idx} className="border p-3 rounded-lg bg-white shadow-sm flex justify-between items-center">
+                    <div>
+                      <p className="font-bold text-gray-800">{entry.text || entry.name}</p>
+                      <p className="text-sm text-gray-600">{entry.quantity} {entry.unit} x ₹{entry.rate}</p>
+                    </div>
+                    <p className="font-semibold text-green-600 text-lg">₹{entry.total}</p>
+                  </div>
+                ))}
+              </section>
+
+              <button onClick={handleConfirmTrade} disabled={isSubmitting} className="w-full mt-6 py-3 bg-green-600 text-white rounded-lg font-bold shadow-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors">
+                {isSubmitting ? 'Submitting...' : '✅ Confirm Trade & Schedule Pickup'}
+              </button>
+            </div>
+          )}
         </main>
 
         <footer className="sticky bottom-0 flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)] flex-shrink-0 z-30">
