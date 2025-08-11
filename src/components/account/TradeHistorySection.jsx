@@ -107,7 +107,7 @@ const TradeHistorySection = ({ userMobile, originalUserData }) => {
                 return;
             }
 
-            const billsArray = firebaseObjectToArray(snapshot);
+            const billsArray = firebaseObjectToArray(snapshot.val());
             console.log("📜 Parsed bill array:", billsArray);
 
             const billDetails = billsArray[0];
