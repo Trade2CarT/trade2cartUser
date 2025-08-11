@@ -6,7 +6,8 @@ import { db } from '../firebase';
 import { get, ref, set } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
 import SEO from './SEO';
-import Loader from './Loader'; // Import Loader
+import Loader from './Loader';
+// import Loader from './Loader'; // Import Loader
 
 const Modal = ({ content, onClose }) => (
   <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4 transition-opacity">
