@@ -7,8 +7,9 @@ import assetlogo from '../assets/images/logo.PNG';
 import { useSettings } from '../context/SettingsContext';
 import { toast } from 'react-hot-toast';
 import SEO from './SEO';
-import Loader from './Loader'; // Import Loader
+import Loader from './Loader';
 
+// Helper to get the first user from a query snapshot
 const firebaseObjectToArray = (snapshot) => {
   const data = snapshot.val();
   return data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
@@ -20,67 +21,100 @@ const TaskPage = () => {
   const [otp, setOtp] = useState('');
   const [vendorDetails, setVendorDetails] = useState(null);
   const { userMobile, location } = useSettings();
-  const otpGeneratedForAssignment = useRef(null);
 
   useEffect(() => {
+    // If there's no user mobile number, stop loading and do nothing.
     if (!userMobile) {
       setLoading(false);
       return;
     }
     setLoading(true);
 
-    const findUser = async () => {
+    let userListener; // This will hold the unsubscribe function for our real-time listener
+
+    // This async function finds the user and then sets up a listener for status changes.
+    const findUserAndListen = async () => {
       let userSnapshot = null;
-      let foundUser = null;
+      let userId = null;
 
-      // 1. Query for the number as-is
-      const query1 = query(ref(db, 'users'), orderByChild('phone'), equalTo(userMobile));
-      userSnapshot = await get(query1);
+      // 1. First, try to find the user with the phone number as it is.
+      const queryAsIs = query(ref(db, 'users'), orderByChild('phone'), equalTo(userMobile));
+      userSnapshot = await get(queryAsIs);
 
-      // 2. If not found, try querying with the "+91" prefix
+      // 2. If no user is found and the number doesn't have a country code, try again with "+91".
       if (!userSnapshot.exists() && !userMobile.startsWith('+91')) {
-        const numberWithCountryCode = `+91${userMobile}`;
-        const query2 = query(ref(db, 'users'), orderByChild('phone'), equalTo(numberWithCountryCode));
-        userSnapshot = await get(query2);
+        const queryWithPrefix = query(ref(db, 'users'), orderByChild('phone'), equalTo(`+91${userMobile}`));
+        userSnapshot = await get(queryWithPrefix);
       }
 
-      // Now handle the snapshot result
+      // 3. If a user was found (in either query), get their unique ID.
       if (userSnapshot.exists()) {
-        const user = firebaseObjectToArray(userSnapshot)[0];
-        const currentStatus = user.Status || 'Pending';
-        setStatus(currentStatus);
+        const userData = userSnapshot.val();
+        userId = Object.keys(userData)[0]; // Get the first (and only) key from the result
+      }
 
-        // ... (rest of your logic for 'On-Schedule' status)
-        if (currentStatus.toLowerCase() === 'on-schedule' && user.currentAssignmentId) {
-          // ... your assignment fetching logic ...
-          const assignmentRef = ref(db, `assignments/${user.currentAssignmentId}`);
-          const assignmentSnapshot = await get(assignmentRef);
-          if (assignmentSnapshot.exists()) {
-            const activeAssignment = assignmentSnapshot.val();
-            setVendorDetails({ name: activeAssignment.vendorName, phone: activeAssignment.vendorPhone });
+      if (userId) {
+        // 4. Now that we have the specific ID, create a direct reference to that user.
+        const userRef = ref(db, `users/${userId}`);
+
+        // 5. Set up a real-time listener on ONLY that user's data. This is very efficient.
+        userListener = onValue(userRef, async (snapshot) => {
+          const user = snapshot.val();
+          if (user) {
+            const currentStatus = user.Status || 'Pending';
+            setStatus(currentStatus);
+
+            if (currentStatus.toLowerCase() !== 'on-schedule') {
+              setVendorDetails(null);
+              setOtp('');
+            }
+
+            // If the user is on-schedule, fetch the details for their assigned vendor and OTP.
+            if (currentStatus.toLowerCase() === 'on-schedule' && user.currentAssignmentId) {
+              try {
+                const assignmentRef = ref(db, `assignments/${user.currentAssignmentId}`);
+                const assignmentSnapshot = await get(assignmentRef);
+                if (assignmentSnapshot.exists()) {
+                  const activeAssignment = assignmentSnapshot.val();
+                  setVendorDetails({ name: activeAssignment.vendorName, phone: activeAssignment.vendorPhone });
+                }
+                if (user.otp) {
+                  setOtp(user.otp);
+                }
+              } catch (error) {
+                console.error("Error fetching assignment details:", error);
+                toast.error("Failed to fetch assignment details.");
+              }
+            }
+          } else {
+            // This case handles if the user record gets deleted.
+            setStatus('');
           }
-          if (user.otp) {
-            setOtp(user.otp);
-          }
-        }
+          setLoading(false);
+        });
 
       } else {
-        // This is where you would handle the "user not found" case after checking both formats
+        // 6. If no user was found after checking both formats, show the "No Active Tasks" state.
         setStatus('');
-        toast.error("Could not find user record.");
+        setLoading(false);
+        // Note: The toast error from the scheduling page is what the user sees first.
+        // This component will simply show the "No Active Tasks" screen.
       }
-      setLoading(false);
     };
 
-    findUser().catch(error => {
+    findUserAndListen().catch(error => {
       console.error("Task Page sync error:", error);
       toast.error("Failed to sync task status.");
       setLoading(false);
     });
 
-    // If you need real-time updates after finding the user, you can attach an onValue listener here.
-    // The logic above is primarily for the initial user lookup.
-
+    // This is a cleanup function. It runs when the component unmounts
+    // to prevent memory leaks by removing the Firebase listener.
+    return () => {
+      if (userListener) {
+        userListener();
+      }
+    };
   }, [userMobile]);
 
   const statusSteps = [
@@ -114,7 +148,6 @@ const TaskPage = () => {
               <span className="text-sm font-medium">{location || '...'}</span>
             </div>
           </div>
-          
         </header>
 
         <main className="flex-grow p-4 overflow-y-auto">
@@ -125,7 +158,7 @@ const TaskPage = () => {
             </h1>
 
             {loading ? (
-              <Loader /> // Replaced text with Loader component
+              <Loader />
             ) : statusIndex === -1 ? (
               <div className="text-center mt-10 bg-white p-8 rounded-xl shadow-md">
                 <FaTasks className="text-5xl text-gray-300 mb-4 mx-auto" />
