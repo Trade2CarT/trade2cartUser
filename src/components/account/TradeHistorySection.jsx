@@ -12,7 +12,6 @@ const formatDate = (isoString) => {
     return new Date(isoString).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-// ✨ UPDATED: Added 'userMobile' to the props
 const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -21,7 +20,6 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     const billTemplateRef = useRef(null);
 
     useEffect(() => {
-        // ✨ UPDATED: Check for 'userMobile' prop, which is the 10-digit number
         if (!userMobile) {
             setLoading(false);
             return;
@@ -31,7 +29,6 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
             setLoading(true);
             try {
                 const assignmentsRef = ref(db, 'assignments');
-                // ✨ UPDATED: Query now uses the reliable 10-digit 'userMobile' prop
                 const historyQuery = query(assignmentsRef, orderByChild('mobile'), equalTo(userMobile));
                 const snapshot = await get(historyQuery);
 
@@ -54,13 +51,19 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
         };
 
         fetchAssignments();
-    }, [userMobile]); // ✨ UPDATED: Dependency is now 'userMobile'
+    }, [userMobile]);
 
     const fetchBillDetails = async (assignment) => {
+        // ✨ DEBUG: Log the ID we are searching for
+        console.log(`Searching for bill with assignmentID: ${assignment.id}`);
+
         try {
             const billsRef = ref(db, 'bills');
             const billQuery = query(billsRef, orderByChild('assignmentID'), equalTo(assignment.id));
             const snapshot = await get(billQuery);
+
+            // ✨ DEBUG: Log whether we found a matching bill
+            console.log(`Did a bill snapshot exist? ${snapshot.exists()}`);
 
             if (!snapshot.exists()) {
                 toast.error("Bill details not found for this trade.");
@@ -70,7 +73,7 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
             let billDetails = null;
             snapshot.forEach(child => { billDetails = child.val(); });
 
-            return {
+            const completeBill = {
                 id: assignment.id,
                 assignedAt: assignment.assignedAt,
                 vendorName: assignment.vendorName,
@@ -85,14 +88,21 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                     total: item.total
                 }))
             };
+
+            // ✨ DEBUG: Log the final combined bill data
+            console.log("Successfully constructed bill data:", completeBill);
+            return completeBill;
+
         } catch (error) {
             toast.error("Could not retrieve bill details.");
-            console.error(error);
+            console.error("Error in fetchBillDetails:", error);
             return null;
         }
     };
 
     const handleViewBill = async (assignment) => {
+        // ✨ DEBUG: Log that the view button was clicked
+        console.log("View button clicked for assignment:", assignment);
         setProcessingId({ id: assignment.id, type: 'view' });
         const completeBillData = await fetchBillDetails(assignment);
         if (completeBillData) {
@@ -102,6 +112,8 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     };
 
     const handleDownloadBill = async (assignment) => {
+        // ✨ DEBUG: Log that the download button was clicked
+        console.log("Download button clicked for assignment:", assignment);
         setProcessingId({ id: assignment.id, type: 'download' });
         const completeBillData = await fetchBillDetails(assignment);
         if (completeBillData) {
@@ -129,6 +141,7 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
             }, 300);
         }
     }, [billForPdf]);
+
 
     if (loading) {
         return <p className="text-center text-gray-500 py-4">Loading history...</p>;
