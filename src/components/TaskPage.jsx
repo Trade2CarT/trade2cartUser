@@ -28,43 +28,59 @@ const TaskPage = () => {
       return;
     }
     setLoading(true);
-    const userQuery = query(ref(db, 'users'), orderByChild('phone'), equalTo(userMobile));
-    const unsubscribe = onValue(userQuery, async (snapshot) => {
-      if (snapshot.exists()) {
-        const user = firebaseObjectToArray(snapshot)[0];
+
+    const findUser = async () => {
+      let userSnapshot = null;
+      let foundUser = null;
+
+      // 1. Query for the number as-is
+      const query1 = query(ref(db, 'users'), orderByChild('phone'), equalTo(userMobile));
+      userSnapshot = await get(query1);
+
+      // 2. If not found, try querying with the "+91" prefix
+      if (!userSnapshot.exists() && !userMobile.startsWith('+91')) {
+        const numberWithCountryCode = `+91${userMobile}`;
+        const query2 = query(ref(db, 'users'), orderByChild('phone'), equalTo(numberWithCountryCode));
+        userSnapshot = await get(query2);
+      }
+
+      // Now handle the snapshot result
+      if (userSnapshot.exists()) {
+        const user = firebaseObjectToArray(userSnapshot)[0];
         const currentStatus = user.Status || 'Pending';
         setStatus(currentStatus);
-        if (currentStatus.toLowerCase() !== 'on-schedule') {
-          setVendorDetails(null);
-          setOtp('');
-          otpGeneratedForAssignment.current = null;
-        }
+
+        // ... (rest of your logic for 'On-Schedule' status)
         if (currentStatus.toLowerCase() === 'on-schedule' && user.currentAssignmentId) {
-          try {
-            const assignmentRef = ref(db, `assignments/${user.currentAssignmentId}`);
-            const assignmentSnapshot = await get(assignmentRef);
-            if (assignmentSnapshot.exists()) {
-              const activeAssignment = assignmentSnapshot.val();
-              setVendorDetails({ name: activeAssignment.vendorName, phone: activeAssignment.vendorPhone });
-            }
-            if (user.otp) {
-              setOtp(user.otp);
-            }
-          } catch (error) {
-            console.error("Error fetching assignment details:", error);
-            toast.error("Failed to fetch assignment details.");
+          // ... your assignment fetching logic ...
+          const assignmentRef = ref(db, `assignments/${user.currentAssignmentId}`);
+          const assignmentSnapshot = await get(assignmentRef);
+          if (assignmentSnapshot.exists()) {
+            const activeAssignment = assignmentSnapshot.val();
+            setVendorDetails({ name: activeAssignment.vendorName, phone: activeAssignment.vendorPhone });
+          }
+          if (user.otp) {
+            setOtp(user.otp);
           }
         }
+
       } else {
+        // This is where you would handle the "user not found" case after checking both formats
         setStatus('');
+        toast.error("Could not find user record.");
       }
       setLoading(false);
-    }, (error) => {
+    };
+
+    findUser().catch(error => {
       console.error("Task Page sync error:", error);
       toast.error("Failed to sync task status.");
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    // If you need real-time updates after finding the user, you can attach an onValue listener here.
+    // The logic above is primarily for the initial user lookup.
+
   }, [userMobile]);
 
   const statusSteps = [
