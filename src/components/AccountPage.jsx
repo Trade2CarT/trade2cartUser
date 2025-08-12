@@ -84,20 +84,20 @@ const AccountPage = () => {
 
               {/* --- NEW: Navigation Buttons --- */}
               <div className="bg-white p-2 sm:p-4 rounded-xl shadow-md space-y-2">
-                <Link to="/account/profile" className="flex justify-between items-center w-full p-4 font-medium text-left text-gray-800 hover:bg-gray-50 rounded-lg transition-colors">
+                <button onClick={() => navigate('/account/profile')} className="flex justify-between items-center w-full p-4 font-medium text-left text-gray-800 hover:bg-gray-50 rounded-lg transition-colors">
                   <div className="flex items-center gap-4">
                     <FaUserCog className="text-xl text-blue-500" />
                     <span>My Profile</span>
                   </div>
                   <FaChevronRight className="text-gray-400" />
-                </Link>
-                <Link to="/account/policies" className="flex justify-between items-center w-full p-4 font-medium text-left text-gray-800 hover:bg-gray-50 rounded-lg transition-colors">
+                </button>
+                <button onClick={() => navigate('/account/policies')} className="flex justify-between items-center w-full p-4 font-medium text-left text-gray-800 hover:bg-gray-50 rounded-lg transition-colors">
                   <div className="flex items-center gap-4">
                     <FaShieldAlt className="text-xl text-green-500" />
                     <span>Policies & Terms</span>
                   </div>
                   <FaChevronRight className="text-gray-400" />
-                </Link>
+                </button>
               </div>
 
               {/* Container for Trade History */}
