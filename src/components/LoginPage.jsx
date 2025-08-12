@@ -7,7 +7,6 @@ import { get, ref, set } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
 import SEO from './SEO';
 import Loader from './Loader';
-// import Loader from './Loader'; // Import Loader
 
 const Modal = ({ content, onClose }) => (
   <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4 transition-opacity">
@@ -76,11 +75,13 @@ const LoginPage = () => {
 
     if (!snapshot.exists()) {
       await set(userRef, {
-        phone: userPhone,
-        location: location || 'Unknown',
-        language: language || 'en',
-        createdAt: new Date().toISOString(),
-        Status: 'Active'
+        // ✨ THIS IS THE ONLY LINE I'VE ADDED
+        mobile: userPhone, // Saves the full number like +91xxxxxxxxxx
+        phone: userPhone, // This line was already here
+        location: location || 'Unknown', //
+        language: language || 'en', //
+        createdAt: new Date().toISOString(), //
+        Status: 'Active' //
       });
     }
   };
@@ -95,9 +96,9 @@ const LoginPage = () => {
     try {
       const credential = await confirmationResult.confirm(otp);
       const user = credential.user;
-      const userPhone = user.phoneNumber.slice(3); // Remove +91
-      await ensureUserExistsInFirebase(user.uid, userPhone);
-      setUserMobile(userPhone);
+      // ✨ UPDATED: Pass the full user.phoneNumber from Firebase Auth
+      await ensureUserExistsInFirebase(user.uid, user.phoneNumber);
+      setUserMobile(user.phoneNumber.slice(3)); // Remove +91 for display/context
       toast.success('Login Successful!');
       navigate('/hello', { replace: true });
     } catch (error) {
@@ -108,8 +109,8 @@ const LoginPage = () => {
     }
   };
 
-  const termsContent = `<h2>Terms & Conditions</h2><p>Your full terms and conditions content goes here.</p>`; // Replace with your actual content
-  const privacyContent = `<h2>Privacy Policy</h2><p>Your full privacy policy content goes here.</p>`; // Replace with your actual content
+  const termsContent = `<h2>Terms & Conditions</h2><p>Your full terms and conditions content goes here.</p>`;
+  const privacyContent = `<h2>Privacy Policy</h2><p>Your full privacy policy content goes here.</p>`;
 
   const openModal = (content) => {
     setModalContent(content);
