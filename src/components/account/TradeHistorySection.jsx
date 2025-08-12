@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
-import { FaEye, FaDownload, FaSpinner, FaFileInvoiceDollar, FaUser, FaBoxOpen, FaRupeeSign } from 'react-icons/fa';
+import { FaEye, FaDownload, FaSpinner, FaFileInvoiceDollar, FaUser, FaRupeeSign } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { toast } from 'react-hot-toast';
@@ -25,6 +25,7 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
             return;
         }
 
+        // Fetches the initial list of completed assignments
         const fetchAssignments = async () => {
             setLoading(true);
             try {
@@ -53,25 +54,45 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
         fetchAssignments();
     }, [userMobile]);
 
+    // Fetches the detailed bill for a specific assignment when a button is clicked
     const fetchBillDetails = async (assignment) => {
-        // ✨ DEBUG: Log the ID we are searching for
-        console.log(`Searching for bill with assignmentID: ${assignment.id}`);
-
         try {
             const billsRef = ref(db, 'bills');
-            const billQuery = query(billsRef, orderByChild('assignmentID'), equalTo(assignment.id));
+            // A more robust search: Get all bills for this user's mobile number
+            const billQuery = query(billsRef, orderByChild('mobile'), equalTo(assignment.mobile));
             const snapshot = await get(billQuery);
 
-            // ✨ DEBUG: Log whether we found a matching bill
-            console.log(`Did a bill snapshot exist? ${snapshot.exists()}`);
-
             if (!snapshot.exists()) {
-                toast.error("Bill details not found for this trade.");
+                toast.error("No bills found for your account.");
                 return null;
             }
 
-            let billDetails = null;
-            snapshot.forEach(child => { billDetails = child.val(); });
+            let matchingBillDetails = null;
+            let sampleBillForDebugging = null;
+
+            // Loop through the user's bills to find the one matching the assignment ID
+            snapshot.forEach(child => {
+                const bill = child.val();
+                if (!sampleBillForDebugging) {
+                    sampleBillForDebugging = bill; // Store the first bill for debugging purposes
+                }
+
+                // Check for a match using common key names
+                if (bill.assignmentId === assignment.id || bill.assignmentID === assignment.id) {
+                    matchingBillDetails = bill;
+                }
+            });
+
+            if (!matchingBillDetails) {
+                console.log("DEBUG: Could not find a bill matching the assignment ID. Here is a sample bill object from your account to help you check the correct field name for the assignment ID:", sampleBillForDebugging);
+                toast.error("Bill details not found for this specific trade.");
+                return null;
+            }
+
+            if (!matchingBillDetails.billItems || !Array.isArray(matchingBillDetails.billItems)) {
+                toast.error("Bill data is malformed and cannot be displayed.");
+                return null;
+            }
 
             const completeBill = {
                 id: assignment.id,
@@ -79,18 +100,15 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                 vendorName: assignment.vendorName,
                 userName: originalUserData?.name,
                 address: originalUserData?.address,
-                totalAmount: billDetails.totalBill,
-                products: billDetails.billItems.map(item => ({
-                    name: item.item,
+                totalAmount: matchingBillDetails.totalBill,
+                products: matchingBillDetails.billItems.map(item => ({
+                    name: item.item || item.name,
                     quantity: item.weight,
                     unit: item.unit || 'kg',
                     rate: item.rate,
                     total: item.total
                 }))
             };
-
-            // ✨ DEBUG: Log the final combined bill data
-            console.log("Successfully constructed bill data:", completeBill);
             return completeBill;
 
         } catch (error) {
@@ -101,8 +119,6 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     };
 
     const handleViewBill = async (assignment) => {
-        // ✨ DEBUG: Log that the view button was clicked
-        console.log("View button clicked for assignment:", assignment);
         setProcessingId({ id: assignment.id, type: 'view' });
         const completeBillData = await fetchBillDetails(assignment);
         if (completeBillData) {
@@ -112,8 +128,6 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     };
 
     const handleDownloadBill = async (assignment) => {
-        // ✨ DEBUG: Log that the download button was clicked
-        console.log("Download button clicked for assignment:", assignment);
         setProcessingId({ id: assignment.id, type: 'download' });
         const completeBillData = await fetchBillDetails(assignment);
         if (completeBillData) {
@@ -130,7 +144,9 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                     .then(canvas => {
                         const imgData = canvas.toDataURL('image/png');
                         const pdf = new jsPDF('p', 'mm', 'a4');
-                        pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+                        const pdfWidth = pdf.internal.pageSize.getWidth();
+                        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
                         pdf.save(`invoice-${billForPdf.id.slice(-6)}.pdf`);
                     })
                     .catch(() => toast.error("PDF generation failed."))
@@ -161,7 +177,7 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                                 <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800">Completed</span>
                                 <p className="text-xs text-gray-500 font-medium">{formatDate(assignment.assignedAt)}</p>
                             </div>
-                            <div className="p-4 space-y-3">
+                            <div className="p-4">
                                 <div className="flex items-center gap-3">
                                     <FaUser className="text-gray-400" />
                                     <p className="text-sm text-gray-700">Vendor: <span className="font-bold">{assignment.vendorName}</span></p>
