@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, 'useState', useEffect, useRef } from 'react';
 import { db } from '../../firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
 import { FaEye, FaDownload, FaSpinner, FaFileInvoiceDollar, FaUser, FaRupeeSign } from 'react-icons/fa';
@@ -19,13 +19,38 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     const [billForPdf, setBillForPdf] = useState(null);
     const billTemplateRef = useRef(null);
 
+    // A resilient function to get a bill for an assignment, trying multiple keys
+    const fetchBillForAssignment = async (assignmentId) => {
+        try {
+            const billsRef = ref(db, 'bills');
+            // 1. Try with 'assignmentID' (from your working code)
+            let snapshot = await get(query(billsRef, orderByChild('assignmentID'), equalTo(assignmentId)));
+
+            // 2. Fallback to 'assignmentId' (lowercase 'd')
+            if (!snapshot.exists()) {
+                snapshot = await get(query(billsRef, orderByChild('assignmentId'), equalTo(assignmentId)));
+            }
+
+            if (snapshot.exists()) {
+                let billData = null;
+                snapshot.forEach(child => { billData = child.val(); });
+                return billData;
+            }
+            return null;
+        } catch (error) {
+            // This function will now return null on error instead of crashing
+            console.error(`Failed to fetch bill for assignment ${assignmentId}:`, error);
+            return null;
+        }
+    };
+
     useEffect(() => {
         if (!userMobile) {
             setLoading(false);
             return;
         }
 
-        const fetchAssignments = async () => {
+        const fetchHistory = async () => {
             setLoading(true);
             try {
                 const assignmentsRef = ref(db, 'assignments');
@@ -33,14 +58,27 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                 const snapshot = await get(historyQuery);
 
                 if (snapshot.exists()) {
-                    const assignmentsData = [];
+                    const completedAssignments = [];
                     snapshot.forEach(child => {
                         if (child.val().status?.toLowerCase() === 'completed') {
-                            assignmentsData.push({ id: child.key, ...child.val() });
+                            completedAssignments.push({ id: child.key, ...child.val() });
                         }
                     });
-                    assignmentsData.sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt));
-                    setAssignments(assignmentsData);
+
+                    // Safely enhance assignments with final bill amounts
+                    const assignmentsWithBillData = await Promise.all(
+                        completedAssignments.map(async (assign) => {
+                            const bill = await fetchBillForAssignment(assign.id);
+                            return {
+                                ...assign,
+                                // Use final bill total if available, otherwise keep the original amount
+                                totalAmount: bill?.totalBill || assign.totalAmount || 0,
+                            };
+                        })
+                    );
+
+                    assignmentsWithBillData.sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt));
+                    setAssignments(assignmentsWithBillData);
                 }
             } catch (error) {
                 toast.error("Could not fetch history.");
@@ -49,78 +87,42 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
             }
         };
 
-        fetchAssignments();
+        fetchHistory();
     }, [userMobile]);
-
-    const fetchBillDetails = async (assignment) => {
-        // A user ID is required to securely fetch their bill
-        if (!assignment.userId) {
-            toast.error("User ID is missing from the assignment record.");
-            return null;
-        }
-
-        try {
-            const billsRef = ref(db, 'bills');
-            // FIX: Query using the secure userId instead of the mobile number
-            const billQuery = query(billsRef, orderByChild('userId'), equalTo(assignment.userId));
-            const snapshot = await get(billQuery);
-
-            if (!snapshot.exists()) {
-                toast.error("No bills found for your account.");
-                return null;
-            }
-
-            let matchingBillDetails = null;
-
-            // Loop through the user's bills to find the one matching this specific assignment
-            snapshot.forEach(child => {
-                const bill = child.val();
-                if (bill.assignmentId === assignment.id || bill.assignmentID === assignment.id) {
-                    matchingBillDetails = bill;
-                }
-            });
-
-            if (!matchingBillDetails) {
-                toast.error("Bill details not found for this specific trade.");
-                return null;
-            }
-
-            if (!matchingBillDetails.billItems || !Array.isArray(matchingBillDetails.billItems)) {
-                toast.error("Bill data is malformed and cannot be displayed.");
-                return null;
-            }
-
-            const completeBill = {
-                id: assignment.id,
-                assignedAt: assignment.assignedAt,
-                vendorName: assignment.vendorName,
-                userName: originalUserData?.name,
-                address: originalUserData?.address,
-                totalAmount: matchingBillDetails.totalBill,
-                products: matchingBillDetails.billItems.map(item => ({
-                    name: item.item || item.name,
-                    quantity: item.weight,
-                    unit: item.unit || 'kg',
-                    rate: item.rate,
-                    total: item.total
-                }))
-            };
-            return completeBill;
-
-        } catch (error) {
-            // This will catch the 'permission_denied' error if it persists
-            toast.error("Could not retrieve bill details. Check permissions.");
-            console.error("Error in fetchBillDetails:", error);
-            return null;
-        }
-    };
 
     const handleViewBill = async (assignment) => {
         setProcessingId({ id: assignment.id, type: 'view' });
-        const completeBillData = await fetchBillDetails(assignment);
-        if (completeBillData) {
-            onViewBill(completeBillData);
+        const billDetails = await fetchBillForAssignment(assignment.id);
+
+        if (!billDetails) {
+            toast.error("Bill details not found for this trade.");
+            setProcessingId(null);
+            return;
         }
+
+        if (!billDetails.billItems || !Array.isArray(billDetails.billItems)) {
+            toast.error("Bill format is incorrect. Cannot display items.");
+            setProcessingId(null);
+            return;
+        }
+
+        const completeBillData = {
+            id: assignment.id,
+            assignedAt: assignment.assignedAt,
+            vendorName: assignment.vendorName,
+            userName: originalUserData?.name,
+            address: originalUserData?.address,
+            totalAmount: billDetails.totalBill,
+            products: billDetails.billItems.map(item => ({
+                name: item.item || item.name,
+                quantity: item.weight,
+                unit: item.unit || 'kg',
+                rate: item.rate,
+                total: item.total
+            }))
+        };
+
+        onViewBill(completeBillData);
         setProcessingId(null);
     };
 
@@ -183,7 +185,7 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                             <div className="p-3 bg-gray-50 flex justify-between items-center">
                                 <div className="flex items-center gap-1">
                                     <FaRupeeSign className="text-green-600" />
-                                    <p className="text-lg font-bold text-green-600">{assignment.totalAmount || '...'}</p>
+                                    <p className="text-lg font-bold text-green-600">{assignment.totalAmount}</p>
                                 </div>
                                 <div className="flex items-center gap-2 sm:gap-4">
                                     <button onClick={() => handleViewBill(assignment)} disabled={!!processingId} className="flex items-center gap-2 bg-gray-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-gray-700 disabled:bg-gray-400">
