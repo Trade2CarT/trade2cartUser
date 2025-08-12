@@ -98,10 +98,7 @@ const TaskPage = () => {
               <span className="text-sm font-medium">{location || '...'}</span>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-xl">
-            <FaBell className="cursor-pointer text-gray-600" />
-            <FaShoppingCart className="cursor-pointer text-gray-600" />
-          </div>
+          
         </header>
 
         <main className="flex-grow p-4 overflow-y-auto">
