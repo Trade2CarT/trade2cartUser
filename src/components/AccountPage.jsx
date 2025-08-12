@@ -21,7 +21,7 @@ const AccountPage = () => {
   const navigate = useNavigate();
   const auth = getAuth();
 
-  const [expandedSection, setExpandedSection] = useState('profile');
+  const [expandedSection, setExpandedSection] = useState('profile'); // Profile section is open by default
   const [originalUserData, setOriginalUserData] = useState(null);
   const [editableUserData, setEditableUserData] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -111,10 +111,19 @@ const AccountPage = () => {
         <main className="flex-grow p-4 overflow-y-auto">
           {userLoading ? <Loader fullscreen /> : (
             <>
-              <h1 className="text-2xl font-bold mb-4">My Account</h1>
+              {/* --- NEW: Profile Header --- */}
+              <div className="flex items-center space-x-4 mb-6">
+                <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center ring-4 ring-white shadow-sm">
+                  <FaUserAlt className="text-3xl text-gray-500" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-800">{originalUserData?.name || 'My Account'}</h1>
+                  <p className="text-sm text-gray-500">Manage your profile and view trades.</p>
+                </div>
+              </div>
 
               {/* Container for Profile and Policies */}
-              <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md space-y-2">
+              <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md">
                 <Section title="My Profile" sectionKey="profile">
                   <ProfileSection
                     userData={editableUserData}
@@ -131,7 +140,7 @@ const AccountPage = () => {
                 </Section>
               </div>
 
-              {/* --- EDITED SECTION: New container for Trade History --- */}
+              {/* Container for Trade History */}
               <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md mt-6">
                 <h2 className="text-xl font-bold mb-4 text-gray-800">Trade History</h2>
                 <TradeHistorySection
