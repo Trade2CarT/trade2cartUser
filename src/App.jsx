@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
-import SEO from './components/SEO'; // Import the SEO component
+import SEO from './components/SEO';
 import Splash from './components/Splash';
 import LanguageSelection from './components/LanguageSelection';
 import LocationPage from './components/LocationPage';
@@ -14,13 +14,13 @@ import AccountPage from './components/AccountPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useSettings } from './context/SettingsContext';
 
-// --- ADDED: Import the new page components ---
-// Make sure you create these files at the specified paths
-import MyProfilePage from './components/account/ProfileSection';
-import PoliciesPage from './components/account/PoliciesAndTerms';
+// --- Import the account page components ---
+import MyProfilePage from './components/account/MyProfilePage';
+// MODIFIED: Renamed import for clarity to match the component name
+import PoliciesAndTerms from './components/account/PoliciesAndTerms';
 
 
-// Public and Protected route logic remains the same...
+// Public and Protected route logic (No changes)
 const PublicRoutes = () => {
   const { userMobile } = useSettings();
   return userMobile ? <Navigate to="/hello" replace /> : <Outlet />;
@@ -35,7 +35,6 @@ const ProtectedRoutes = () => {
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
 
-  // Your Schema Markup for Google
   const schemaMarkup = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
@@ -43,7 +42,7 @@ const App = () => {
     "image": "https://trade2cart.in/logo.png",
     "@id": "https://trade2cart.in",
     "url": "https://trade2cart.in",
-    "telephone": "+91-9876543210", // Example phone number
+    "telephone": "+91-9876543210",
     "description": "Trade2Cart is an online scrap pickup service in India that connects sellers with verified scrap buyers. Book pickup online and get instant payment.",
     "address": {
       "@type": "PostalAddress",
@@ -69,7 +68,6 @@ const App = () => {
 
   return (
     <ErrorBoundary>
-      {/* Default SEO and sitewide Schema */}
       <SEO>
         <script type="application/ld+json">
           {JSON.stringify(schemaMarkup)}
@@ -79,26 +77,27 @@ const App = () => {
       <Router>
         <Toaster position="top-center" reverseOrder={false} />
         <Routes>
-          {/* --- Protected Routes --- */}
+          {/* --- Protected Routes (No changes) --- */}
           <Route element={<ProtectedRoutes />}>
             <Route path="/hello" element={<HelloUser />} />
             <Route path="/trade" element={<TradePage />} />
             <Route path="/task" element={<TaskPage />} />
             <Route path="/account" element={<AccountPage />} />
 
-            {/* --- ADDED: New routes for account sections --- */}
+            {/* --- Routes for account sections --- */}
             <Route path="/account/profile" element={<MyProfilePage />} />
-            <Route path="/account/policies" element={<PoliciesPage />} />
+            {/* MODIFIED: Using the updated import name */}
+            <Route path="/account/policies" element={<PoliciesAndTerms />} />
           </Route>
 
-          {/* --- Public Routes --- */}
+          {/* --- Public Routes (No changes) --- */}
           <Route element={<PublicRoutes />}>
             <Route path="/language" element={<LanguageSelection />} />
             <Route path="/location" element={<LocationPage />} />
             <Route path="/login" element={<LoginPage />} />
           </Route>
 
-          {/* --- Fallback Redirect --- */}
+          {/* --- Fallback Redirect (No changes) --- */}
           <Route path="*" element={<Navigate to="/hello" replace />} />
         </Routes>
       </Router>

@@ -1,75 +1,67 @@
 import React from 'react';
-import { FaEdit, FaSave } from 'react-icons/fa';
+import { FaEdit, FaSave, FaTimes } from 'react-icons/fa';
 
-const ProfileSection = ({
-    userData,
-    isEditing,
-    onInputChange,
-    onEditClick,
-    onSaveClick,
-    onCancelClick
-}) => {
-    if (!userData) {
-        return <p>Loading profile...</p>;
-    }
-
+const ProfileSection = ({ userData, isEditing, onInputChange, onEditClick, onSaveClick, onCancelClick }) => {
     return (
         <div className="space-y-4">
-            <div>
-                <label className="block font-medium mb-1">Name</label>
+            <div className="flex justify-between items-center">
+                <h2 className="text-lg font-semibold">Personal Information</h2>
+                {!isEditing && (
+                    <button onClick={onEditClick} className="flex items-center gap-2 text-blue-500 font-bold py-2 px-4 rounded-lg hover:bg-blue-50">
+                        <FaEdit /> Edit
+                    </button>
+                )}
+            </div>
+
+            {/* Name Field */}
+            <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Name</label>
                 <input
                     type="text"
                     name="name"
-                    value={userData.name || ''}
+                    value={userData?.name || ''}
                     onChange={onInputChange}
-                    disabled={!isEditing}
-                    className={`w-full p-2 border rounded-md ${!isEditing ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+                    readOnly={!isEditing}
+                    className="p-3 bg-gray-100 rounded-md border border-gray-200 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
                 />
             </div>
-            <div>
-                <label className="block font-medium mb-1">Phone Number</label>
+
+            {/* Phone Number Field (Read-only) */}
+            <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Phone Number</label>
                 <input
                     type="text"
-                    value={userData.phone || ''}
-                    disabled
-                    className="w-full p-2 bg-gray-100 border rounded-md cursor-not-allowed"
+                    name="mobile"
+                    value={userData?.mobile || ''}
+                    readOnly // Always read-only
+                    className="p-3 bg-gray-200 cursor-not-allowed rounded-md border border-gray-300"
                 />
             </div>
-            <div>
-                <label className="block font-medium mb-1">Address</label>
+
+            {/* Address Field */}
+            <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-600 mb-1">Address</label>
                 <textarea
                     name="address"
-                    value={userData.address || ''}
+                    value={userData?.address || ''}
                     onChange={onInputChange}
-                    disabled={!isEditing}
+                    readOnly={!isEditing}
                     rows="3"
-                    className={`w-full p-2 border rounded-md ${!isEditing ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+                    className="p-3 bg-gray-100 rounded-md border border-gray-200 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
                 />
             </div>
-            <div>
-                <label className="block font-medium mb-1">Location</label>
-                <select
-                    name="location"
-                    value={userData.location || ''}
-                    onChange={onInputChange}
-                    disabled={!isEditing}
-                    className={`w-full p-2 border rounded-md ${!isEditing ? 'bg-gray-100 cursor-not-allowed appearance-none' : 'bg-white'}`}
-                >
-                    <option value="Vellore">Vellore</option>
-                    <option value="Chennai">Chennai</option>
-                    <option value="Bangalore">Bengaluru</option>
-                </select>
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
-                {isEditing ? (
-                    <>
-                        <button onClick={onCancelClick} className="px-4 py-2 bg-gray-300 rounded-lg font-semibold hover:bg-gray-400">Cancel</button>
-                        <button onClick={onSaveClick} className="px-4 py-2 bg-green-500 text-white rounded-lg flex items-center gap-2 font-semibold hover:bg-green-600"><FaSave /> Save</button>
-                    </>
-                ) : (
-                    <button onClick={onEditClick} className="px-4 py-2 bg-blue-500 text-white rounded-lg flex items-center gap-2 font-semibold hover:bg-blue-600"><FaEdit /> Edit</button>
-                )}
-            </div>
+
+            {/* Action Buttons for Editing Mode */}
+            {isEditing && (
+                <div className="flex items-center justify-end space-x-4 pt-4">
+                    <button onClick={onCancelClick} className="flex items-center gap-2 text-gray-700 font-bold py-2 px-5 rounded-lg hover:bg-gray-100">
+                        <FaTimes /> Cancel
+                    </button>
+                    <button onClick={onSaveClick} className="flex items-center gap-2 bg-green-500 text-white font-bold py-2 px-5 rounded-lg hover:bg-green-600">
+                        <FaSave /> Save
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
