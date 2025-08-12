@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaHome, FaTasks, FaUserAlt, FaChevronDown, FaChevronUp, FaMapMarkerAlt, FaBell, FaShoppingCart, FaSignOutAlt } from 'react-icons/fa';
+import { FaHome, FaTasks, FaUserAlt, FaMapMarkerAlt, FaBell, FaShoppingCart, FaSignOutAlt, FaUserCog, FaShieldAlt, FaChevronRight } from 'react-icons/fa';
 import { db } from '../firebase';
-import { ref, update, get } from 'firebase/database';
+import { ref, get } from 'firebase/database';
 import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
@@ -11,35 +11,27 @@ import SEO from './SEO';
 import Loader from './Loader';
 
 // Import the modular components
-import ProfileSection from './account/ProfileSection';
-import PoliciesAndTerms from './account/PoliciesAndTerms';
 import TradeHistorySection from './account/TradeHistorySection';
 import BillModal from './account/BillModal';
 
 const AccountPage = () => {
-  const { location, setLocation, setUserMobile, userMobile } = useSettings();
+  const { location, setUserMobile, userMobile } = useSettings();
   const navigate = useNavigate();
   const auth = getAuth();
 
-  const [expandedSection, setExpandedSection] = useState('profile'); // Profile section is open by default
   const [originalUserData, setOriginalUserData] = useState(null);
-  const [editableUserData, setEditableUserData] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
   const [userLoading, setUserLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState(null);
   const [billToView, setBillToView] = useState(null);
 
   useEffect(() => {
     setUserLoading(true);
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        setCurrentUserId(user.uid);
         const userRef = ref(db, `users/${user.uid}`);
         get(userRef).then((snapshot) => {
           if (snapshot.exists()) {
             const data = { id: snapshot.key, ...snapshot.val() };
             setOriginalUserData(data);
-            setEditableUserData(data);
           }
         }).finally(() => setUserLoading(false));
       } else {
@@ -49,28 +41,6 @@ const AccountPage = () => {
     });
     return () => unsubscribe();
   }, [auth, navigate]);
-
-  const handleProfileUpdate = async () => {
-    if (!currentUserId || !editableUserData) return;
-    const updatePayload = {
-      name: editableUserData.name || '',
-      address: editableUserData.address || '',
-      location: editableUserData.location || '',
-      language: editableUserData.language || '',
-    };
-    const promise = update(ref(db, `users/${currentUserId}`), updatePayload);
-    toast.promise(promise, {
-      loading: 'Updating profile...',
-      success: 'Profile updated successfully!',
-      error: 'Failed to update profile.'
-    });
-    try {
-      await promise;
-      setLocation(editableUserData.location);
-      setOriginalUserData(editableUserData);
-      setIsEditing(false);
-    } catch (error) { /* Handled by toast */ }
-  };
 
   const handleLogout = () => {
     signOut(auth).then(() => {
@@ -89,16 +59,6 @@ const AccountPage = () => {
     setBillToView(null);
   };
 
-  const Section = ({ title, sectionKey, children }) => (
-    <div className="border-b last:border-b-0">
-      <button onClick={() => setExpandedSection(expandedSection === sectionKey ? null : sectionKey)} className="flex justify-between items-center w-full py-4 font-medium text-left text-gray-800">
-        <span>{title}</span>
-        {expandedSection === sectionKey ? <FaChevronUp /> : <FaChevronDown />}
-      </button>
-      {expandedSection === sectionKey && <div className="pb-4 text-sm text-gray-600">{children}</div>}
-    </div>
-  );
-
   return (
     <>
       <SEO title="My Account - Trade2Cart" description="Manage your profile, view history, and download bills." />
@@ -111,7 +71,7 @@ const AccountPage = () => {
         <main className="flex-grow p-4 overflow-y-auto">
           {userLoading ? <Loader fullscreen /> : (
             <>
-              {/* --- NEW: Profile Header --- */}
+              {/* --- Profile Header --- */}
               <div className="flex items-center space-x-4 mb-6">
                 <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center ring-4 ring-white shadow-sm">
                   <FaUserAlt className="text-3xl text-gray-500" />
@@ -122,22 +82,22 @@ const AccountPage = () => {
                 </div>
               </div>
 
-              {/* Container for Profile and Policies */}
-              <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md">
-                <Section title="My Profile" sectionKey="profile">
-                  <ProfileSection
-                    userData={editableUserData}
-                    isEditing={isEditing}
-                    onInputChange={(e) => setEditableUserData(prev => ({ ...prev, [e.target.name]: e.target.value }))}
-                    onEditClick={() => setIsEditing(true)}
-                    onSaveClick={handleProfileUpdate}
-                    onCancelClick={() => { setIsEditing(false); setEditableUserData(originalUserData); }}
-                  />
-                </Section>
-
-                <Section title="Policies & Terms" sectionKey="policies">
-                  <PoliciesAndTerms />
-                </Section>
+              {/* --- NEW: Navigation Buttons --- */}
+              <div className="bg-white p-2 sm:p-4 rounded-xl shadow-md space-y-2">
+                <Link to="/account/profile" className="flex justify-between items-center w-full p-4 font-medium text-left text-gray-800 hover:bg-gray-50 rounded-lg transition-colors">
+                  <div className="flex items-center gap-4">
+                    <FaUserCog className="text-xl text-blue-500" />
+                    <span>My Profile</span>
+                  </div>
+                  <FaChevronRight className="text-gray-400" />
+                </Link>
+                <Link to="/account/policies" className="flex justify-between items-center w-full p-4 font-medium text-left text-gray-800 hover:bg-gray-50 rounded-lg transition-colors">
+                  <div className="flex items-center gap-4">
+                    <FaShieldAlt className="text-xl text-green-500" />
+                    <span>Policies & Terms</span>
+                  </div>
+                  <FaChevronRight className="text-gray-400" />
+                </Link>
               </div>
 
               {/* Container for Trade History */}
