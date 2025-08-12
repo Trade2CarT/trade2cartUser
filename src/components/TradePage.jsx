@@ -41,32 +41,52 @@ const TradePage = () => {
     }
 
     const fetchUserData = async () => {
-      if (userMobile) {
-        try {
-          const usersRef = ref(db, 'users');
-          const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
-          const snapshot = await get(userQuery);
+      if (!userMobile) {
+        setIsLoading(false);
+        return;
+      }
 
-          if (snapshot.exists()) {
-            const userData = firebaseObjectToArray(snapshot)[0];
-            setExistingUserId(userData.id);
-            if (userData.name) setUserName(userData.name);
-            if (userData.address) setAddress(userData.address);
-            if (userData.email) setEmail(userData.email);
-            setUserStatus(userData.Status || 'Active');
-          } else {
-            setUserStatus('Active');
-          }
-        } catch (err) {
-          toast.error("Failed to load your user data.");
-          setUserStatus('Active');
-        } finally {
-          setIsLoading(false);
+      try {
+        const usersRef = ref(db, 'users');
+        let userSnapshot = null;
+
+        // --- START OF FIX ---
+
+        // 1. Query for the phone number as-is.
+        console.log(`Searching for user with phone: ${userMobile}`);
+        const queryAsIs = query(usersRef, orderByChild('phone'), equalTo(userMobile));
+        userSnapshot = await get(queryAsIs);
+
+        // 2. If not found, and it's a 10-digit number, try again with the '+91' prefix.
+        if (!userSnapshot.exists() && userMobile && userMobile.length === 10 && !userMobile.startsWith('+91')) {
+          const numberWithPrefix = `+91${userMobile}`;
+          console.log(`User not found, trying again with: ${numberWithPrefix}`);
+          const queryWithPrefix = query(usersRef, orderByChild('phone'), equalTo(numberWithPrefix));
+          userSnapshot = await get(queryWithPrefix);
         }
-      } else {
+
+        // --- END OF FIX ---
+
+        if (userSnapshot.exists()) {
+          const userData = firebaseObjectToArray(userSnapshot)[0];
+          console.log("User record found:", userData);
+          setExistingUserId(userData.id);
+          if (userData.name) setUserName(userData.name);
+          if (userData.address) setAddress(userData.address);
+          if (userData.email) setEmail(userData.email);
+          setUserStatus(userData.Status || 'Active');
+        } else {
+          console.error("User record not found with either format.");
+          setUserStatus('Active');
+        }
+      } catch (err) {
+        toast.error("Failed to load your user data.");
+        setUserStatus('Active');
+      } finally {
         setIsLoading(false);
       }
     };
+
     fetchUserData();
   }, [userMobile, navigate]);
 
