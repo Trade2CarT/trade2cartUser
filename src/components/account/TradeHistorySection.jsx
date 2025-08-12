@@ -25,7 +25,6 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
             return;
         }
 
-        // Fetches the initial list of completed assignments
         const fetchAssignments = async () => {
             setLoading(true);
             try {
@@ -45,7 +44,6 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                 }
             } catch (error) {
                 toast.error("Could not fetch history.");
-                console.error(error);
             } finally {
                 setLoading(false);
             }
@@ -54,12 +52,17 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
         fetchAssignments();
     }, [userMobile]);
 
-    // Fetches the detailed bill for a specific assignment when a button is clicked
     const fetchBillDetails = async (assignment) => {
+        // A user ID is required to securely fetch their bill
+        if (!assignment.userId) {
+            toast.error("User ID is missing from the assignment record.");
+            return null;
+        }
+
         try {
             const billsRef = ref(db, 'bills');
-            // A more robust search: Get all bills for this user's mobile number
-            const billQuery = query(billsRef, orderByChild('mobile'), equalTo(assignment.mobile));
+            // FIX: Query using the secure userId instead of the mobile number
+            const billQuery = query(billsRef, orderByChild('userId'), equalTo(assignment.userId));
             const snapshot = await get(billQuery);
 
             if (!snapshot.exists()) {
@@ -68,23 +71,16 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
             }
 
             let matchingBillDetails = null;
-            let sampleBillForDebugging = null;
 
-            // Loop through the user's bills to find the one matching the assignment ID
+            // Loop through the user's bills to find the one matching this specific assignment
             snapshot.forEach(child => {
                 const bill = child.val();
-                if (!sampleBillForDebugging) {
-                    sampleBillForDebugging = bill; // Store the first bill for debugging purposes
-                }
-
-                // Check for a match using common key names
                 if (bill.assignmentId === assignment.id || bill.assignmentID === assignment.id) {
                     matchingBillDetails = bill;
                 }
             });
 
             if (!matchingBillDetails) {
-                console.log("DEBUG: Could not find a bill matching the assignment ID. Here is a sample bill object from your account to help you check the correct field name for the assignment ID:", sampleBillForDebugging);
                 toast.error("Bill details not found for this specific trade.");
                 return null;
             }
@@ -112,6 +108,7 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
             return completeBill;
 
         } catch (error) {
+            // This will catch the 'permission_denied' error if it persists
             toast.error("Could not retrieve bill details.");
             console.error("Error in fetchBillDetails:", error);
             return null;
