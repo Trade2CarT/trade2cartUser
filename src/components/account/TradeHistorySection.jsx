@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
-import { FaEye, FaDownload, FaSpinner, FaFileInvoiceDollar, FaUser, FaRupeeSign } from 'react-icons/fa';
+import { FaEye, FaDownload, FaSpinner, FaFileInvoiceDollar, FaUser, FaBoxOpen, FaRupeeSign } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { toast } from 'react-hot-toast';
@@ -25,7 +25,6 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
             return;
         }
 
-        // Fetches the initial list of completed assignments
         const fetchAssignments = async () => {
             setLoading(true);
             try {
@@ -54,17 +53,17 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
         fetchAssignments();
     }, [userMobile]);
 
-    // Fetches the detailed bill for a specific assignment when a button is clicked
     const fetchBillDetails = async (assignment) => {
+        // ✨ DEBUG: Log the ID we are searching for
+        console.log(`Searching for bill with assignmentID: ${assignment.id}`);
+
         try {
             const billsRef = ref(db, 'bills');
-            // FIX: Try searching for the bill with 'assignmentId' (common)
-            let snapshot = await get(query(billsRef, orderByChild('assignmentId'), equalTo(assignment.id)));
+            const billQuery = query(billsRef, orderByChild('assignmentID'), equalTo(assignment.id));
+            const snapshot = await get(billQuery);
 
-            // FIX: If not found, fall back to 'assignmentID' (from your original code)
-            if (!snapshot.exists()) {
-                snapshot = await get(query(billsRef, orderByChild('assignmentID'), equalTo(assignment.id)));
-            }
+            // ✨ DEBUG: Log whether we found a matching bill
+            console.log(`Did a bill snapshot exist? ${snapshot.exists()}`);
 
             if (!snapshot.exists()) {
                 toast.error("Bill details not found for this trade.");
@@ -74,11 +73,6 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
             let billDetails = null;
             snapshot.forEach(child => { billDetails = child.val(); });
 
-            if (!billDetails || !Array.isArray(billDetails.billItems)) {
-                toast.error("Bill data is malformed and cannot be displayed.");
-                return null;
-            }
-
             const completeBill = {
                 id: assignment.id,
                 assignedAt: assignment.assignedAt,
@@ -87,13 +81,16 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                 address: originalUserData?.address,
                 totalAmount: billDetails.totalBill,
                 products: billDetails.billItems.map(item => ({
-                    name: item.item || item.name,
+                    name: item.item,
                     quantity: item.weight,
                     unit: item.unit || 'kg',
                     rate: item.rate,
                     total: item.total
                 }))
             };
+
+            // ✨ DEBUG: Log the final combined bill data
+            console.log("Successfully constructed bill data:", completeBill);
             return completeBill;
 
         } catch (error) {
@@ -104,6 +101,8 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     };
 
     const handleViewBill = async (assignment) => {
+        // ✨ DEBUG: Log that the view button was clicked
+        console.log("View button clicked for assignment:", assignment);
         setProcessingId({ id: assignment.id, type: 'view' });
         const completeBillData = await fetchBillDetails(assignment);
         if (completeBillData) {
@@ -113,6 +112,8 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     };
 
     const handleDownloadBill = async (assignment) => {
+        // ✨ DEBUG: Log that the download button was clicked
+        console.log("Download button clicked for assignment:", assignment);
         setProcessingId({ id: assignment.id, type: 'download' });
         const completeBillData = await fetchBillDetails(assignment);
         if (completeBillData) {
@@ -129,9 +130,7 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                     .then(canvas => {
                         const imgData = canvas.toDataURL('image/png');
                         const pdf = new jsPDF('p', 'mm', 'a4');
-                        const pdfWidth = pdf.internal.pageSize.getWidth();
-                        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-                        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                        pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
                         pdf.save(`invoice-${billForPdf.id.slice(-6)}.pdf`);
                     })
                     .catch(() => toast.error("PDF generation failed."))
@@ -162,7 +161,7 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                                 <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800">Completed</span>
                                 <p className="text-xs text-gray-500 font-medium">{formatDate(assignment.assignedAt)}</p>
                             </div>
-                            <div className="p-4">
+                            <div className="p-4 space-y-3">
                                 <div className="flex items-center gap-3">
                                     <FaUser className="text-gray-400" />
                                     <p className="text-sm text-gray-700">Vendor: <span className="font-bold">{assignment.vendorName}</span></p>
@@ -171,7 +170,6 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                             <div className="p-3 bg-gray-50 flex justify-between items-center">
                                 <div className="flex items-center gap-1">
                                     <FaRupeeSign className="text-green-600" />
-                                    {/* Display the estimated amount from the assignment record */}
                                     <p className="text-lg font-bold text-green-600">{assignment.totalAmount || '...'}</p>
                                 </div>
                                 <div className="flex items-center gap-2 sm:gap-4">
