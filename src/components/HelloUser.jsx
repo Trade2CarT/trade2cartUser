@@ -75,7 +75,8 @@ const HelloUser = () => {
   };
 
   const ProductCard = React.memo(({ product }) => {
-    const [quantity, setQuantity] = useState(1);
+    // --- EDITED SECTION ---
+    const [quantity, setQuantity] = useState(1); // Initial quantity is 1
     const totalPrice = (parseFloat(product.rate || 0) * quantity).toFixed(2);
 
     const handleAdd = () => {
@@ -98,9 +99,12 @@ const HelloUser = () => {
           <p className="text-sm font-semibold text-green-600">₹{product.rate} <span className="text-xs font-normal text-gray-500">per {product.unit}</span></p>
           <div className="flex items-center justify-between mt-2">
             <div className="flex items-center border border-gray-200 rounded-md">
-              <button onClick={() => setQuantity(q => Math.max(0.1, parseFloat((q - 0.1).toFixed(2))))} className="px-2 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-l focus:outline-none">-</button>
-              <input type="number" step="0.1" min="0.1" value={quantity} onChange={(e) => setQuantity(Math.max(0.1, parseFloat(e.target.value || 1)))} className="w-12 border-l border-r text-center text-sm focus:outline-none" />
-              <button onClick={() => setQuantity(q => parseFloat((q + 0.1).toFixed(2)))} className="px-2 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-r focus:outline-none">+</button>
+              {/* Decrement by 1, minimum is 1 */}
+              <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="px-2 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-l focus:outline-none">-</button>
+              {/* Input handles integers */}
+              <input type="number" step="1" min="1" value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value || 1, 10)))} className="w-12 border-l border-r text-center text-sm focus:outline-none" />
+              {/* Increment by 1 */}
+              <button onClick={() => setQuantity(q => q + 1)} className="px-2 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-r focus:outline-none">+</button>
             </div>
             <button className="bg-blue-600 text-white font-bold py-2 px-4 rounded-md text-sm hover:bg-blue-700 transition-colors" onClick={handleAdd}>Add</button>
           </div>
@@ -150,7 +154,7 @@ const HelloUser = () => {
         </nav>
 
         <main className="flex-grow p-4 overflow-y-auto z-10">
-          {loading ? <Loader /> : (
+          {loading ? <Loader fullscreen /> : (
             <>
               {!showCart && (
                 <section>
