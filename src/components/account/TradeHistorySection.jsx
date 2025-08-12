@@ -109,7 +109,7 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
 
         } catch (error) {
             // This will catch the 'permission_denied' error if it persists
-            toast.error("Could not retrieve bill details.");
+            toast.error("Could not retrieve bill details. Check permissions.");
             console.error("Error in fetchBillDetails:", error);
             return null;
         }
