@@ -1,27 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../../firebase'; // Ensure this path is correct
+import { db } from '../../firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
 import { FaEye, FaDownload, FaSpinner, FaFileInvoiceDollar, FaUser, FaBoxOpen, FaRupeeSign } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { toast } from 'react-hot-toast';
-import BillTemplate from '../BillTemplate'; // Your existing bill template
+import BillTemplate from '../BillTemplate';
 
 const formatDate = (isoString) => {
     if (!isoString) return 'N/A';
     return new Date(isoString).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-const TradeHistorySection = ({ originalUserData, onViewBill }) => {
+// ✨ UPDATED: Added 'userMobile' to the props
+const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState(null);
     const [billForPdf, setBillForPdf] = useState(null);
     const billTemplateRef = useRef(null);
 
-    // 1. Fetch completed assignments based on the user's mobile number, as your rules require.
     useEffect(() => {
-        if (!originalUserData?.mobile) {
+        // ✨ UPDATED: Check for 'userMobile' prop, which is the 10-digit number
+        if (!userMobile) {
             setLoading(false);
             return;
         }
@@ -30,7 +31,8 @@ const TradeHistorySection = ({ originalUserData, onViewBill }) => {
             setLoading(true);
             try {
                 const assignmentsRef = ref(db, 'assignments');
-                const historyQuery = query(assignmentsRef, orderByChild('mobile'), equalTo(originalUserData.mobile));
+                // ✨ UPDATED: Query now uses the reliable 10-digit 'userMobile' prop
+                const historyQuery = query(assignmentsRef, orderByChild('mobile'), equalTo(userMobile));
                 const snapshot = await get(historyQuery);
 
                 if (snapshot.exists()) {
@@ -44,8 +46,7 @@ const TradeHistorySection = ({ originalUserData, onViewBill }) => {
                     setAssignments(assignmentsData);
                 }
             } catch (error) {
-                // This will catch "Permission denied" if rules don't match the query
-                toast.error("Could not fetch history. Check permissions.");
+                toast.error("Could not fetch history.");
                 console.error(error);
             } finally {
                 setLoading(false);
@@ -53,9 +54,8 @@ const TradeHistorySection = ({ originalUserData, onViewBill }) => {
         };
 
         fetchAssignments();
-    }, [originalUserData]);
+    }, [userMobile]); // ✨ UPDATED: Dependency is now 'userMobile'
 
-    // 2. This helper function fetches the specific bill details for an assignment.
     const fetchBillDetails = async (assignment) => {
         try {
             const billsRef = ref(db, 'bills');
@@ -68,9 +68,8 @@ const TradeHistorySection = ({ originalUserData, onViewBill }) => {
             }
 
             let billDetails = null;
-            snapshot.forEach(child => { billDetails = child.val(); }); // Get the first matching bill
+            snapshot.forEach(child => { billDetails = child.val(); });
 
-            // Combine data from the assignment and the bill into one object
             return {
                 id: assignment.id,
                 assignedAt: assignment.assignedAt,
@@ -93,12 +92,11 @@ const TradeHistorySection = ({ originalUserData, onViewBill }) => {
         }
     };
 
-    // 3. Handlers for View and Download buttons
     const handleViewBill = async (assignment) => {
         setProcessingId({ id: assignment.id, type: 'view' });
         const completeBillData = await fetchBillDetails(assignment);
         if (completeBillData) {
-            onViewBill(completeBillData); // Pass complete data to the modal
+            onViewBill(completeBillData);
         }
         setProcessingId(null);
     };
@@ -107,13 +105,12 @@ const TradeHistorySection = ({ originalUserData, onViewBill }) => {
         setProcessingId({ id: assignment.id, type: 'download' });
         const completeBillData = await fetchBillDetails(assignment);
         if (completeBillData) {
-            setBillForPdf(completeBillData); // Trigger the PDF generation
+            setBillForPdf(completeBillData);
         } else {
             setProcessingId(null);
         }
     };
 
-    // 4. useEffect to generate PDF when data is ready
     useEffect(() => {
         if (billForPdf && billTemplateRef.current) {
             setTimeout(() => {
