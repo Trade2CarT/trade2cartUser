@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { FaHome, FaTasks, FaUserAlt, FaEnvelope, FaMapMarkerAlt, FaCamera, FaInfoCircle } from 'react-icons/fa';
 import { db, firebaseObjectToArray } from '../firebase';
-import { ref, query, orderByChild, equalTo, get, update, push } from 'firebase/database';
+import { ref, query, orderByChild, equalTo, get, update, push, set } from 'firebase/database'; // Import 'set'
 import { useSettings } from '../context/SettingsContext';
 import SEO from './SEO';
 import Loader from './Loader';
@@ -48,35 +48,17 @@ const TradePage = () => {
 
       try {
         const usersRef = ref(db, 'users');
-        let userSnapshot = null;
-
-        // --- START OF FIX ---
-
-        // 1. Query for the phone number as-is.
-        console.log(`Searching for user with phone: ${userMobile}`);
-        const queryAsIs = query(usersRef, orderByChild('phone'), equalTo(userMobile));
-        userSnapshot = await get(queryAsIs);
-
-        // 2. If not found, and it's a 10-digit number, try again with the '+91' prefix.
-        if (!userSnapshot.exists() && userMobile && userMobile.length === 10 && !userMobile.startsWith('+91')) {
-          const numberWithPrefix = `+91${userMobile}`;
-          console.log(`User not found, trying again with: ${numberWithPrefix}`);
-          const queryWithPrefix = query(usersRef, orderByChild('phone'), equalTo(numberWithPrefix));
-          userSnapshot = await get(queryWithPrefix);
-        }
-
-        // --- END OF FIX ---
+        const queryByPhone = query(usersRef, orderByChild('phone'), equalTo(userMobile));
+        const userSnapshot = await get(queryByPhone);
 
         if (userSnapshot.exists()) {
           const userData = firebaseObjectToArray(userSnapshot)[0];
-          console.log("User record found:", userData);
           setExistingUserId(userData.id);
           if (userData.name) setUserName(userData.name);
           if (userData.address) setAddress(userData.address);
           if (userData.email) setEmail(userData.email);
           setUserStatus(userData.Status || 'Active');
         } else {
-          console.error("User record not found with either format.");
           setUserStatus('Active');
         }
       } catch (err) {
@@ -90,7 +72,6 @@ const TradePage = () => {
     fetchUserData();
   }, [userMobile, navigate]);
 
-  // Redirect if a schedule is already active
   useEffect(() => {
     if (!isLoading && isSchedulingDisabled) {
       toast.error("You already have an active pickup.");
@@ -100,6 +81,8 @@ const TradePage = () => {
 
   const grandTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.total) || 0), 0);
 
+  // --- MODIFICATION START ---
+  // This function is updated to create a single, consolidated entry in 'wasteEntries'.
   const handleConfirmTrade = async () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!userName.trim() || !address.trim() || !email.trim()) {
@@ -129,35 +112,57 @@ const TradePage = () => {
       address: address,
       email: email,
       timestamp: new Date().toISOString(),
-      Status: "Pending" // Set status to 'Pending' on confirmation
+      Status: "Pending" // Set user status to 'Pending' on confirmation
+    };
+
+    // --- Consolidate entry data ---
+    const consolidatedName = entries
+      .map(entry => `${entry.text || entry.name} (${entry.quantity} ${entry.unit})`)
+      .join(', ');
+
+    const totalQuantity = entries.reduce((sum, entry) => sum + parseFloat(entry.quantity || 0), 0);
+
+    // --- Create payload for the new waste entry ---
+    const newWastePayload = {
+      name: consolidatedName,
+      address: address, // User's full address
+      mobile: userMobile,
+      total: grandTotal.toFixed(2),
+      quantity: totalQuantity,
+      unit: 'kg', // Using a common unit as seen in the DB structure
+      category: 'Mixed', // Assuming "Mixed" for multiple items
+      location: 'Bengaluru', // As per the DB structure example
+      isAssigned: false, // New entries are not yet assigned
+      userID: existingUserId, // Linking the entry to the user
+      image: imageBase64, // Optional image
+      timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
     };
 
     try {
+      // 1. Update the user's information and status
       const userRef = ref(db, `users/${existingUserId}`);
       await update(userRef, userUpdatePayload);
 
+      // 2. First, create a new unique ID in the 'wasteEntries' path
       const wasteEntriesRef = ref(db, 'wasteEntries');
-      for (let entry of entries) {
-        const { text, ...restOfEntry } = entry;
-        await push(wasteEntriesRef, {
-          ...restOfEntry,
-          name: text || entry.name,
-          image: imageBase64,
-          mobile: userMobile,
-          timestamp: new Date().toISOString(),
-          isAssigned: false
-        });
-      }
+      const newWasteEntryRef = push(wasteEntriesRef); // This generates a reference with a unique key.
+
+      // 3. Then, set the data for that new ID
+      await set(newWasteEntryRef, newWastePayload);
 
       toast.success('✅ Trade Confirmed! Your pickup is scheduled.');
       localStorage.removeItem('wasteEntries');
       navigate('/task');
     } catch (error) {
+      console.error("Error creating waste entry:", error);
       toast.error("Something went wrong while saving your trade.");
     } finally {
       setIsSubmitting(false);
     }
   };
+  // --- MODIFICATION END ---
+
 
   return (
     <>
