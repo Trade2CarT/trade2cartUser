@@ -1,205 +1,97 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { FaExclamationTriangle, FaDownload, FaSpinner, FaUser, FaBoxOpen, FaRupeeSign, FaEye } from 'react-icons/fa'; // --- MODIFIED: Added FaEye icon
-import { db, firebaseObjectToArray } from '../../firebase';
+import React, { useState, useEffect } from 'react';
+import { db } from '../../firebase'; // Make sure this path is correct
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-import BillTemplate from '../BillTemplate';
-import { toast } from 'react-hot-toast';
+import { FaFileInvoiceDollar } from 'react-icons/fa';
 
-const StatusBadge = ({ status }) => {
-    return (
-        <div className="px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800">
-            Completed
-        </div>
-    );
+// Helper function to format date
+const formatDate = (isoString) => {
+    if (!isoString) return 'N/A';
+    return new Date(isoString).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+    });
 };
 
-// --- MODIFIED: Component now accepts the `onViewBill` prop ---
-const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
-    const [userHistory, setUserHistory] = useState([]);
-    const [historyLoading, setHistoryLoading] = useState(true);
-    const [billDataForPdf, setBillDataForPdf] = useState(null);
-    const [isProcessing, setIsProcessing] = useState(null); // --- MODIFIED: Generic loading state
-    const billTemplateRef = useRef(null);
+const TradeHistorySection = ({ originalUserData, onViewBill }) => {
+    const [trades, setTrades] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    // Fetch history
     useEffect(() => {
-        if (!userMobile) return;
-        const fetchHistory = async () => {
-            setHistoryLoading(true);
+        // Ensure we have user data before fetching trades
+        if (!originalUserData || !originalUserData.id) {
+            setLoading(false);
+            return;
+        }
+
+        const fetchTrades = async () => {
             try {
-                const assignmentsRef = ref(db, 'assignments');
-                const historyQuery = query(assignmentsRef, orderByChild('mobile'), equalTo(userMobile));
-                const snapshot = await get(historyQuery);
-                setUserHistory(firebaseObjectToArray(snapshot));
+                // Query the 'trades' node where the 'userId' matches the current user's ID
+                const tradesRef = ref(db, 'trades');
+                const tradesQuery = query(tradesRef, orderByChild('userId'), equalTo(originalUserData.id));
+
+                const snapshot = await get(tradesQuery);
+
+                if (snapshot.exists()) {
+                    const tradesData = [];
+                    snapshot.forEach(childSnapshot => {
+                        tradesData.push({ id: childSnapshot.key, ...childSnapshot.val() });
+                    });
+                    // Sort trades by date, newest first
+                    tradesData.sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt));
+                    setTrades(tradesData);
+                } else {
+                    // No trades found for this user
+                    setTrades([]);
+                }
+            } catch (err) {
+                console.error("Error fetching trade history:", err);
+                setError('Could not load trade history.');
             } finally {
-                setHistoryLoading(false);
+                setLoading(false);
             }
         };
-        fetchHistory();
-    }, [userMobile]);
 
-    // Filter & sort history
-    const processedUserHistory = useMemo(() => {
-        const now = new Date();
-        const SEVEN_DAYS_IN_MS = 7 * 24 * 60 * 60 * 1000;
-        return userHistory
-            .map(entry => {
-                if (!entry.assignedAt) return null;
-                const assignedDate = new Date(entry.assignedAt);
-                if (isNaN(assignedDate.getTime())) return null;
-                const expiryDate = new Date(assignedDate.getTime() + SEVEN_DAYS_IN_MS);
-                const remainingTime = expiryDate.getTime() - now.getTime();
-                if (remainingTime < 0) return null;
-                const remainingDays = Math.ceil(remainingTime / (1000 * 60 * 60 * 24));
-                return { ...entry, remainingDays };
-            })
-            .filter(Boolean)
-            .filter(entry => entry.status && entry.status.toLowerCase() === 'completed')
-            .sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt));
-    }, [userHistory]);
+        fetchTrades();
+    }, [originalUserData]); // Rerun when user data is available
 
-    // Generate PDF when billData is ready
-    useEffect(() => {
-        if (billDataForPdf && billTemplateRef.current) {
-            setTimeout(() => {
-                html2canvas(billTemplateRef.current, { scale: 2 })
-                    .then((canvas) => {
-                        const imgData = canvas.toDataURL('image/png');
-                        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-                        pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
-                        pdf.save(`invoice-${billDataForPdf.id.slice(-6)}.pdf`);
-                    })
-                    .catch(() => toast.error("Could not generate PDF."))
-                    .finally(() => {
-                        setBillDataForPdf(null);
-                        setIsProcessing(null);
-                    });
-            }, 200);
-        }
-    }, [billDataForPdf]);
+    if (loading) {
+        return <p className="text-center text-gray-500">Loading history...</p>;
+    }
 
-    // --- ADDED: Reusable function to fetch and construct bill data ---
-    const fetchAndConstructBill = async (tradeEntry) => {
-        const assignmentId = tradeEntry.id;
-        try {
-            const billsRef = ref(db, 'bills');
-            const billQuery = query(billsRef, orderByChild('assignmentID'), equalTo(assignmentId));
-            const snapshot = await get(billQuery);
+    if (error) {
+        return <p className="text-center text-red-500">{error}</p>;
+    }
 
-            if (!snapshot.exists()) {
-                toast.error("Bill details not found for this trade.");
-                return null;
-            }
-
-            const billsArray = firebaseObjectToArray(snapshot);
-            const billDetails = billsArray[0];
-
-            if (!billDetails) {
-                toast.error("Bill data is empty.");
-                return null;
-            }
-
-            return {
-                id: assignmentId,
-                assignedAt: tradeEntry.assignedAt,
-                vendorName: tradeEntry.vendorName,
-                userName: originalUserData?.name,
-                address: originalUserData?.address,
-                phone: userMobile, // Pass phone to bill template
-                totalAmount: billDetails.totalBill,
-                products: billDetails.billItems.map(item => ({
-                    name: item.item, // Corrected mapping
-                    quantity: item.weight,
-                    unit: item.unit || 'kg', // Use unit from bill or default
-                    rate: item.rate,
-                    total: item.total
-                }))
-            };
-        } catch (error) {
-            console.error("Error fetching bill:", error);
-            toast.error("Could not retrieve bill details.");
-            return null;
-        }
-    };
-
-    const handleDownloadBill = async (tradeEntry) => {
-        setIsProcessing({ id: tradeEntry.id, type: 'download' });
-        const completeBillData = await fetchAndConstructBill(tradeEntry);
-        if (completeBillData) {
-            setBillDataForPdf(completeBillData); // This triggers the PDF generation useEffect
-        } else {
-            setIsProcessing(null);
-        }
-    };
-
-    // --- ADDED: Handler for the new 'View Bill' button ---
-    const handleViewBill = async (tradeEntry) => {
-        setIsProcessing({ id: tradeEntry.id, type: 'view' });
-        const completeBillData = await fetchAndConstructBill(tradeEntry);
-        if (completeBillData) {
-            onViewBill(completeBillData); // Pass data up to AccountPage to open the modal
-        }
-        setIsProcessing(null); // Reset loading state
-    };
-
+    if (trades.length === 0) {
+        return (
+            <div className="text-center py-8">
+                <FaFileInvoiceDollar className="mx-auto text-4xl text-gray-300 mb-4" />
+                <h3 className="text-lg font-semibold text-gray-700">No History Found</h3>
+                <p className="text-sm text-gray-500">You have not completed any trades yet.</p>
+            </div>
+        );
+    }
 
     return (
-        <>
-            <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-                <BillTemplate trade={billDataForPdf} billRef={billTemplateRef} />
-            </div>
-
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-3 rounded-md mb-4 text-sm" role="alert">
-                <div className="flex items-center gap-2"><FaExclamationTriangle /><p>Completed trade history is deleted after 7 days.</p></div>
-            </div>
-
-            {historyLoading ? (
-                <p>Loading history...</p>
-            ) : processedUserHistory.length > 0 ? (
-                <div className="space-y-4">
-                    {processedUserHistory.map((entry) => (
-                        <div key={entry.id} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-                            <div className="p-3 bg-gray-50 flex justify-between items-center">
-                                <StatusBadge status={entry.status} />
-                                <p className="text-xs text-gray-500 font-medium">{new Date(entry.assignedAt).toLocaleDateString()}</p>
-                            </div>
-                            <div className="p-4 space-y-3">
-                                <div className="flex items-center gap-3"><FaUser className="text-gray-400" /><p className="text-sm text-gray-700">Vendor: <span className="font-bold">{entry.vendorName}</span></p></div>
-                                <div className="flex items-center gap-3"><FaBoxOpen className="text-gray-400" /><p className="text-sm text-gray-700">Products: <span className="font-semibold">{entry.products}</span></p></div>
-                            </div>
-                            <div className="p-3 bg-gray-50 flex justify-between items-center">
-                                <div className="flex items-center gap-1"><FaRupeeSign className="text-green-600" /><p className="text-lg font-bold text-green-600">{entry.totalAmount}</p></div>
-                                <div className="flex items-center gap-2 sm:gap-4">
-                                    <p className="text-xs text-red-600 font-medium hidden sm:block">Deletes in {entry.remainingDays} {entry.remainingDays > 1 ? 'days' : 'day'}</p>
-
-                                    {/* --- ADDED: 'View Bill' button --- */}
-                                    <button
-                                        onClick={() => handleViewBill(entry)}
-                                        disabled={isProcessing?.id === entry.id}
-                                        className="flex items-center gap-2 bg-gray-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-gray-700 disabled:bg-gray-400"
-                                    >
-                                        {isProcessing?.id === entry.id && isProcessing?.type === 'view' ? <FaSpinner className="animate-spin" /> : <FaEye />}
-                                        View
-                                    </button>
-                                    <button
-                                        onClick={() => handleDownloadBill(entry)}
-                                        disabled={isProcessing?.id === entry.id}
-                                        className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:bg-blue-400"
-                                    >
-                                        {isProcessing?.id === entry.id && isProcessing?.type === 'download' ? <FaSpinner className="animate-spin" /> : <FaDownload />}
-                                        Download
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+        <div className="space-y-4">
+            {trades.map((trade) => (
+                <div key={trade.id} className="bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200 flex justify-between items-center">
+                    <div>
+                        <p className="font-bold text-gray-800">vs. {trade.vendorName || 'Vendor'}</p>
+                        <p className="text-sm text-gray-500">{formatDate(trade.assignedAt)}</p>
+                        <p className="text-lg font-semibold text-green-600 mt-1">₹{trade.totalAmount || '0.00'}</p>
+                    </div>
+                    <button
+                        onClick={() => onViewBill(trade)}
+                        className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        View Bill
+                    </button>
                 </div>
-            ) : (
-                <div className="text-center py-4 text-gray-500">No completed trades found.</div>
-            )}
-        </>
+            ))}
+        </div>
     );
 };
 
