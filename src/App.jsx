@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
-import SEO from './components/SEO';
+import SEO from './components/SEO'; // Import the SEO component
 import Splash from './components/Splash';
 import LanguageSelection from './components/LanguageSelection';
 import LocationPage from './components/LocationPage';
@@ -14,13 +14,7 @@ import AccountPage from './components/AccountPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useSettings } from './context/SettingsContext';
 
-// --- Import the account page components ---
-import MyProfilePage from './components/account/MyProfilePage';
-// MODIFIED: Renamed import for clarity to match the component name
-import PoliciesAndTerms from './components/account/PoliciesAndTerms';
-
-
-// Public and Protected route logic (No changes)
+// Public and Protected route logic remains the same...
 const PublicRoutes = () => {
   const { userMobile } = useSettings();
   return userMobile ? <Navigate to="/hello" replace /> : <Outlet />;
@@ -35,6 +29,7 @@ const ProtectedRoutes = () => {
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
 
+  // Your Schema Markup for Google
   const schemaMarkup = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
@@ -42,7 +37,7 @@ const App = () => {
     "image": "https://trade2cart.in/logo.png",
     "@id": "https://trade2cart.in",
     "url": "https://trade2cart.in",
-    "telephone": "+91-9876543210",
+    "telephone": "+91-9876543210", // Example phone number
     "description": "Trade2Cart is an online scrap pickup service in India that connects sellers with verified scrap buyers. Book pickup online and get instant payment.",
     "address": {
       "@type": "PostalAddress",
@@ -68,6 +63,7 @@ const App = () => {
 
   return (
     <ErrorBoundary>
+      {/* Default SEO and sitewide Schema */}
       <SEO>
         <script type="application/ld+json">
           {JSON.stringify(schemaMarkup)}
@@ -77,27 +73,22 @@ const App = () => {
       <Router>
         <Toaster position="top-center" reverseOrder={false} />
         <Routes>
-          {/* --- Protected Routes (No changes) --- */}
+          {/* --- Protected Routes --- */}
           <Route element={<ProtectedRoutes />}>
             <Route path="/hello" element={<HelloUser />} />
             <Route path="/trade" element={<TradePage />} />
             <Route path="/task" element={<TaskPage />} />
             <Route path="/account" element={<AccountPage />} />
-
-            {/* --- Routes for account sections --- */}
-            <Route path="/account/profile" element={<MyProfilePage />} />
-            {/* MODIFIED: Using the updated import name */}
-            <Route path="/account/policies" element={<PoliciesAndTerms />} />
           </Route>
 
-          {/* --- Public Routes (No changes) --- */}
+          {/* --- Public Routes --- */}
           <Route element={<PublicRoutes />}>
             <Route path="/language" element={<LanguageSelection />} />
             <Route path="/location" element={<LocationPage />} />
             <Route path="/login" element={<LoginPage />} />
           </Route>
 
-          {/* --- Fallback Redirect (No changes) --- */}
+          {/* --- Fallback Redirect --- */}
           <Route path="*" element={<Navigate to="/hello" replace />} />
         </Routes>
       </Router>
