@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { FaHome, FaTasks, FaUserAlt, FaEnvelope, FaMapMarkerAlt, FaCamera } from 'react-icons/fa';
+import { FaHome, FaTasks, FaUserAlt, FaEnvelope, FaMapMarkerAlt, FaCamera, FaInfoCircle } from 'react-icons/fa';
 import { db, firebaseObjectToArray } from '../firebase';
 import { ref, query, orderByChild, equalTo, get, update, push } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
@@ -12,21 +12,31 @@ const TradePage = () => {
   const [entries, setEntries] = useState([]);
   const [userName, setUserName] = useState('');
   const [address, setAddress] = useState('');
-  const [email, setEmail] = useState(''); // State for email
+  const [email, setEmail] = useState('');
   const [existingUserId, setExistingUserId] = useState(null);
   const [tradeImage, setTradeImage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [userStatus, setUserStatus] = useState(null);
   const navigate = useNavigate();
   const { userMobile } = useSettings();
+
+  const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
 
   useEffect(() => {
     const localEntries = localStorage.getItem('wasteEntries');
     if (localEntries) {
       try {
-        setEntries(JSON.parse(localEntries));
+        const parsedEntries = JSON.parse(localEntries);
+        setEntries(parsedEntries);
+        if (parsedEntries.length === 0) {
+          toast.error("Your cart is empty. Add items first.");
+          navigate('/hello');
+        }
       } catch {
         setEntries([]);
+        toast.error("Your cart is empty. Add items first.");
+        navigate('/hello');
       }
     }
 
@@ -42,10 +52,14 @@ const TradePage = () => {
             setExistingUserId(userData.id);
             if (userData.name) setUserName(userData.name);
             if (userData.address) setAddress(userData.address);
-            if (userData.email) setEmail(userData.email); // Fetch and pre-fill existing email
+            if (userData.email) setEmail(userData.email);
+            setUserStatus(userData.Status || 'Active');
+          } else {
+            setUserStatus('Active');
           }
         } catch (err) {
           toast.error("Failed to load your user data.");
+          setUserStatus('Active');
         } finally {
           setIsLoading(false);
         }
@@ -54,7 +68,15 @@ const TradePage = () => {
       }
     };
     fetchUserData();
-  }, [userMobile]);
+  }, [userMobile, navigate]);
+
+  // Redirect if a schedule is already active
+  useEffect(() => {
+    if (!isLoading && isSchedulingDisabled) {
+      toast.error("You already have an active pickup.");
+      navigate('/task');
+    }
+  }, [isLoading, isSchedulingDisabled, navigate]);
 
   const grandTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.total) || 0), 0);
 
@@ -85,9 +107,9 @@ const TradePage = () => {
     const userUpdatePayload = {
       name: userName,
       address: address,
-      email: email, // Save email to user profile
+      email: email,
       timestamp: new Date().toISOString(),
-      Status: "Pending"
+      Status: "Pending" // Set status to 'Pending' on confirmation
     };
 
     try {
@@ -175,7 +197,7 @@ const TradePage = () => {
                 <input type="file" accept="image/*" onChange={(e) => setTradeImage(e.target.files[0])} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" />
               </div>
 
-              <button onClick={handleConfirmTrade} disabled={isSubmitting} className="w-full mt-6 py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all transform hover:scale-105">
+              <button onClick={handleConfirmTrade} disabled={isSubmitting || isSchedulingDisabled} className="w-full mt-6 py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all transform hover:scale-105">
                 {isSubmitting ? 'Submitting...' : 'Confirm & Schedule Pickup'}
               </button>
             </div>
