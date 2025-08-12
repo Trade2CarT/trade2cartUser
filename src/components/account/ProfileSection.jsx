@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
+import { db } from '../../firebase';
 import { ref, update } from 'firebase/database';
 import { toast } from 'react-hot-toast';
 import { FaUser, FaEnvelope, FaPhone, FaSave } from 'react-icons/fa';
