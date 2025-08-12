@@ -98,7 +98,7 @@ const LoginPage = () => {
       const user = credential.user;
       // ✨ UPDATED: Pass the full user.phoneNumber from Firebase Auth
       await ensureUserExistsInFirebase(user.uid, user.phoneNumber);
-      setUserMobile(user.phoneNumber); // Remove +91 for display/context
+      setUserMobile(user.phoneNumber.slice(3)); // Remove +91 for display/context
       toast.success('Login Successful!');
       navigate('/hello', { replace: true });
     } catch (error) {
