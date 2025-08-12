@@ -7,88 +7,131 @@ import html2canvas from 'html2canvas';
 import { toast } from 'react-hot-toast';
 import BillTemplate from '../BillTemplate'; // Your existing bill template
 
-// Helper to format dates
 const formatDate = (isoString) => {
     if (!isoString) return 'N/A';
-    return new Date(isoString).toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
-    });
+    return new Date(isoString).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 const TradeHistorySection = ({ originalUserData, onViewBill }) => {
-    const [trades, setTrades] = useState([]);
+    const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [processingId, setProcessingId] = useState(null); // Tracks which button is clicked
-    const [billForPdf, setBillForPdf] = useState(null); // Holds data for the PDF generator
+    const [processingId, setProcessingId] = useState(null);
+    const [billForPdf, setBillForPdf] = useState(null);
     const billTemplateRef = useRef(null);
 
-    // 1. Fetch trade history using the reliable 'userId'
+    // 1. Fetch completed assignments based on the user's mobile number, as your rules require.
     useEffect(() => {
-        if (!originalUserData?.id) return;
+        if (!originalUserData?.mobile) {
+            setLoading(false);
+            return;
+        }
 
-        const fetchTrades = async () => {
+        const fetchAssignments = async () => {
             setLoading(true);
             try {
-                const tradesRef = ref(db, 'trades');
-                const tradesQuery = query(tradesRef, orderByChild('userId'), equalTo(originalUserData.id));
-                const snapshot = await get(tradesQuery);
+                const assignmentsRef = ref(db, 'assignments');
+                const historyQuery = query(assignmentsRef, orderByChild('mobile'), equalTo(originalUserData.mobile));
+                const snapshot = await get(historyQuery);
 
                 if (snapshot.exists()) {
-                    const tradesData = [];
+                    const assignmentsData = [];
                     snapshot.forEach(child => {
-                        // Only include completed trades
                         if (child.val().status?.toLowerCase() === 'completed') {
-                            tradesData.push({ id: child.key, ...child.val() });
+                            assignmentsData.push({ id: child.key, ...child.val() });
                         }
                     });
-                    tradesData.sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt));
-                    setTrades(tradesData);
+                    assignmentsData.sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt));
+                    setAssignments(assignmentsData);
                 }
             } catch (error) {
-                toast.error("Could not fetch trade history.");
+                // This will catch "Permission denied" if rules don't match the query
+                toast.error("Could not fetch history. Check permissions.");
                 console.error(error);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchTrades();
+        fetchAssignments();
     }, [originalUserData]);
 
-    // 2. Generate PDF when the 'billForPdf' state is set
+    // 2. This helper function fetches the specific bill details for an assignment.
+    const fetchBillDetails = async (assignment) => {
+        try {
+            const billsRef = ref(db, 'bills');
+            const billQuery = query(billsRef, orderByChild('assignmentID'), equalTo(assignment.id));
+            const snapshot = await get(billQuery);
+
+            if (!snapshot.exists()) {
+                toast.error("Bill details not found for this trade.");
+                return null;
+            }
+
+            let billDetails = null;
+            snapshot.forEach(child => { billDetails = child.val(); }); // Get the first matching bill
+
+            // Combine data from the assignment and the bill into one object
+            return {
+                id: assignment.id,
+                assignedAt: assignment.assignedAt,
+                vendorName: assignment.vendorName,
+                userName: originalUserData?.name,
+                address: originalUserData?.address,
+                totalAmount: billDetails.totalBill,
+                products: billDetails.billItems.map(item => ({
+                    name: item.item,
+                    quantity: item.weight,
+                    unit: item.unit || 'kg',
+                    rate: item.rate,
+                    total: item.total
+                }))
+            };
+        } catch (error) {
+            toast.error("Could not retrieve bill details.");
+            console.error(error);
+            return null;
+        }
+    };
+
+    // 3. Handlers for View and Download buttons
+    const handleViewBill = async (assignment) => {
+        setProcessingId({ id: assignment.id, type: 'view' });
+        const completeBillData = await fetchBillDetails(assignment);
+        if (completeBillData) {
+            onViewBill(completeBillData); // Pass complete data to the modal
+        }
+        setProcessingId(null);
+    };
+
+    const handleDownloadBill = async (assignment) => {
+        setProcessingId({ id: assignment.id, type: 'download' });
+        const completeBillData = await fetchBillDetails(assignment);
+        if (completeBillData) {
+            setBillForPdf(completeBillData); // Trigger the PDF generation
+        } else {
+            setProcessingId(null);
+        }
+    };
+
+    // 4. useEffect to generate PDF when data is ready
     useEffect(() => {
         if (billForPdf && billTemplateRef.current) {
-            // Use a timeout to ensure the component has rendered with the new data
             setTimeout(() => {
-                html2canvas(billTemplatereF.current, { scale: 2 })
-                    .then((canvas) => {
+                html2canvas(billTemplateRef.current, { scale: 2 })
+                    .then(canvas => {
                         const imgData = canvas.toDataURL('image/png');
-                        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-                        const pdfWidth = pdf.internal.pageSize.getWidth();
-                        const pdfHeight = pdf.internal.pageSize.getHeight();
-                        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                        const pdf = new jsPDF('p', 'mm', 'a4');
+                        pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
                         pdf.save(`invoice-${billForPdf.id.slice(-6)}.pdf`);
                     })
-                    .catch(() => toast.error("Failed to generate PDF."))
+                    .catch(() => toast.error("PDF generation failed."))
                     .finally(() => {
-                        setBillForPdf(null); // Reset state
-                        setProcessingId(null); // Reset loading spinner
+                        setBillForPdf(null);
+                        setProcessingId(null);
                     });
-            }, 300); // A small delay can help ensure rendering is complete
+            }, 300);
         }
     }, [billForPdf]);
-
-    // 3. Handlers for the View and Download buttons
-    const handleViewBill = (trade) => {
-        onViewBill(trade); // This passes the data to AccountPage, which opens the modal
-    };
-
-    const handleDownloadBill = (trade) => {
-        setProcessingId({ id: trade.id, type: 'download' });
-        setBillForPdf(trade); // This triggers the PDF generation useEffect
-    };
 
     if (loading) {
         return <p className="text-center text-gray-500 py-4">Loading history...</p>;
@@ -96,51 +139,35 @@ const TradeHistorySection = ({ originalUserData, onViewBill }) => {
 
     return (
         <>
-            {/* This hidden component is used only for generating the PDF */}
             <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
                 <BillTemplate trade={billForPdf} billRef={billTemplateRef} />
             </div>
 
-            {trades.length > 0 ? (
+            {assignments.length > 0 ? (
                 <div className="space-y-4">
-                    {trades.map((trade) => (
-                        <div key={trade.id} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                    {assignments.map((assignment) => (
+                        <div key={assignment.id} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
                             <div className="p-3 bg-gray-50 flex justify-between items-center">
                                 <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800">Completed</span>
-                                <p className="text-xs text-gray-500 font-medium">{formatDate(trade.assignedAt)}</p>
+                                <p className="text-xs text-gray-500 font-medium">{formatDate(assignment.assignedAt)}</p>
                             </div>
                             <div className="p-4 space-y-3">
                                 <div className="flex items-center gap-3">
                                     <FaUser className="text-gray-400" />
-                                    <p className="text-sm text-gray-700">Vendor: <span className="font-bold">{trade.vendorName}</span></p>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <FaBoxOpen className="text-gray-400" />
-                                    <p className="text-sm text-gray-700">
-                                        Products: <span className="font-semibold">{trade.products.map(p => p.name).join(', ')}</span>
-                                    </p>
+                                    <p className="text-sm text-gray-700">Vendor: <span className="font-bold">{assignment.vendorName}</span></p>
                                 </div>
                             </div>
                             <div className="p-3 bg-gray-50 flex justify-between items-center">
                                 <div className="flex items-center gap-1">
                                     <FaRupeeSign className="text-green-600" />
-                                    <p className="text-lg font-bold text-green-600">{trade.totalAmount}</p>
+                                    <p className="text-lg font-bold text-green-600">{assignment.totalAmount || '...'}</p>
                                 </div>
                                 <div className="flex items-center gap-2 sm:gap-4">
-                                    <button
-                                        onClick={() => handleViewBill(trade)}
-                                        disabled={!!processingId}
-                                        className="flex items-center gap-2 bg-gray-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-gray-700 disabled:bg-gray-400"
-                                    >
-                                        <FaEye /> View
+                                    <button onClick={() => handleViewBill(assignment)} disabled={!!processingId} className="flex items-center gap-2 bg-gray-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-gray-700 disabled:bg-gray-400">
+                                        {processingId?.id === assignment.id && processingId.type === 'view' ? <FaSpinner className="animate-spin" /> : <FaEye />} View
                                     </button>
-                                    <button
-                                        onClick={() => handleDownloadBill(trade)}
-                                        disabled={!!processingId}
-                                        className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:bg-blue-400"
-                                    >
-                                        {processingId?.id === trade.id ? <FaSpinner className="animate-spin" /> : <FaDownload />}
-                                        Download
+                                    <button onClick={() => handleDownloadBill(assignment)} disabled={!!processingId} className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:bg-blue-400">
+                                        {processingId?.id === assignment.id && processingId.type === 'download' ? <FaSpinner className="animate-spin" /> : <FaDownload />} Download
                                     </button>
                                 </div>
                             </div>
