@@ -1,4 +1,4 @@
-import React, 'useState', useEffect, useRef } from 'react';
+import React,{ useEffect, useRef }   from 'react';
 import { db } from '../../firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
 import { FaEye, FaDownload, FaSpinner, FaFileInvoiceDollar, FaUser, FaRupeeSign } from 'react-icons/fa';
@@ -6,12 +6,12 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { toast } from 'react-hot-toast';
 import BillTemplate from '../BillTemplate';
+import { useState } from 'react';
 
 const formatDate = (isoString) => {
     if (!isoString) return 'N/A';
     return new Date(isoString).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
-
 const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
