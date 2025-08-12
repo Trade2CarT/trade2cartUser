@@ -85,7 +85,7 @@ const AccountPage = () => {
   // Callback to refresh user data after profile update
   const handleProfileUpdate = (updatedData) => {
     setOriginalUserData(prevData => ({ ...prevData, ...updatedData }));
-    setProfileModalOpen(false);
+    setProfileModalOpen(false); // Close modal on successful update
   }
 
   return (
@@ -94,7 +94,17 @@ const AccountPage = () => {
       <div className="h-screen bg-gray-50 flex flex-col">
         {/* Header */}
         <header className="sticky top-0 flex-shrink-0 p-4 bg-white shadow-md z-30 flex justify-between items-center">
-          {/* Content from previous file */}
+          <div className="flex items-center gap-3">
+            <img src={assetlogo} alt="Trade2Cart Logo" className="h-8 w-auto" />
+            <div className="hidden sm:flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full">
+              <FaMapMarkerAlt className="text-green-500" />
+              <span className="text-sm font-medium">{location}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 text-xl">
+            <FaBell className="cursor-pointer text-gray-600" />
+            <FaShoppingCart className="cursor-pointer text-gray-600" />
+          </div>
         </header>
 
         <main className="flex-grow p-4 overflow-y-auto">
@@ -102,12 +112,17 @@ const AccountPage = () => {
             <>
               {/* --- Profile Header --- */}
               <div className="flex items-center space-x-4 mb-6">
-                {/* Content from previous file */}
+                <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center ring-4 ring-white shadow-sm">
+                  <FaUserAlt className="text-3xl text-gray-500" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-800">{originalUserData?.name || 'My Account'}</h1>
+                  <p className="text-sm text-gray-500">Manage your profile and view trades.</p>
+                </div>
               </div>
 
               {/* --- Navigation Buttons --- */}
               <div className="bg-white p-2 sm:p-4 rounded-xl shadow-md space-y-2">
-                {/* THIS IS THE KEY CHANGE: onClick now opens the modal */}
                 <button onClick={() => setProfileModalOpen(true)} className="flex justify-between items-center w-full p-4 font-medium text-left text-gray-800 hover:bg-gray-50 rounded-lg transition-colors">
                   <div className="flex items-center gap-4">
                     <FaUserCog className="text-xl text-blue-500" />
@@ -124,9 +139,14 @@ const AccountPage = () => {
                 </button>
               </div>
 
-              {/* Trade History */}
+              {/* Container for Trade History */}
               <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md mt-6">
-                {/* Content from previous file */}
+                <h2 className="text-xl font-bold mb-4 text-gray-800">Trade History</h2>
+                <TradeHistorySection
+                  userMobile={userMobile}
+                  originalUserData={originalUserData}
+                  onViewBill={handleOpenBillModal}
+                />
               </div>
 
               {/* Logout Button */}
@@ -139,7 +159,9 @@ const AccountPage = () => {
 
         {/* Footer */}
         <footer className="sticky bottom-0 flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
-          {/* Content from previous file */}
+          <Link to="/hello" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaHome className="text-2xl" /><span className="text-xs font-medium">Home</span></Link>
+          <Link to="/task" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaTasks className="text-2xl" /><span className="text-xs font-medium">Tasks</span></Link>
+          <Link to="/account" className="flex flex-col items-center text-green-600 p-2 no-underline"><FaUserAlt className="text-2xl" /><span className="text-xs font-medium">Account</span></Link>
         </footer>
 
         {billToView && <BillModal bill={billToView} onClose={handleCloseBillModal} />}
@@ -147,7 +169,6 @@ const AccountPage = () => {
         {/* Profile Modal */}
         {isProfileModalOpen && originalUserData && (
           <Modal title="My Profile" onClose={() => setProfileModalOpen(false)}>
-            {/* THIS IS THE KEY CHANGE: Pass user data as a prop */}
             <ProfileSection
               user={originalUserData}
               onUpdate={handleProfileUpdate}
