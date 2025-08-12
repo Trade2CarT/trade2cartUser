@@ -14,6 +14,12 @@ import AccountPage from './components/AccountPage';
 import ErrorBoundary from './components/ErrorBoundary';
 import { useSettings } from './context/SettingsContext';
 
+// --- ADDED: Import the new page components ---
+// Make sure you create these files at the specified paths
+import MyProfilePage from './components/account/MyProfilePage';
+import PoliciesPage from './components/account/PoliciesPage';
+
+
 // Public and Protected route logic remains the same...
 const PublicRoutes = () => {
   const { userMobile } = useSettings();
@@ -79,6 +85,10 @@ const App = () => {
             <Route path="/trade" element={<TradePage />} />
             <Route path="/task" element={<TaskPage />} />
             <Route path="/account" element={<AccountPage />} />
+
+            {/* --- ADDED: New routes for account sections --- */}
+            <Route path="/account/profile" element={<MyProfilePage />} />
+            <Route path="/account/policies" element={<PoliciesPage />} />
           </Route>
 
           {/* --- Public Routes --- */}
