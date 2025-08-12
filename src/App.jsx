@@ -16,8 +16,8 @@ import { useSettings } from './context/SettingsContext';
 
 // --- ADDED: Import the new page components ---
 // Make sure you create these files at the specified paths
-import MyProfilePage from './components/account/MyProfilePage';
-import PoliciesPage from './components/account/PoliciesPage';
+import MyProfilePage from './components/account/ProfileSection';
+import PoliciesPage from './components/account/PoliciesAndTerms';
 
 
 // Public and Protected route logic remains the same...
