@@ -1,45 +1,35 @@
+// Loader.jsx
 import React from 'react';
 import styled, { keyframes } from 'styled-components';
 
-const bounce = keyframes`
-  0%, 75%, 100% {
-    transform: translateY(0);
+// 1. Define the rotation animation
+const rotate = keyframes`
+  from {
+    transform: rotate(0deg);
   }
-  25% {
-    transform: translateY(-10px);
+  to {
+    transform: rotate(360deg);
   }
 `;
 
-const DotWrapper = styled.div`
-  display: flex;
-  align-items: flex-end;
-`;
+// 2. Create the styled component for the spinner
+const Spinner = styled.div`
+  /* Size */
+  width: 40px;
+  height: 40px;
 
-const Dot = styled.div`
-  background-color: #333;
-  width: 8px;
-  height: 8px;
+  /* Style */
+  border: 5px solid rgba(0, 0, 0, 0.1); /* Light grey track */
+  border-left-color: #22a6b3; /* Color of the spinning part */
   border-radius: 50%;
-  margin: 0 4px;
-  animation: ${bounce} 1.2s linear infinite;
-  
-  /* Add animation delay for each dot */
-  &:nth-child(2) {
-    animation-delay: 0.2s;
-  }
-  &:nth-child(3) {
-    animation-delay: 0.4s;
-  }
+
+  /* Animation */
+  animation: ${rotate} 1s linear infinite;
 `;
 
+// 3. Define the Loader component
 const Loader = () => {
-    return (
-        <DotWrapper>
-            <Dot />
-            <Dot />
-            <Dot />
-        </DotWrapper>
-    );
+    return <Spinner />;
 };
 
 export default Loader;
