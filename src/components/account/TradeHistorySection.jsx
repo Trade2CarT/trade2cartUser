@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
-import { FaEye, FaDownload, FaSpinner, FaFileInvoiceDollar, FaUser, FaBoxOpen, FaRupeeSign } from 'react-icons/fa';
+import { FaEye, FaDownload, FaSpinner, FaFileInvoiceDollar, FaUser, FaRupeeSign } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { toast } from 'react-hot-toast';
@@ -19,90 +19,107 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     const [billForPdf, setBillForPdf] = useState(null);
     const billTemplateRef = useRef(null);
 
+    // Function to fetch the bill for a single assignment, trying multiple keys
+    const fetchBillForAssignment = async (assignmentId) => {
+        const billsRef = ref(db, 'bills');
+        // Try fetching with 'assignmentId' (lowercase 'd') first
+        let billQuery = query(billsRef, orderByChild('assignmentId'), equalTo(assignmentId));
+        let snapshot = await get(billQuery);
+
+        // If not found, try with 'assignmentID' (uppercase 'D') as a fallback
+        if (!snapshot.exists()) {
+            billQuery = query(billsRef, orderByChild('assignmentID'), equalTo(assignmentId));
+            snapshot = await get(billQuery);
+        }
+
+        if (snapshot.exists()) {
+            let billData = null;
+            snapshot.forEach(child => {
+                billData = child.val();
+            });
+            return billData;
+        }
+        return null;
+    };
+
     useEffect(() => {
         if (!userMobile) {
             setLoading(false);
             return;
         }
 
-        const fetchAssignments = async () => {
+        const fetchHistory = async () => {
             setLoading(true);
             try {
+                // 1. Fetch all completed assignments for the user
                 const assignmentsRef = ref(db, 'assignments');
                 const historyQuery = query(assignmentsRef, orderByChild('mobile'), equalTo(userMobile));
                 const snapshot = await get(historyQuery);
 
                 if (snapshot.exists()) {
-                    const assignmentsData = [];
+                    const completedAssignments = [];
                     snapshot.forEach(child => {
                         if (child.val().status?.toLowerCase() === 'completed') {
-                            assignmentsData.push({ id: child.key, ...child.val() });
+                            completedAssignments.push({ id: child.key, ...child.val() });
                         }
                     });
-                    assignmentsData.sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt));
-                    setAssignments(assignmentsData);
+
+                    // 2. For each assignment, fetch its corresponding bill to get the final amount
+                    const assignmentsWithBillData = await Promise.all(
+                        completedAssignments.map(async (assign) => {
+                            const bill = await fetchBillForAssignment(assign.id);
+                            return {
+                                ...assign,
+                                totalAmount: bill?.totalBill || assign.totalAmount || 0, // Use final bill total if available
+                            };
+                        })
+                    );
+
+                    assignmentsWithBillData.sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt));
+                    setAssignments(assignmentsWithBillData);
                 }
             } catch (error) {
                 toast.error("Could not fetch history.");
-                console.error(error);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchAssignments();
+        fetchHistory();
     }, [userMobile]);
 
     const fetchBillDetails = async (assignment) => {
-        // ✨ DEBUG: Log the ID we are searching for
-        console.log(`Searching for bill with assignmentID: ${assignment.id}`);
+        const billDetails = await fetchBillForAssignment(assignment.id);
 
-        try {
-            const billsRef = ref(db, 'bills');
-            const billQuery = query(billsRef, orderByChild('assignmentID'), equalTo(assignment.id));
-            const snapshot = await get(billQuery);
-
-            // ✨ DEBUG: Log whether we found a matching bill
-            console.log(`Did a bill snapshot exist? ${snapshot.exists()}`);
-
-            if (!snapshot.exists()) {
-                toast.error("Bill details not found for this trade.");
-                return null;
-            }
-
-            let billDetails = null;
-            snapshot.forEach(child => { billDetails = child.val(); });
-
-            const completeBill = {
-                id: assignment.id,
-                assignedAt: assignment.assignedAt,
-                vendorName: assignment.vendorName,
-                userName: originalUserData?.name,
-                address: originalUserData?.address,
-                totalAmount: billDetails.totalBill,
-                products: billDetails.billItems.map(item => ({
-                    name: item.item,
-                    quantity: item.weight,
-                    unit: item.unit || 'kg',
-                    rate: item.rate,
-                    total: item.total
-                }))
-            };
-
-            // ✨ DEBUG: Log the final combined bill data
-            console.log("Successfully constructed bill data:", completeBill);
-            return completeBill;
-
-        } catch (error) {
-            toast.error("Could not retrieve bill details.");
-            console.error("Error in fetchBillDetails:", error);
+        if (!billDetails) {
+            toast.error("Bill details not found for this trade.");
             return null;
         }
+
+        if (!billDetails.billItems || !Array.isArray(billDetails.billItems)) {
+            toast.error("Bill format is incorrect. Cannot display items.");
+            return null;
+        }
+
+        const completeBill = {
+            id: assignment.id,
+            assignedAt: assignment.assignedAt,
+            vendorName: assignment.vendorName,
+            userName: originalUserData?.name,
+            address: originalUserData?.address,
+            totalAmount: billDetails.totalBill,
+            products: billDetails.billItems.map(item => ({
+                name: item.item || item.name,
+                quantity: item.weight,
+                unit: item.unit || 'kg',
+                rate: item.rate,
+                total: item.total
+            }))
+        };
+        return completeBill;
     };
 
     const handleViewBill = async (assignment) => {
-        // ✨ DEBUG: Log that the view button was clicked
-        console.log("View button clicked for assignment:", assignment);
         setProcessingId({ id: assignment.id, type: 'view' });
         const completeBillData = await fetchBillDetails(assignment);
         if (completeBillData) {
@@ -112,8 +129,6 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     };
 
     const handleDownloadBill = async (assignment) => {
-        // ✨ DEBUG: Log that the download button was clicked
-        console.log("Download button clicked for assignment:", assignment);
         setProcessingId({ id: assignment.id, type: 'download' });
         const completeBillData = await fetchBillDetails(assignment);
         if (completeBillData) {
@@ -130,7 +145,9 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                     .then(canvas => {
                         const imgData = canvas.toDataURL('image/png');
                         const pdf = new jsPDF('p', 'mm', 'a4');
-                        pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
+                        const pdfWidth = pdf.internal.pageSize.getWidth();
+                        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
                         pdf.save(`invoice-${billForPdf.id.slice(-6)}.pdf`);
                     })
                     .catch(() => toast.error("PDF generation failed."))
@@ -170,7 +187,7 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                             <div className="p-3 bg-gray-50 flex justify-between items-center">
                                 <div className="flex items-center gap-1">
                                     <FaRupeeSign className="text-green-600" />
-                                    <p className="text-lg font-bold text-green-600">{assignment.totalAmount || '...'}</p>
+                                    <p className="text-lg font-bold text-green-600">{assignment.totalAmount}</p>
                                 </div>
                                 <div className="flex items-center gap-2 sm:gap-4">
                                     <button onClick={() => handleViewBill(assignment)} disabled={!!processingId} className="flex items-center gap-2 bg-gray-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-gray-700 disabled:bg-gray-400">
