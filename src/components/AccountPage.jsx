@@ -14,7 +14,7 @@ import Loader from './Loader';
 import ProfileSection from './account/ProfileSection';
 import PoliciesAndTerms from './account/PoliciesAndTerms';
 import TradeHistorySection from './account/TradeHistorySection';
-import BillModal from './account/BillModal'; // --- ADDED: Import the new modal component ---
+import BillModal from './account/BillModal';
 
 const AccountPage = () => {
   const { location, setLocation, setUserMobile, userMobile } = useSettings();
@@ -27,7 +27,7 @@ const AccountPage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [userLoading, setUserLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState(null);
-  const [billToView, setBillToView] = useState(null); // --- ADDED: State for the bill modal ---
+  const [billToView, setBillToView] = useState(null);
 
   useEffect(() => {
     setUserLoading(true);
@@ -81,7 +81,6 @@ const AccountPage = () => {
     }).catch(() => toast.error('Logout failed.'));
   };
 
-  // --- ADDED: Functions to open and close the modal ---
   const handleOpenBillModal = (billData) => {
     setBillToView(billData);
   };
@@ -91,7 +90,7 @@ const AccountPage = () => {
   };
 
   const Section = ({ title, sectionKey, children }) => (
-    <div className="border-b">
+    <div className="border-b last:border-b-0">
       <button onClick={() => setExpandedSection(expandedSection === sectionKey ? null : sectionKey)} className="flex justify-between items-center w-full py-4 font-medium text-left text-gray-800">
         <span>{title}</span>
         {expandedSection === sectionKey ? <FaChevronUp /> : <FaChevronDown />}
@@ -110,9 +109,11 @@ const AccountPage = () => {
         </header>
 
         <main className="flex-grow p-4 overflow-y-auto">
-          {userLoading ? <Loader /> : (
+          {userLoading ? <Loader fullscreen /> : (
             <>
               <h1 className="text-2xl font-bold mb-4">My Account</h1>
+
+              {/* Container for Profile and Policies */}
               <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md space-y-2">
                 <Section title="My Profile" sectionKey="profile">
                   <ProfileSection
@@ -128,15 +129,16 @@ const AccountPage = () => {
                 <Section title="Policies & Terms" sectionKey="policies">
                   <PoliciesAndTerms />
                 </Section>
+              </div>
 
-                <Section title="Trade History" sectionKey="history">
-                  {/* --- MODIFIED: Pass the new handler function as a prop --- */}
-                  <TradeHistorySection
-                    userMobile={userMobile}
-                    originalUserData={originalUserData}
-                    onViewBill={handleOpenBillModal}
-                  />
-                </Section>
+              {/* --- EDITED SECTION: New container for Trade History --- */}
+              <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md mt-6">
+                <h2 className="text-xl font-bold mb-4 text-gray-800">Trade History</h2>
+                <TradeHistorySection
+                  userMobile={userMobile}
+                  originalUserData={originalUserData}
+                  onViewBill={handleOpenBillModal}
+                />
               </div>
 
               <div className="mt-6">
@@ -152,7 +154,6 @@ const AccountPage = () => {
           <Link to="/account" className="flex flex-col items-center text-green-600 p-2 no-underline"><FaUserAlt className="text-2xl" /><span className="text-xs font-medium">Account</span></Link>
         </footer>
 
-        {/* --- ADDED: Conditionally render the modal --- */}
         {billToView && <BillModal bill={billToView} onClose={handleCloseBillModal} />}
       </div>
     </>
