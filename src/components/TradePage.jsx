@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { FaHome, FaTasks, FaUserAlt, FaEnvelope, FaMapMarkerAlt, FaCamera, FaInfoCircle } from 'react-icons/fa';
+import { FaHome, FaTasks, FaUserAlt, FaEnvelope, FaMapMarkerAlt, FaCamera } from 'react-icons/fa';
 import { db, firebaseObjectToArray } from '../firebase';
-import { ref, query, orderByChild, equalTo, get, update, push, set } from 'firebase/database'; // Import 'set'
+import { ref, query, orderByChild, equalTo, get, update, push, set } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
 import SEO from './SEO';
 import Loader from './Loader';
@@ -46,23 +46,41 @@ const TradePage = () => {
         return;
       }
 
+      // Log the number for easy debugging
+      console.log("Attempting to find user with mobile number:", userMobile);
+
       try {
         const usersRef = ref(db, 'users');
-        const queryByPhone = query(usersRef, orderByChild('phone'), equalTo(userMobile));
-        const userSnapshot = await get(queryByPhone);
+        let userSnapshot = null;
+
+        // 1. Query for the phone number as-is
+        const queryAsIs = query(usersRef, orderByChild('phone'), equalTo(userMobile));
+        userSnapshot = await get(queryAsIs);
+
+        // 2. If not found, try again with the '+91' prefix if applicable
+        if (!userSnapshot.exists() && userMobile && userMobile.length === 10 && !userMobile.startsWith('+91')) {
+          const numberWithPrefix = `+91${userMobile}`;
+          console.log(`User not found, trying again with prefix: ${numberWithPrefix}`);
+          const queryWithPrefix = query(usersRef, orderByChild('phone'), equalTo(numberWithPrefix));
+          userSnapshot = await get(queryWithPrefix);
+        }
 
         if (userSnapshot.exists()) {
           const userData = firebaseObjectToArray(userSnapshot)[0];
+          console.log("User record found:", userData);
           setExistingUserId(userData.id);
           if (userData.name) setUserName(userData.name);
           if (userData.address) setAddress(userData.address);
           if (userData.email) setEmail(userData.email);
           setUserStatus(userData.Status || 'Active');
         } else {
+          console.error("User record not found with either format.");
+          toast.error("Could not find your user profile.");
           setUserStatus('Active');
         }
       } catch (err) {
-        toast.error("Failed to load your user data.");
+        console.error("Firebase read error:", err);
+        toast.error("Failed to load your user data. Check security rules.");
         setUserStatus('Active');
       } finally {
         setIsLoading(false);
@@ -81,22 +99,18 @@ const TradePage = () => {
 
   const grandTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.total) || 0), 0);
 
-  // --- MODIFICATION START ---
-  // This function is updated to create a single, consolidated entry in 'wasteEntries'.
   const handleConfirmTrade = async () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!userName.trim() || !address.trim() || !email.trim()) {
-      toast.error("Please fill in your name, email, and address.");
-      return;
+      return toast.error("Please fill in your name, email, and address.");
     }
     if (!emailRegex.test(email)) {
-      toast.error("Please enter a valid email address.");
-      return;
+      return toast.error("Please enter a valid email address.");
     }
     if (!existingUserId) {
-      toast.error("Could not find your user record. Please log in again.");
-      return;
+      return toast.error("Could not find your user record. Please try again.");
     }
+
     setIsSubmitting(true);
 
     const imageBase64 = await new Promise((resolve) => {
@@ -112,43 +126,34 @@ const TradePage = () => {
       address: address,
       email: email,
       timestamp: new Date().toISOString(),
-      Status: "Pending" // Set user status to 'Pending' on confirmation
+      Status: "Pending"
     };
 
-    // --- Consolidate entry data ---
-    const consolidatedName = entries
-      .map(entry => `${entry.text || entry.name} (${entry.quantity} ${entry.unit})`)
-      .join(', ');
+    const consolidatedName = entries.map(e => `${e.text || e.name} (${e.quantity} ${e.unit})`).join(', ');
+    const totalQuantity = entries.reduce((sum, e) => sum + parseFloat(e.quantity || 0), 0);
 
-    const totalQuantity = entries.reduce((sum, entry) => sum + parseFloat(entry.quantity || 0), 0);
-
-    // --- Create payload for the new waste entry ---
     const newWastePayload = {
       name: consolidatedName,
-      address: address, // User's full address
+      address: address,
       mobile: userMobile,
       total: grandTotal.toFixed(2),
       quantity: totalQuantity,
-      unit: 'kg', // Using a common unit as seen in the DB structure
-      category: 'Mixed', // Assuming "Mixed" for multiple items
-      location: 'Bengaluru', // As per the DB structure example
-      isAssigned: false, // New entries are not yet assigned
-      userID: existingUserId, // Linking the entry to the user
-      image: imageBase64, // Optional image
+      unit: 'kg',
+      category: 'Mixed',
+      location: 'Bengaluru', // This can be made dynamic later if needed
+      isAssigned: false,
+      userID: existingUserId,
+      image: imageBase64,
       timestamp: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     };
 
     try {
-      // 1. Update the user's information and status
       const userRef = ref(db, `users/${existingUserId}`);
       await update(userRef, userUpdatePayload);
 
-      // 2. First, create a new unique ID in the 'wasteEntries' path
       const wasteEntriesRef = ref(db, 'wasteEntries');
-      const newWasteEntryRef = push(wasteEntriesRef); // This generates a reference with a unique key.
-
-      // 3. Then, set the data for that new ID
+      const newWasteEntryRef = push(wasteEntriesRef);
       await set(newWasteEntryRef, newWastePayload);
 
       toast.success('✅ Trade Confirmed! Your pickup is scheduled.');
@@ -156,19 +161,17 @@ const TradePage = () => {
       navigate('/task');
     } catch (error) {
       console.error("Error creating waste entry:", error);
-      toast.error("Something went wrong while saving your trade.");
+      toast.error("Scheduling failed. Please check your connection or security rules.");
     } finally {
       setIsSubmitting(false);
     }
   };
-  // --- MODIFICATION END ---
-
 
   return (
     <>
       <SEO
         title="Confirm Trade - Trade2Cart"
-        description="Review your items and confirm your address to schedule a scrap pickup with Trade2Cart."
+        description="Review your items and confirm your address to schedule a scrap pickup."
       />
       <div className="min-h-screen bg-gray-100 font-sans">
         <main className="p-4 pb-24">
@@ -176,26 +179,26 @@ const TradePage = () => {
             <div className="max-w-lg mx-auto space-y-6">
               <h1 className="text-3xl font-bold text-gray-900 text-center">Confirm Your Pickup</h1>
 
-              {/* Section 1: User Information */}
+              {/* User Information Section */}
               <div className="bg-white p-5 rounded-xl shadow-lg">
                 <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center"><FaUserAlt className="mr-3 text-blue-500" />Your Information</h2>
                 <div className="space-y-4">
                   <div className="relative">
                     <FaUserAlt className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
-                    <input type="text" placeholder="Full Name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-shadow" />
+                    <input type="text" placeholder="Full Name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div className="relative">
                     <FaEnvelope className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
-                    <input type="email" placeholder="Email for Bill" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-shadow" required />
+                    <input type="email" placeholder="Email for Bill" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
                   </div>
                   <div className="relative">
                     <FaMapMarkerAlt className="absolute top-4 left-3 text-gray-400" />
-                    <textarea placeholder="Full Address for Pickup" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-shadow"></textarea>
+                    <textarea placeholder="Full Address for Pickup" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
                   </div>
                 </div>
               </div>
 
-              {/* Section 2: Item Summary */}
+              {/* Item Summary Section */}
               <div className="bg-white p-5 rounded-xl shadow-lg">
                 <h2 className="text-xl font-semibold mb-4 text-gray-800">Item Summary</h2>
                 <div className="space-y-3">
@@ -215,21 +218,21 @@ const TradePage = () => {
                 </div>
               </div>
 
-              {/* Section 3: Image Upload */}
+              {/* Image Upload Section */}
               <div className="bg-white p-5 rounded-xl shadow-lg">
                 <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center"><FaCamera className="mr-3 text-purple-500" />Upload Photo (Optional)</h2>
                 <p className="text-sm text-gray-500 mb-3">A photo helps the vendor estimate the load.</p>
-                <input type="file" accept="image/*" onChange={(e) => setTradeImage(e.target.files[0])} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer" />
+                <input type="file" accept="image/*" onChange={(e) => setTradeImage(e.target.files[0])} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200" />
               </div>
 
-              <button onClick={handleConfirmTrade} disabled={isSubmitting || isSchedulingDisabled} className="w-full mt-6 py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all transform hover:scale-105">
-                {isSubmitting ? 'Submitting...' : 'Confirm & Schedule Pickup'}
+              <button onClick={handleConfirmTrade} disabled={isSubmitting || isSchedulingDisabled} className="w-full mt-6 py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                {isSubmitting ? 'Scheduling...' : 'Confirm & Schedule Pickup'}
               </button>
             </div>
           )}
         </main>
 
-        <footer className="sticky bottom-0 flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)] flex-shrink-0 z-30">
+        <footer className="sticky bottom-0 flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
           <Link to="/hello" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaHome className="text-2xl" /><span className="text-xs font-medium">Home</span></Link>
           <Link to="/task" className="flex flex-col items-center text-green-600 p-2 no-underline"><FaTasks className="text-2xl" /><span className="text-xs font-medium">Tasks</span></Link>
           <Link to="/account" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaUserAlt className="text-2xl" /><span className="text-xs font-medium">Account</span></Link>
