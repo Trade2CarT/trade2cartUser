@@ -46,41 +46,24 @@ const TradePage = () => {
         return;
       }
 
-      // Log the number for easy debugging
-      console.log("Attempting to find user with mobile number:", userMobile);
-
+      setIsLoading(true);
       try {
         const usersRef = ref(db, 'users');
-        let userSnapshot = null;
-
-        // 1. Query for the phone number as-is
-        const queryAsIs = query(usersRef, orderByChild('phone'), equalTo(userMobile));
-        userSnapshot = await get(queryAsIs);
-
-        // 2. If not found, try again with the '+91' prefix if applicable
-        if (!userSnapshot.exists() && userMobile && userMobile.length === 10 && !userMobile.startsWith('+91')) {
-          const numberWithPrefix = `+91${userMobile}`;
-          console.log(`User not found, trying again with prefix: ${numberWithPrefix}`);
-          const queryWithPrefix = query(usersRef, orderByChild('phone'), equalTo(numberWithPrefix));
-          userSnapshot = await get(queryWithPrefix);
-        }
+        const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
+        const userSnapshot = await get(userQuery);
 
         if (userSnapshot.exists()) {
           const userData = firebaseObjectToArray(userSnapshot)[0];
-          console.log("User record found:", userData);
           setExistingUserId(userData.id);
           if (userData.name) setUserName(userData.name);
           if (userData.address) setAddress(userData.address);
           if (userData.email) setEmail(userData.email);
           setUserStatus(userData.Status || 'Active');
         } else {
-          console.error("User record not found with either format.");
-          toast.error("Could not find your user profile.");
           setUserStatus('Active');
         }
       } catch (err) {
-        console.error("Firebase read error:", err);
-        toast.error("Failed to load your user data. Check security rules.");
+        toast.error("Failed to load your user data.");
         setUserStatus('Active');
       } finally {
         setIsLoading(false);
@@ -121,46 +104,53 @@ const TradePage = () => {
       reader.readAsDataURL(tradeImage);
     });
 
+    // This object will hold all the database updates we want to perform at once.
+    const updates = {};
+    const wasteEntryIds = [];
+    const wasteEntriesRef = ref(db, 'wasteEntries');
+
+    // Loop through each item in the cart and prepare a new waste entry for it.
+    entries.forEach(entry => {
+      const newWasteEntryKey = push(wasteEntriesRef).key; // Generate a unique key for each item
+      wasteEntryIds.push(newWasteEntryKey);
+
+      const newWastePayload = {
+        name: entry.text || entry.name,
+        address: address,
+        mobile: userMobile,
+        total: entry.total.toFixed(2),
+        quantity: entry.quantity,
+        unit: entry.unit,
+        rate: entry.rate,
+        category: entry.category,
+        location: entry.location,
+        isAssigned: false, // It will be assigned in the admin panel
+        userID: existingUserId,
+        image: imageBase64, // Optional image for all items in the order
+        timestamp: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      };
+      updates[`/wasteEntries/${newWasteEntryKey}`] = newWastePayload;
+    });
+
+    // Prepare the user data update
     const userUpdatePayload = {
       name: userName,
       address: address,
       email: email,
-      timestamp: new Date().toISOString(),
-      Status: "Pending"
+      Status: "Pending" // Set user status to Pending
     };
-
-    const consolidatedName = entries.map(e => `${e.text || e.name} (${e.quantity} ${e.unit})`).join(', ');
-    const totalQuantity = entries.reduce((sum, e) => sum + parseFloat(e.quantity || 0), 0);
-
-    const newWastePayload = {
-      name: consolidatedName,
-      address: address,
-      mobile: userMobile,
-      total: grandTotal.toFixed(2),
-      quantity: totalQuantity,
-      unit: 'kg',
-      category: 'Mixed',
-      location: 'Bengaluru', // This can be made dynamic later if needed
-      isAssigned: false,
-      userID: existingUserId,
-      image: imageBase64,
-      timestamp: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-    };
+    updates[`/users/${existingUserId}`] = userUpdatePayload;
 
     try {
-      const userRef = ref(db, `users/${existingUserId}`);
-      await update(userRef, userUpdatePayload);
-
-      const wasteEntriesRef = ref(db, 'wasteEntries');
-      const newWasteEntryRef = push(wasteEntriesRef);
-      await set(newWasteEntryRef, newWastePayload);
+      // Perform all database writes in a single atomic operation
+      await update(ref(db), updates);
 
       toast.success('✅ Trade Confirmed! Your pickup is scheduled.');
       localStorage.removeItem('wasteEntries');
       navigate('/task');
     } catch (error) {
-      console.error("Error creating waste entry:", error);
+      console.error("Error creating waste entries:", error);
       toast.error("Scheduling failed. Please check your connection or security rules.");
     } finally {
       setIsSubmitting(false);
