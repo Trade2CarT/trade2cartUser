@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { FaHome, FaTasks, FaUserAlt, FaEnvelope, FaMapMarkerAlt, FaCamera } from 'react-icons/fa';
-import { db, firebaseObjectToArray } from '../firebase';
-import { ref, query, orderByChild, equalTo, get, update, push, set } from 'firebase/database';
+import { db } from '../firebase'; // Removed firebaseObjectToArray as it's not needed for direct lookup
+import { ref, update, push, onValue, get } from 'firebase/database'; // Added onValue and get
+import { getAuth, onAuthStateChanged } from 'firebase/auth'; // Added auth imports
 import { useSettings } from '../context/SettingsContext';
 import SEO from './SEO';
 import Loader from './Loader';
@@ -13,13 +14,14 @@ const TradePage = () => {
   const [userName, setUserName] = useState('');
   const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
-  const [existingUserId, setExistingUserId] = useState(null);
+  const [userId, setUserId] = useState(null); // Changed from existingUserId
   const [tradeImage, setTradeImage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [userStatus, setUserStatus] = useState(null);
   const navigate = useNavigate();
-  const { userMobile } = useSettings();
+  const { userMobile } = useSettings(); // Still needed for creating waste entries
+  const auth = getAuth(); // Get the auth instance
 
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
 
@@ -44,47 +46,48 @@ const TradePage = () => {
       navigate('/hello');
     }
 
-    // This function fetches the user's data as soon as the page loads.
-    const fetchUserData = async () => {
-      if (!userMobile) {
+    // This listener waits for the auth state to be confirmed.
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // User is logged in, their UID is the reliable ID.
+        setUserId(user.uid);
+        const userRef = ref(db, `users/${user.uid}`);
+
+        // Set up a real-time listener for the user's data.
+        const dbUnsubscribe = onValue(userRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const userData = snapshot.val();
+            if (userData.name) setUserName(userData.name);
+            if (userData.address) setAddress(userData.address);
+            if (userData.email) setEmail(userData.email);
+            setUserStatus(userData.Status || 'Active');
+
+            // Check if user already has a pending schedule
+            if (userData.Status === 'Pending' || userData.Status === 'On-Schedule') {
+              toast.error("You already have an active pickup.");
+              navigate('/task');
+            }
+          } else {
+            // This case handles if a user is logged in but their DB entry is missing.
+            toast.error("Could not find your user profile. Please log in again.");
+            navigate('/login');
+          }
+          setIsLoading(false); // Mark loading as complete
+        });
+
+        // Return the inner unsubscribe function for cleanup.
+        return dbUnsubscribe;
+      } else {
+        // User is not logged in.
         toast.error("Login required to schedule a pickup.");
         navigate('/login');
-        return;
       }
+    });
 
-      setIsLoading(true);
-      try {
-        const usersRef = ref(db, 'users');
-        const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
-        const userSnapshot = await get(userQuery);
+    // Cleanup function to remove the auth listener when the component unmounts.
+    return () => unsubscribe();
+  }, [auth, navigate]);
 
-        if (userSnapshot.exists()) {
-          const userData = firebaseObjectToArray(userSnapshot)[0];
-          setExistingUserId(userData.id); // Crucial: Set the user's ID
-          if (userData.name) setUserName(userData.name);
-          if (userData.address) setAddress(userData.address);
-          if (userData.email) setEmail(userData.email);
-          setUserStatus(userData.Status || 'Active');
-
-          // Check if user already has a pending schedule
-          if (userData.Status === 'Pending' || userData.Status === 'On-Schedule') {
-            toast.error("You already have an active pickup.");
-            navigate('/task');
-          }
-        } else {
-          // This case handles if a user is logged in but their DB entry is missing.
-          toast.error("Could not find your user profile. Please log in again.");
-          navigate('/login');
-        }
-      } catch (err) {
-        toast.error("Failed to load your user data.");
-      } finally {
-        setIsLoading(false); // Mark loading as complete
-      }
-    };
-
-    fetchUserData();
-  }, [userMobile, navigate]);
 
   const grandTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.total) || 0), 0);
 
@@ -96,8 +99,8 @@ const TradePage = () => {
     if (!emailRegex.test(email)) {
       return toast.error("Please enter a valid email address.");
     }
-    // This check is now reliable because the button is disabled until existingUserId is set.
-    if (!existingUserId) {
+    // This check is now reliable because the button is disabled until userId is set.
+    if (!userId) {
       return toast.error("User ID not found. Please wait a moment and try again.");
     }
 
@@ -127,7 +130,7 @@ const TradePage = () => {
         category: entry.category,
         location: entry.location,
         isAssigned: false,
-        userID: existingUserId,
+        userID: userId, // Use the reliable UID here
         image: imageBase64,
         timestamp: new Date().toISOString(),
         createdAt: new Date().toISOString(),
@@ -135,14 +138,19 @@ const TradePage = () => {
       updates[`/wasteEntries/${newWasteEntryKey}`] = newWastePayload;
     });
 
-    const userRef = ref(db, `users/${existingUserId}`);
+    // We need to get the current user data before updating it to avoid overwriting fields.
+    const userRef = ref(db, `users/${userId}`);
+    const userSnapshot = await get(userRef);
+    const existingUserData = userSnapshot.val();
+
     const userUpdatePayload = {
+      ...existingUserData, // Preserve existing user data
       name: userName,
       address: address,
       email: email,
       Status: "Pending"
     };
-    updates[`/users/${existingUserId}`] = userUpdatePayload;
+    updates[`/users/${userId}`] = userUpdatePayload;
 
     try {
       await update(ref(db), updates);
@@ -212,7 +220,6 @@ const TradePage = () => {
                 <input type="file" accept="image/*" onChange={(e) => setTradeImage(e.target.files[0])} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200" />
               </div>
 
-              {/* This button is now disabled while loading data OR while submitting */}
               <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled} className="w-full mt-6 py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
                 {isSubmitting ? 'Scheduling...' : 'Confirm & Schedule Pickup'}
               </button>
@@ -222,7 +229,7 @@ const TradePage = () => {
 
         <footer className="sticky bottom-0 flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
           <Link to="/hello" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaHome className="text-2xl" /><span className="text-xs font-medium">Home</span></Link>
-          <Link to="/task" className="flex flex-col items-center text-green-600 p-2 no-underline"><FaTasks className="text-2xl" /><span className="text-xs font-medium">Tasks</span></Link>
+          <Link to="/task" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaTasks className="text-2xl" /><span className="text-xs font-medium">Tasks</span></Link>
           <Link to="/account" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaUserAlt className="text-2xl" /><span className="text-xs font-medium">Account</span></Link>
         </footer>
       </div>

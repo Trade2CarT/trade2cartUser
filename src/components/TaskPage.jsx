@@ -1,85 +1,55 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { FaHome, FaTasks, FaUserAlt, FaMapMarkerAlt, FaBell, FaShoppingCart, FaTruck, FaPhoneAlt, FaClipboardList, FaCheckCircle, FaHourglassHalf } from 'react-icons/fa';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { FaHome, FaTasks, FaUserAlt, FaMapMarkerAlt, FaTruck, FaPhoneAlt, FaClipboardList, FaCheckCircle, FaHourglassHalf } from 'react-icons/fa';
+import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
-import { ref, query, orderByChild, equalTo, get, onValue } from 'firebase/database';
+import { ref, get, onValue } from 'firebase/database';
+import { getAuth, onAuthStateChanged } from "firebase/auth"; // Added auth import
 import assetlogo from '../assets/images/logo.PNG';
 import { useSettings } from '../context/SettingsContext';
 import { toast } from 'react-hot-toast';
 import SEO from './SEO';
 import Loader from './Loader';
 
-// Helper to get the first user from a query snapshot
-const firebaseObjectToArray = (snapshot) => {
-  const data = snapshot.val();
-  return data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
-};
-
 const TaskPage = () => {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [otp, setOtp] = useState('');
   const [vendorDetails, setVendorDetails] = useState(null);
-  const { userMobile, location } = useSettings();
+  const { location } = useSettings();
+  const navigate = useNavigate();
+  const auth = getAuth();
 
   useEffect(() => {
-    // If there's no user mobile number, stop loading and do nothing.
-    if (!userMobile) {
-      setLoading(false);
-      return;
-    }
     setLoading(true);
 
-    let userListener; // This will hold the unsubscribe function for our real-time listener
+    // This auth listener is the single source of truth for the user's login state.
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // User is signed in. Now we can safely get their data using their unique ID.
+        const userRef = ref(db, `users/${user.uid}`);
 
-    // This async function finds the user and then sets up a listener for status changes.
-    const findUserAndListen = async () => {
-      let userSnapshot = null;
-      let userId = null;
-
-      // 1. First, try to find the user with the phone number as it is.
-      const queryAsIs = query(ref(db, 'users'), orderByChild('phone'), equalTo(userMobile));
-      userSnapshot = await get(queryAsIs);
-
-      // 2. If no user is found and the number doesn't have a country code, try again with "+91".
-      if (!userSnapshot.exists() && !userMobile.startsWith('+91')) {
-        const queryWithPrefix = query(ref(db, 'users'), orderByChild('phone'), equalTo(`+91${userMobile}`));
-        userSnapshot = await get(queryWithPrefix);
-      }
-
-      // 3. If a user was found (in either query), get their unique ID.
-      if (userSnapshot.exists()) {
-        const userData = userSnapshot.val();
-        userId = Object.keys(userData)[0]; // Get the first (and only) key from the result
-      }
-
-      if (userId) {
-        // 4. Now that we have the specific ID, create a direct reference to that user.
-        const userRef = ref(db, `users/${userId}`);
-
-        // 5. Set up a real-time listener on ONLY that user's data. This is very efficient.
-        userListener = onValue(userRef, async (snapshot) => {
-          const user = snapshot.val();
-          if (user) {
-            const currentStatus = user.Status || 'Pending';
+        // Set up a real-time listener on that specific user's data.
+        const unsubscribeDb = onValue(userRef, async (snapshot) => {
+          if (snapshot.exists()) {
+            const userData = snapshot.val();
+            const currentStatus = userData.Status || 'Active'; // Default to Active if no status
             setStatus(currentStatus);
 
+            // Reset details if the status is not 'On-Schedule'
             if (currentStatus.toLowerCase() !== 'on-schedule') {
               setVendorDetails(null);
               setOtp('');
             }
 
             // If the user is on-schedule, fetch the details for their assigned vendor and OTP.
-            if (currentStatus.toLowerCase() === 'on-schedule' && user.currentAssignmentId) {
+            if (currentStatus.toLowerCase() === 'on-schedule' && userData.currentAssignmentId) {
               try {
-                const assignmentRef = ref(db, `assignments/${user.currentAssignmentId}`);
+                const assignmentRef = ref(db, `assignments/${userData.currentAssignmentId}`);
                 const assignmentSnapshot = await get(assignmentRef);
                 if (assignmentSnapshot.exists()) {
                   const activeAssignment = assignmentSnapshot.val();
                   setVendorDetails({ name: activeAssignment.vendorName, phone: activeAssignment.vendorPhone });
-                }
-                if (user.otp) {
-                  setOtp(user.otp);
+                  setOtp(userData.otp || '');
                 }
               } catch (error) {
                 console.error("Error fetching assignment details:", error);
@@ -87,35 +57,25 @@ const TaskPage = () => {
               }
             }
           } else {
-            // This case handles if the user record gets deleted.
+            // This handles if the user is authenticated but their DB record is missing.
             setStatus('');
+            toast.error("Could not find your user profile.");
           }
           setLoading(false);
         });
 
+        // The cleanup function for the database listener will be returned by onAuthStateChanged's callback
+        return unsubscribeDb;
       } else {
-        // 6. If no user was found after checking both formats, show the "No Active Tasks" state.
+        // User is signed out or the auth state is not yet determined.
         setStatus('');
         setLoading(false);
-        // Note: The toast error from the scheduling page is what the user sees first.
-        // This component will simply show the "No Active Tasks" screen.
       }
-    };
-
-    findUserAndListen().catch(error => {
-      console.error("Task Page sync error:", error);
-      toast.error("Failed to sync task status.");
-      setLoading(false);
     });
 
-    // This is a cleanup function. It runs when the component unmounts
-    // to prevent memory leaks by removing the Firebase listener.
-    return () => {
-      if (userListener) {
-        userListener();
-      }
-    };
-  }, [userMobile]);
+    // This is the main cleanup function that detaches the auth listener when the component unmounts.
+    return () => unsubscribeAuth();
+  }, [auth, navigate]); // Effect depends on auth and navigate
 
   const statusSteps = [
     { title: 'Ordered', icon: FaClipboardList },
@@ -128,7 +88,7 @@ const TaskPage = () => {
     if (lowerCaseStatus === 'pending') return 0;
     if (lowerCaseStatus === 'on-schedule') return 1;
     if (lowerCaseStatus === 'completed') return 2;
-    return -1;
+    return -1; // No active task or status is 'Active'
   };
 
   const statusIndex = getStatusIndex();
