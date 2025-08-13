@@ -24,25 +24,31 @@ const TradePage = () => {
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
 
   useEffect(() => {
+    // This effect runs first to load cart items from local storage.
     const localEntries = localStorage.getItem('wasteEntries');
     if (localEntries) {
       try {
         const parsedEntries = JSON.parse(localEntries);
-        setEntries(parsedEntries);
         if (parsedEntries.length === 0) {
           toast.error("Your cart is empty. Add items first.");
           navigate('/hello');
+          return;
         }
+        setEntries(parsedEntries);
       } catch {
-        setEntries([]);
         toast.error("Your cart is empty. Add items first.");
         navigate('/hello');
       }
+    } else {
+      toast.error("Your cart is empty. Add items first.");
+      navigate('/hello');
     }
 
+    // This function fetches the user's data as soon as the page loads.
     const fetchUserData = async () => {
       if (!userMobile) {
-        setIsLoading(false);
+        toast.error("Login required to schedule a pickup.");
+        navigate('/login');
         return;
       }
 
@@ -54,31 +60,31 @@ const TradePage = () => {
 
         if (userSnapshot.exists()) {
           const userData = firebaseObjectToArray(userSnapshot)[0];
-          setExistingUserId(userData.id);
+          setExistingUserId(userData.id); // Crucial: Set the user's ID
           if (userData.name) setUserName(userData.name);
           if (userData.address) setAddress(userData.address);
           if (userData.email) setEmail(userData.email);
           setUserStatus(userData.Status || 'Active');
+
+          // Check if user already has a pending schedule
+          if (userData.Status === 'Pending' || userData.Status === 'On-Schedule') {
+            toast.error("You already have an active pickup.");
+            navigate('/task');
+          }
         } else {
-          setUserStatus('Active');
+          // This case handles if a user is logged in but their DB entry is missing.
+          toast.error("Could not find your user profile. Please log in again.");
+          navigate('/login');
         }
       } catch (err) {
         toast.error("Failed to load your user data.");
-        setUserStatus('Active');
       } finally {
-        setIsLoading(false);
+        setIsLoading(false); // Mark loading as complete
       }
     };
 
     fetchUserData();
   }, [userMobile, navigate]);
-
-  useEffect(() => {
-    if (!isLoading && isSchedulingDisabled) {
-      toast.error("You already have an active pickup.");
-      navigate('/task');
-    }
-  }, [isLoading, isSchedulingDisabled, navigate]);
 
   const grandTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.total) || 0), 0);
 
@@ -90,8 +96,9 @@ const TradePage = () => {
     if (!emailRegex.test(email)) {
       return toast.error("Please enter a valid email address.");
     }
+    // This check is now reliable because the button is disabled until existingUserId is set.
     if (!existingUserId) {
-      return toast.error("Could not find your user record. Please try again.");
+      return toast.error("User ID not found. Please wait a moment and try again.");
     }
 
     setIsSubmitting(true);
@@ -104,16 +111,11 @@ const TradePage = () => {
       reader.readAsDataURL(tradeImage);
     });
 
-    // This object will hold all the database updates we want to perform at once.
     const updates = {};
-    const wasteEntryIds = [];
     const wasteEntriesRef = ref(db, 'wasteEntries');
 
-    // Loop through each item in the cart and prepare a new waste entry for it.
     entries.forEach(entry => {
-      const newWasteEntryKey = push(wasteEntriesRef).key; // Generate a unique key for each item
-      wasteEntryIds.push(newWasteEntryKey);
-
+      const newWasteEntryKey = push(wasteEntriesRef).key;
       const newWastePayload = {
         name: entry.text || entry.name,
         address: address,
@@ -124,34 +126,32 @@ const TradePage = () => {
         rate: entry.rate,
         category: entry.category,
         location: entry.location,
-        isAssigned: false, // It will be assigned in the admin panel
+        isAssigned: false,
         userID: existingUserId,
-        image: imageBase64, // Optional image for all items in the order
+        image: imageBase64,
         timestamp: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       };
       updates[`/wasteEntries/${newWasteEntryKey}`] = newWastePayload;
     });
 
-    // Prepare the user data update
+    const userRef = ref(db, `users/${existingUserId}`);
     const userUpdatePayload = {
       name: userName,
       address: address,
       email: email,
-      Status: "Pending" // Set user status to Pending
+      Status: "Pending"
     };
     updates[`/users/${existingUserId}`] = userUpdatePayload;
 
     try {
-      // Perform all database writes in a single atomic operation
       await update(ref(db), updates);
-
       toast.success('✅ Trade Confirmed! Your pickup is scheduled.');
       localStorage.removeItem('wasteEntries');
       navigate('/task');
     } catch (error) {
       console.error("Error creating waste entries:", error);
-      toast.error("Scheduling failed. Please check your connection or security rules.");
+      toast.error("Scheduling failed. Please check your connection.");
     } finally {
       setIsSubmitting(false);
     }
@@ -165,11 +165,10 @@ const TradePage = () => {
       />
       <div className="min-h-screen bg-gray-100 font-sans">
         <main className="p-4 pb-24">
-          {isLoading ? <Loader /> : (
+          {isLoading ? <Loader fullscreen /> : (
             <div className="max-w-lg mx-auto space-y-6">
               <h1 className="text-3xl font-bold text-gray-900 text-center">Confirm Your Pickup</h1>
 
-              {/* User Information Section */}
               <div className="bg-white p-5 rounded-xl shadow-lg">
                 <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center"><FaUserAlt className="mr-3 text-blue-500" />Your Information</h2>
                 <div className="space-y-4">
@@ -188,7 +187,6 @@ const TradePage = () => {
                 </div>
               </div>
 
-              {/* Item Summary Section */}
               <div className="bg-white p-5 rounded-xl shadow-lg">
                 <h2 className="text-xl font-semibold mb-4 text-gray-800">Item Summary</h2>
                 <div className="space-y-3">
@@ -208,14 +206,14 @@ const TradePage = () => {
                 </div>
               </div>
 
-              {/* Image Upload Section */}
               <div className="bg-white p-5 rounded-xl shadow-lg">
                 <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center"><FaCamera className="mr-3 text-purple-500" />Upload Photo (Optional)</h2>
                 <p className="text-sm text-gray-500 mb-3">A photo helps the vendor estimate the load.</p>
                 <input type="file" accept="image/*" onChange={(e) => setTradeImage(e.target.files[0])} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200" />
               </div>
 
-              <button onClick={handleConfirmTrade} disabled={isSubmitting || isSchedulingDisabled} className="w-full mt-6 py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+              {/* This button is now disabled while loading data OR while submitting */}
+              <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled} className="w-full mt-6 py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
                 {isSubmitting ? 'Scheduling...' : 'Confirm & Schedule Pickup'}
               </button>
             </div>
