@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { FaHome, FaTasks, FaUserAlt, FaShoppingCart, FaNewspaper, FaBox, FaQuestionCircle, FaRecycle, FaTimes, FaInfoCircle } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { db, firebaseObjectToArray } from '../firebase';
-import { ref, get, query, orderByChild, equalTo } from 'firebase/database';
+import { ref, get, query, orderByChild, equalTo, onValue } from 'firebase/database'; // Import onValue
 import { useSettings } from '../context/SettingsContext';
 import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
@@ -67,7 +67,7 @@ const HelloUser = () => {
   const [availableProducts, setAvailableProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [userStatus, setUserStatus] = useState(null); // 'Active', 'Pending', 'On-Schedule'
+  const [userStatus, setUserStatus] = useState(null);
   const navigate = useNavigate();
 
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
@@ -88,36 +88,60 @@ const HelloUser = () => {
   }, [savedData]);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchItems = async () => {
       setLoading(true);
       try {
-        // Fetch Products
         const itemsRef = ref(db, 'items');
         const itemsSnapshot = await get(itemsRef);
         setAvailableProducts(firebaseObjectToArray(itemsSnapshot));
-
-        // Fetch User Status
-        if (userMobile) {
-          const usersRef = ref(db, 'users');
-          const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
-          const userSnapshot = await get(userQuery);
-          if (userSnapshot.exists()) {
-            const userData = firebaseObjectToArray(userSnapshot)[0];
-            setUserStatus(userData.Status || 'Active');
-          } else {
-            setUserStatus('Active'); // New user
-          }
-        } else {
-          setUserStatus('Active'); // Not logged in
-        }
       } catch (err) {
-        toast.error("Could not fetch necessary data.");
-        setUserStatus('Active'); // Default to active on error
+        toast.error("Could not fetch products.");
       } finally {
         setLoading(false);
       }
     };
-    fetchData();
+    fetchItems();
+  }, []);
+
+  // *** REPLACED with real-time listener for user status ***
+  useEffect(() => {
+    if (!userMobile) {
+      setUserStatus('Active'); // Default for users not logged in
+      return;
+    }
+
+    let userListener;
+    const findUserAndListen = async () => {
+      const usersRef = ref(db, 'users');
+      const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
+      const userSnapshot = await get(userQuery);
+
+      if (userSnapshot.exists()) {
+        const userId = Object.keys(userSnapshot.val())[0];
+        const userRef = ref(db, `users/${userId}`);
+
+        // Set up the real-time listener
+        userListener = onValue(userRef, (snapshot) => {
+          const userData = snapshot.val();
+          if (userData) {
+            setUserStatus(userData.Status || 'Active');
+          } else {
+            setUserStatus('Active');
+          }
+        });
+      } else {
+        setUserStatus('Active'); // User doesn't exist yet
+      }
+    };
+
+    findUserAndListen();
+
+    // Cleanup function to remove the listener when the component unmounts
+    return () => {
+      if (userListener) {
+        userListener(); // This is how you unsubscribe in Firebase v9+
+      }
+    };
   }, [userMobile]);
 
   const categories = useMemo(() => {
@@ -151,6 +175,10 @@ const HelloUser = () => {
   const handleCheckout = () => {
     if (isSchedulingDisabled) {
       toast.error("You already have an active pickup scheduled.");
+      return;
+    }
+    if (savedData.length === 0) {
+      toast.error("Your cart is empty. Please add items first.");
       return;
     }
     navigate("/trade");
