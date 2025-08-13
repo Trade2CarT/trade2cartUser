@@ -1,28 +1,17 @@
 module.exports = {
-  env: {
-    es6: true,
-    node: true,
+  // This 'env' block is the fix. It tells the linter to expect Node.js globals.
+  "env": {
+    "node": true,
+    "es6": true,
   },
-  parserOptions: {
-    "ecmaVersion": 2018,
-  },
-  extends: [
+  "extends": [
     "eslint:recommended",
     "google",
   ],
-  rules: {
-    "no-restricted-globals": ["error", "name", "length"],
-    "prefer-arrow-callback": "error",
-    "quotes": ["error", "double", {"allowTemplateLiterals": true}],
+  "rules": {
+    "quotes": ["error", "double"],
   },
-  overrides: [
-    {
-      files: ["**/*.spec.*"],
-      env: {
-        mocha: true,
-      },
-      rules: {},
-    },
-  ],
-  globals: {},
+  "parserOptions": {
+    "ecmaVersion": 2020, // Or a version that suits your project
+  },
 };

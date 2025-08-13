@@ -4,7 +4,7 @@ admin.initializeApp();
 
 // This function will run every day at 3:00 AM.
 exports.deleteOldHistory = functions.pubsub.schedule("every day 03:00")
-    .onRun(async (context) => {
+    .onRun(async (_context) => {
         const db = admin.database();
 
         // Calculate the timestamp for 7 days ago.
