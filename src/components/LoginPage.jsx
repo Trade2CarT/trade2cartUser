@@ -45,12 +45,10 @@ const LoginPage = () => {
 
   const handleGetOtp = async () => {
     if (!termsAccepted || !privacyAccepted) {
-      toast.error("Please accept the Terms & Conditions and Privacy Policy.");
-      return;
+      return toast.error("Please accept the Terms & Conditions and Privacy Policy.");
     }
     if (!/^[6-9]\d{9}$/.test(phone)) {
-      toast.error('Enter a valid 10-digit Indian mobile number.');
-      return;
+      return toast.error('Enter a valid 10-digit Indian mobile number.');
     }
 
     setLoading(true);
@@ -74,31 +72,33 @@ const LoginPage = () => {
     const snapshot = await get(userRef);
 
     if (!snapshot.exists()) {
+      // This part runs ONLY for a brand new user
       await set(userRef, {
-        // ✨ THIS IS THE ONLY LINE I'VE ADDED
-        mobile: userPhone, // Saves the full number like +91xxxxxxxxxx
-        phone: userPhone, // This line was already here
-        location: location || 'Unknown', //
-        language: language || 'en', //
-        createdAt: new Date().toISOString(), //
-        Status: 'Active' //
+        mobile: userPhone,
+        phone: userPhone,
+        location: location || 'Unknown', // Use location from context
+        language: language || 'en',
+        createdAt: new Date().toISOString(),
+        Status: 'Active'
       });
     }
   };
 
   const handleVerify = async () => {
     if (!otp || otp.length !== 6) {
-      toast.error('Please enter the 6-digit OTP.');
-      return;
+      return toast.error('Please enter the 6-digit OTP.');
     }
 
     setLoading(true);
     try {
       const credential = await confirmationResult.confirm(otp);
       const user = credential.user;
-      // ✨ UPDATED: Pass the full user.phoneNumber from Firebase Auth
+
       await ensureUserExistsInFirebase(user.uid, user.phoneNumber);
-      setUserMobile(user.phoneNumber.slice(3)); // Remove +91 for display/context
+
+      // We use the full number from auth for context now
+      setUserMobile(user.phoneNumber);
+
       toast.success('Login Successful!');
       navigate('/hello', { replace: true });
     } catch (error) {

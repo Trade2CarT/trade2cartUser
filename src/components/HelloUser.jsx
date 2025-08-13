@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { FaHome, FaTasks, FaUserAlt, FaShoppingCart, FaNewspaper, FaBox, FaQuestionCircle, FaRecycle, FaTimes, FaInfoCircle } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { db, firebaseObjectToArray } from '../firebase';
-import { ref, get, query, orderByChild, equalTo, onValue } from 'firebase/database'; // Import onValue
+import { ref, get, query, orderByChild, equalTo, onValue } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
 import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
@@ -61,7 +61,7 @@ const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSch
 
 // --- Main HelloUser Component ---
 const HelloUser = () => {
-  const { location, userMobile } = useSettings();
+  const { location, setLocation, userMobile } = useSettings(); // Get setLocation from context
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [savedData, setSavedData] = useState([]);
   const [availableProducts, setAvailableProducts] = useState([]);
@@ -103,16 +103,16 @@ const HelloUser = () => {
     fetchItems();
   }, []);
 
-  // *** REPLACED with real-time listener for user status ***
   useEffect(() => {
     if (!userMobile) {
-      setUserStatus('Active'); // Default for users not logged in
+      setUserStatus('Active');
       return;
     }
 
     let userListener;
     const findUserAndListen = async () => {
       const usersRef = ref(db, 'users');
+      // Use the full phone number from context for the query
       const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
       const userSnapshot = await get(userQuery);
 
@@ -120,29 +120,31 @@ const HelloUser = () => {
         const userId = Object.keys(userSnapshot.val())[0];
         const userRef = ref(db, `users/${userId}`);
 
-        // Set up the real-time listener
         userListener = onValue(userRef, (snapshot) => {
           const userData = snapshot.val();
           if (userData) {
             setUserStatus(userData.Status || 'Active');
+            // If user has a location saved in DB, update the context
+            if (userData.location) {
+              setLocation(userData.location);
+            }
           } else {
             setUserStatus('Active');
           }
         });
       } else {
-        setUserStatus('Active'); // User doesn't exist yet
+        setUserStatus('Active');
       }
     };
 
     findUserAndListen();
 
-    // Cleanup function to remove the listener when the component unmounts
     return () => {
       if (userListener) {
-        userListener(); // This is how you unsubscribe in Firebase v9+
+        userListener();
       }
     };
-  }, [userMobile]);
+  }, [userMobile, setLocation]); // Add setLocation to dependency array
 
   const categories = useMemo(() => {
     if (loading) return [];
