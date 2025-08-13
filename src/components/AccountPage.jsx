@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaHome, FaTasks, FaUserAlt, FaMapMarkerAlt, FaBell, FaShoppingCart, FaSignOutAlt, FaUserCog, FaShieldAlt, FaChevronRight, FaTimes } from 'react-icons/fa';
+import { FaHome, FaTasks, FaUserAlt, FaMapMarkerAlt, FaSignOutAlt, FaUserCog, FaShieldAlt, FaChevronRight, FaTimes } from 'react-icons/fa';
 import { db } from '../firebase';
-import { ref, get } from 'firebase/database';
-import assetlogo from '../assets/images/logo.PNG'; // cite: 0
+import { ref, onValue } from 'firebase/database'; // Import onValue for real-time updates
+import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
 import { getAuth, signOut, onAuthStateChanged } from "firebase/auth";
@@ -39,7 +39,7 @@ const AccountPage = () => {
   const navigate = useNavigate();
   const auth = getAuth();
 
-  const [originalUserData, setOriginalUserData] = useState(null);
+  const [userData, setUserData] = useState(null);
   const [userLoading, setUserLoading] = useState(true);
   const [billToView, setBillToView] = useState(null);
 
@@ -48,21 +48,38 @@ const AccountPage = () => {
   const [isPoliciesModalOpen, setPoliciesModalOpen] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    // This listener will be cleaned up when the component unmounts
+    let unsubscribeFromAuth;
+    let unsubscribeFromUser;
+
+    unsubscribeFromAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
         const userRef = ref(db, `users/${user.uid}`);
-        get(userRef).then((snapshot) => {
+
+        // **CRITICAL FIX: Use onValue for real-time updates instead of get()**
+        unsubscribeFromUser = onValue(userRef, (snapshot) => {
           if (snapshot.exists()) {
             const data = { id: snapshot.key, ...snapshot.val() };
-            setOriginalUserData(data);
+            setUserData(data);
+          } else {
+            toast.error("Could not find user data in the database.");
           }
-        }).finally(() => setUserLoading(false));
+          setUserLoading(false);
+        });
+
       } else {
         setUserLoading(false);
         navigate('/login');
       }
     });
-    return () => unsubscribe();
+
+    // Cleanup function to prevent memory leaks
+    return () => {
+      unsubscribeFromAuth();
+      if (unsubscribeFromUser) {
+        unsubscribeFromUser();
+      }
+    };
   }, [auth, navigate]);
 
   const handleLogout = () => {
@@ -82,12 +99,6 @@ const AccountPage = () => {
     setBillToView(null);
   };
 
-  // Callback to refresh user data after profile update
-  const handleProfileUpdate = (updatedData) => {
-    setOriginalUserData(prevData => ({ ...prevData, ...updatedData }));
-    setProfileModalOpen(false); // Close modal on successful update
-  }
-
   return (
     <>
       <SEO title="My Account - Trade2Cart" description="Manage your profile, view history, and download bills." />
@@ -101,7 +112,7 @@ const AccountPage = () => {
               <span className="text-sm font-medium">{location}</span>
             </div>
           </div>
-          
+
         </header>
 
         <main className="flex-grow p-4 overflow-y-auto">
@@ -113,7 +124,7 @@ const AccountPage = () => {
                   <FaUserAlt className="text-3xl text-gray-500" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-800">{originalUserData?.name || 'My Account'}</h1>
+                  <h1 className="text-2xl font-bold text-gray-800">{userData?.name || 'My Account'}</h1>
                   <p className="text-sm text-gray-500">Manage your profile and view trades.</p>
                 </div>
               </div>
@@ -141,7 +152,7 @@ const AccountPage = () => {
                 <h2 className="text-xl font-bold mb-4 text-gray-800">Trade History</h2>
                 <TradeHistorySection
                   userMobile={userMobile}
-                  originalUserData={originalUserData}
+                  originalUserData={userData}
                   onViewBill={handleOpenBillModal}
                 />
               </div>
@@ -164,12 +175,9 @@ const AccountPage = () => {
         {billToView && <BillModal bill={billToView} onClose={handleCloseBillModal} />}
 
         {/* Profile Modal */}
-        {isProfileModalOpen && originalUserData && (
+        {isProfileModalOpen && (
           <Modal title="My Profile" onClose={() => setProfileModalOpen(false)}>
-            <ProfileSection
-              user={originalUserData}
-              onUpdate={handleProfileUpdate}
-            />
+            <ProfileSection user={userData} />
           </Modal>
         )}
 
