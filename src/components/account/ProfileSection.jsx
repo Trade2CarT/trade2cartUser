@@ -1,74 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt } from 'react-icons/fa';
-import { useSettings } from '../../context/SettingsContext';
-import { db, firebaseObjectToArray } from '../../firebase';
-import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
-import Loader from '../Loader'; // Make sure you have a Loader component
+import Loader from '../Loader'; // Assuming you have a Loader component
 
-// This component is now self-sufficient and fetches its own data.
-const ProfileSection = () => {
-    const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        mobile: '',
-        address: ''
-    });
-    const [loading, setLoading] = useState(true);
-    const { userMobile } = useSettings(); // Gets the logged-in user's number from context
+// This component is now simple. It only displays the data it receives.
+const ProfileSection = ({ user }) => {
 
-    useEffect(() => {
-        // Don't do anything if we don't have a mobile number from the context yet.
-        if (!userMobile) {
-            setLoading(false);
-            return;
-        }
-
-        const fetchUserData = async () => {
-            setLoading(true);
-            try {
-                const usersRef = ref(db, 'users');
-                let userSnapshot = null;
-
-                // Query 1: Try with the phone number as is (e.g., +91 format from Auth)
-                const queryWithPrefix = query(usersRef, orderByChild('phone'), equalTo(userMobile));
-                userSnapshot = await get(queryWithPrefix);
-
-                // Query 2: If no user is found and the number has a country code, try without it
-                if (!userSnapshot.exists() && userMobile.startsWith('+91')) {
-                    const nonPrefixedMobile = userMobile.slice(3); // e.g., "9876543210"
-                    const queryWithoutPrefix = query(usersRef, orderByChild('phone'), equalTo(nonPrefixedMobile));
-                    userSnapshot = await get(queryWithoutPrefix);
-                }
-
-                if (userSnapshot.exists()) {
-                    const user = firebaseObjectToArray(userSnapshot)[0];
-                    // Populate the form with the data found in the database
-                    setFormData({
-                        name: user.name || '',
-                        email: user.email || '',
-                        mobile: user.mobile || user.phone || '',
-                        address: user.address || ''
-                    });
-                } else {
-                    console.error("ProfileSection: User not found in database with either format.");
-                }
-            } catch (error) {
-                console.error("Error fetching profile data:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchUserData();
-    }, [userMobile]); // This effect re-runs if the userMobile changes (e.g., after login)
-
-    if (loading) {
+    // If the user data hasn't arrived yet from the AccountPage, show a loader.
+    if (!user) {
         return <Loader />;
     }
 
-    if (!formData.mobile) {
-        return <p className="text-center text-red-500">Could not load your profile. Please log in again.</p>;
-    }
+    // Prepare the data for display, with fallbacks for empty fields.
+    const formData = {
+        name: user.name || '',
+        email: user.email || '',
+        mobile: user.mobile || user.phone || '',
+        address: user.address || ''
+    };
 
     return (
         <div className="space-y-6">
