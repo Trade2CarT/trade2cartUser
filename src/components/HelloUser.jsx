@@ -93,7 +93,7 @@ const HelloUser = () => {
     const fetchInitialData = async () => {
       setLoading(true);
       try {
-        // Fetch products list
+        // Fetch products list first
         const itemsRef = ref(db, 'items');
         const itemsSnapshot = await get(itemsRef);
         setAvailableProducts(firebaseObjectToArray(itemsSnapshot));
@@ -105,11 +105,22 @@ const HelloUser = () => {
           return;
         }
 
-        // Find the user's unique ID first
+        // --- ROBUST USER FETCHING LOGIC ---
         const usersRef = ref(db, 'users');
-        const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
-        const userSnapshot = await get(userQuery);
+        let userSnapshot = null;
 
+        // 1. Try fetching with the number as-is (e.g., +91987...)
+        const queryAsIs = query(usersRef, orderByChild('phone'), equalTo(userMobile));
+        userSnapshot = await get(queryAsIs);
+
+        // 2. If not found, and it's a prefixed number, try without the prefix
+        if (!userSnapshot.exists() && userMobile.startsWith('+91')) {
+          const nonPrefixedMobile = userMobile.slice(3);
+          const queryWithoutPrefix = query(usersRef, orderByChild('phone'), equalTo(nonPrefixedMobile));
+          userSnapshot = await get(queryWithoutPrefix);
+        }
+
+        // 3. Now, check if a user was found with either method
         if (userSnapshot.exists()) {
           const userId = Object.keys(userSnapshot.val())[0];
           const userRef = ref(db, `users/${userId}`);
@@ -123,17 +134,14 @@ const HelloUser = () => {
                 setLocation(userData.location);
               }
             } else {
-              // This case would be rare, e.g., if the user is deleted while logged in
               setUserStatus('Active');
               toast.error("Your user profile was not found.");
               navigate('/login');
             }
-            setLoading(false); // Stop loading once we get the first batch of user data
           });
         } else {
-          // This is the main error case: user is logged in, but no profile in DB
+          // This block now only runs if the user truly doesn't exist in the DB
           setUserStatus('Active');
-          setLoading(false);
           toast.error("Could not find your user profile. Please log in again.");
           navigate('/login');
         }
@@ -141,6 +149,7 @@ const HelloUser = () => {
       } catch (err) {
         console.error("Data fetching error:", err);
         toast.error("Could not fetch data. Please check your connection.");
+      } finally {
         setLoading(false);
       }
     };
