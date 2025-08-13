@@ -1,29 +1,27 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { FaHome, FaTasks, FaUserAlt, FaShoppingCart, FaNewspaper, FaBox, FaQuestionCircle, FaRecycle, FaTimes, FaInfoCircle } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
-import { db, firebaseObjectToArray } from '../firebase';
-import { ref, get, query, orderByChild, equalTo, onValue, set } from 'firebase/database';
+import { db } from '../firebase';
+import { ref, get, onValue, set } from 'firebase/database';
+import { getAuth, onAuthStateChanged } from 'firebase/auth'; // Added auth imports
 import { useSettings } from '../context/SettingsContext';
 import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
 import SEO from './SEO';
 import Loader from './Loader';
-import { getAuth } from "firebase/auth";
 
-// --- Reusable Cart Modal Component ---
+// --- Reusable Cart Modal Component (No changes needed here) ---
 const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSchedulingDisabled }) => {
   if (!isOpen) return null;
-
   const grandTotal = cartItems.reduce((acc, entry) => acc + (entry.total || 0), 0);
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto my-8 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="p-5 border-b flex justify-between items-center">
+        <header className="p-5 border-b flex justify-between items-center">
           <h2 className="text-xl font-bold text-gray-800">Your Cart</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><FaTimes className="w-6 h-6" /></button>
-        </div>
-        <div className="p-5 max-h-[50vh] overflow-y-auto">
+        </header>
+        <main className="p-5 max-h-[50vh] overflow-y-auto">
           {cartItems.length === 0 ? (
             <p className="text-gray-500 text-center py-8">Your cart is empty.</p>
           ) : (
@@ -42,9 +40,9 @@ const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSch
               ))}
             </div>
           )}
-        </div>
+        </main>
         {cartItems.length > 0 && (
-          <div className="p-5 bg-gray-50 border-t">
+          <footer className="p-5 bg-gray-50 border-t">
             <div className="flex justify-between items-center pt-3 font-bold text-xl mb-4">
               <p>Grand Total</p>
               <p className="text-green-600">₹{grandTotal.toFixed(2)}</p>
@@ -52,7 +50,7 @@ const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSch
             <button onClick={onCheckout} disabled={isSchedulingDisabled} className="w-full py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed">
               {isSchedulingDisabled ? 'Pickup Already Scheduled' : 'Proceed to Checkout'}
             </button>
-          </div>
+          </footer>
         )}
       </div>
     </div>
@@ -70,6 +68,7 @@ const HelloUser = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [userStatus, setUserStatus] = useState(null);
   const navigate = useNavigate();
+  const auth = getAuth();
 
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
 
@@ -78,9 +77,7 @@ const HelloUser = () => {
     if (stored) {
       try {
         setSavedData(JSON.parse(stored));
-      } catch {
-        setSavedData([]);
-      }
+      } catch { setSavedData([]); }
     }
   }, []);
 
@@ -89,55 +86,22 @@ const HelloUser = () => {
   }, [savedData]);
 
   useEffect(() => {
-    let userListener = () => { }; // For cleaning up the listener
+    setLoading(true);
+    const itemsRef = ref(db, 'items');
+    get(itemsRef).then(snapshot => {
+      if (snapshot.exists()) {
+        const productsArray = Object.keys(snapshot.val()).map(key => ({ id: key, ...snapshot.val()[key] }));
+        setAvailableProducts(productsArray);
+      }
+    }).catch(err => {
+      toast.error("Could not fetch products.");
+    });
 
-    const fetchInitialData = async () => {
-      setLoading(true);
-      try {
-        // Start fetching products immediately
-        const itemsPromise = get(ref(db, 'items'));
-
-        // Handle user logic
-        if (!userMobile) {
-          setUserStatus('Active');
-          setAvailableProducts(firebaseObjectToArray(await itemsPromise));
-          setLoading(false);
-          return;
-        }
-
-        const usersRef = ref(db, 'users');
-        const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
-        const userSnapshot = await get(userQuery);
-
-        let userId;
-        if (userSnapshot.exists()) {
-          // User exists, get their ID
-          userId = Object.keys(userSnapshot.val())[0];
-        } else {
-          // User does not exist, so create them
-          const auth = getAuth();
-          const currentUser = auth.currentUser;
-          if (currentUser) {
-            userId = currentUser.uid;
-            const newUserRef = ref(db, `users/${userId}`);
-            await set(newUserRef, {
-              phone: userMobile,
-              mobile: userMobile,
-              location: location || 'Unknown', // Save the location for new users
-              Status: 'Active',
-              createdAt: new Date().toISOString()
-            });
-          } else {
-            toast.error("Authentication error. Please log in again.");
-            navigate('/login');
-            setLoading(false);
-            return;
-          }
-        }
-
-        // Now that we are guaranteed to have a userId, attach the real-time listener
-        const userRef = ref(db, `users/${userId}`);
-        userListener = onValue(userRef, (snapshot) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // User is logged in.
+        const userRef = ref(db, `users/${user.uid}`);
+        const dbListener = onValue(userRef, async (snapshot) => {
           if (snapshot.exists()) {
             const userData = snapshot.val();
             setUserStatus(userData.Status || 'Active');
@@ -145,29 +109,29 @@ const HelloUser = () => {
               setLocation(userData.location);
             }
           } else {
+            // User is authenticated but not in our DB yet. Let's create them.
+            await set(userRef, {
+              phone: user.phoneNumber,
+              mobile: user.phoneNumber,
+              location: location || 'Unknown',
+              Status: 'Active',
+              createdAt: new Date().toISOString()
+            });
             setUserStatus('Active');
           }
-          // We have user data, now we can stop loading
           setLoading(false);
         });
-
-        // Finalize setting products state
-        setAvailableProducts(firebaseObjectToArray(await itemsPromise));
-
-      } catch (err) {
-        console.error("Data fetching error:", err);
-        toast.error("Could not fetch data. Please check your connection.");
+        return dbListener; // Return the DB listener's cleanup function
+      } else {
+        // User is not logged in.
+        setUserStatus('Active'); // Default status for logged-out users
         setLoading(false);
       }
-    };
+    });
 
-    fetchInitialData();
+    return () => unsubscribeAuth(); // Cleanup the auth listener
+  }, [auth, location, setLocation]);
 
-    // Cleanup function to detach the listener when the component unmounts
-    return () => {
-      userListener();
-    };
-  }, [userMobile, setLocation, navigate, location]);
 
   const categories = useMemo(() => {
     if (loading) return [];
@@ -211,13 +175,11 @@ const HelloUser = () => {
 
   const ProductCard = React.memo(({ product, isDisabled }) => {
     const [quantity, setQuantity] = useState(1);
-
     const handleAdd = () => {
       if (isDisabled) {
         toast.error("You can't add items while a pickup is already scheduled.");
         return;
       }
-      const numericTotal = parseFloat(product.rate || 0) * quantity;
       const newEntry = {
         id: `${product.id}-${Date.now()}`,
         text: product.name,
@@ -226,28 +188,25 @@ const HelloUser = () => {
         category: product.category,
         location: product.location,
         quantity,
-        total: numericTotal,
+        total: parseFloat(product.rate || 0) * quantity,
         mobile: userMobile || "unknown",
       };
       setSavedData((prev) => [...prev, newEntry]);
       toast.success(`${product.name} added to cart!`);
     };
-
     return (
       <article className={`bg-white rounded-xl shadow-md overflow-hidden flex items-center p-3 gap-4 transition-all ${isDisabled ? 'opacity-60' : 'hover:shadow-lg'}`}>
-        <div className="flex-shrink-0 bg-gray-100 p-3 rounded-lg">
-          <div className="w-12 h-12 flex items-center justify-center text-3xl">{getProductIcon(product.category)}</div>
-        </div>
+        <div className="flex-shrink-0 bg-gray-100 p-3 rounded-lg"><div className="w-12 h-12 flex items-center justify-center text-3xl">{getProductIcon(product.category)}</div></div>
         <div className="flex-grow">
           <h3 className="text-md font-bold text-gray-800 capitalize">{product.name}</h3>
           <p className="text-sm font-semibold text-green-600">₹{product.rate} <span className="text-xs font-normal text-gray-500">per {product.unit}</span></p>
           <div className="flex items-center justify-between mt-2">
             <div className="flex items-center border border-gray-200 rounded-md">
-              <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="px-2 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-l-md focus:outline-none" disabled={isDisabled}>-</button>
-              <input type="number" step="1" min="1" value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value || 1, 10)))} className="w-12 border-l border-r text-center text-sm focus:outline-none" disabled={isDisabled} />
-              <button onClick={() => setQuantity(q => q + 1)} className="px-2 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-r-md focus:outline-none" disabled={isDisabled}>+</button>
+              <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="px-2 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-l-md" disabled={isDisabled}>-</button>
+              <input type="number" value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value || 1, 10)))} className="w-12 border-l border-r text-center text-sm" disabled={isDisabled} />
+              <button onClick={() => setQuantity(q => q + 1)} className="px-2 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-r-md" disabled={isDisabled}>+</button>
             </div>
-            <button className="bg-blue-600 text-white font-bold py-2 px-4 rounded-md text-sm hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed" onClick={handleAdd} disabled={isDisabled}>Add</button>
+            <button className="bg-blue-600 text-white font-bold py-2 px-4 rounded-md text-sm hover:bg-blue-700 disabled:bg-gray-400" onClick={handleAdd} disabled={isDisabled}>Add</button>
           </div>
         </div>
       </article>
@@ -256,34 +215,20 @@ const HelloUser = () => {
 
   return (
     <>
-      <SEO
-        title={`Sell Scrap in ${location} - Trade2Cart`}
-        description={`Find the best rates for paper, plastic, and metal scrap in ${location}. Schedule a pickup and get paid instantly with Trade2Cart.`}
-        keywords={`sell scrap ${location}, scrap rates ${location}, scrap buyers ${location}, online scrap selling`}
-      />
+      <SEO title={`Sell Scrap in ${location} - Trade2Cart`} description={`Find the best rates for scrap in ${location}. Schedule a pickup with Trade2Cart.`} />
       <div className="h-screen bg-gray-100 text-gray-800 flex flex-col font-sans">
         <header className="sticky top-0 flex-shrink-0 p-4 bg-white shadow-md z-40 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <img src={assetlogo} alt="Trade2Cart Logo" className="h-8 w-auto" />
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="relative cursor-pointer" onClick={() => setIsCartOpen(true)}>
-              <FaShoppingCart className="text-gray-600 text-2xl" />
-              {savedData.length > 0 && (<span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{savedData.length}</span>)}
-            </div>
+          <img src={assetlogo} alt="Trade2Cart Logo" className="h-8 w-auto" />
+          <div className="relative cursor-pointer" onClick={() => setIsCartOpen(true)}>
+            <FaShoppingCart className="text-gray-600 text-2xl" />
+            {savedData.length > 0 && (<span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{savedData.length}</span>)}
           </div>
         </header>
-
-        <nav className="sticky top-[68px] bg-white z-20 py-2 shadow-sm overflow-x-auto">
-          <div className="flex space-x-3 px-4">
-            {categories.map(category => (
-              <button key={category} onClick={() => setSelectedCategory(category)} className={`whitespace-nowrap px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 ${selectedCategory === category ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
-                {category}
-              </button>
-            ))}
-          </div>
-        </nav>
-
+        <nav className="sticky top-[68px] bg-white z-20 py-2 shadow-sm overflow-x-auto"><div className="flex space-x-3 px-4">
+          {categories.map(category => (
+            <button key={category} onClick={() => setSelectedCategory(category)} className={`whitespace-nowrap px-4 py-2 text-sm font-medium rounded-full ${selectedCategory === category ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>{category}</button>
+          ))}
+        </div></nav>
         <main className="flex-grow p-4 overflow-y-auto z-10">
           {loading ? <Loader fullscreen /> : (
             <>
@@ -292,7 +237,7 @@ const HelloUser = () => {
                   <FaInfoCircle className="text-2xl mr-4" />
                   <div>
                     <p className="font-bold">You have an active pickup scheduled!</p>
-                    <p className="text-sm">You can schedule a new pickup after your current one is completed. <Link to="/task" className="font-semibold underline hover:text-yellow-800">View Status</Link></p>
+                    <p className="text-sm">You can schedule a new pickup after this one is completed. <Link to="/task" className="font-semibold underline hover:text-yellow-800">View Status</Link></p>
                   </div>
                 </div>
               )}
@@ -302,32 +247,12 @@ const HelloUser = () => {
             </>
           )}
         </main>
-
-        <footer className="sticky bottom-0 flex-shrink-0 z-30">
-          <nav className="flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
-            <button onClick={() => { setIsCartOpen(false); setSelectedCategory('All'); }} className="flex flex-col items-center text-green-600 p-2">
-              <FaHome className="text-2xl" />
-              <span className="text-xs font-medium">Home</span>
-            </button>
-            <Link to="/task" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600">
-              <FaTasks className="text-2xl" />
-              <span className="text-xs font-medium">Tasks</span>
-            </Link>
-            <Link to="/account" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600">
-              <FaUserAlt className="text-2xl" />
-              <span className="text-xs font-medium">Account</span>
-            </Link>
-          </nav>
-        </footer>
-
-        <CartModal
-          isOpen={isCartOpen}
-          onClose={() => setIsCartOpen(false)}
-          cartItems={savedData}
-          onRemoveItem={handleRemoveItem}
-          onCheckout={handleCheckout}
-          isSchedulingDisabled={isSchedulingDisabled}
-        />
+        <footer className="sticky bottom-0 flex-shrink-0 z-30"><nav className="flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
+          <Link to="/hello" className="flex flex-col items-center text-green-600 p-2"><FaHome className="text-2xl" /><span className="text-xs font-medium">Home</span></Link>
+          <Link to="/task" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaTasks className="text-2xl" /><span className="text-xs font-medium">Tasks</span></Link>
+          <Link to="/account" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaUserAlt className="text-2xl" /><span className="text-xs font-medium">Account</span></Link>
+        </nav></footer>
+        <CartModal isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} cartItems={savedData} onRemoveItem={handleRemoveItem} onCheckout={handleCheckout} isSchedulingDisabled={isSchedulingDisabled} />
       </div>
     </>
   );
