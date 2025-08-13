@@ -3,7 +3,7 @@ import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt } from 'react-icons/fa';
 import { useSettings } from '../../context/SettingsContext'
 import { db, firebaseObjectToArray } from '../../firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
-import Loader from './Loader'; // Assuming you have a Loader component
+import Loader from '../Loader'; // Assuming you have a Loader component
 
 // This component is now self-sufficient and fetches its own data.
 const ProfileSection = () => {
