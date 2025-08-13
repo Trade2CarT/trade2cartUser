@@ -1,11 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../../firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
-import { FaEye, FaDownload, FaSpinner, FaFileInvoiceDollar, FaUser, FaRupeeSign } from 'react-icons/fa';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import { FaEye, FaSpinner, FaFileInvoiceDollar, FaUser, FaRupeeSign, FaInfoCircle } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
-import BillTemplate from '../BillTemplate';
 
 const formatDate = (isoString) => {
     if (!isoString) return 'N/A';
@@ -16,8 +13,6 @@ const TradeHistorySection = ({ userId, originalUserData, onViewBill }) => {
     const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState(null);
-    const [billForPdf, setBillForPdf] = useState(null);
-    const billTemplateRef = useRef(null);
 
     useEffect(() => {
         if (!userId) {
@@ -29,8 +24,6 @@ const TradeHistorySection = ({ userId, originalUserData, onViewBill }) => {
             setLoading(true);
             try {
                 const assignmentsRef = ref(db, 'assignments');
-                // --- THIS IS THE FIX ---
-                // Changed 'userID' to 'userId' to match the actual data structure.
                 const historyQuery = query(assignmentsRef, orderByChild('userId'), equalTo(userId));
                 const snapshot = await get(historyQuery);
 
@@ -106,47 +99,16 @@ const TradeHistorySection = ({ userId, originalUserData, onViewBill }) => {
         }
     };
 
-    const handleDownloadBill = async (assignment) => {
-        const completeBillData = await fetchBillDetails(assignment);
-        if (completeBillData) {
-            setBillForPdf(completeBillData);
-        }
-    };
-
-    useEffect(() => {
-        // We still check if the data and the ref are ready
-        if (billForPdf && billTemplateRef.current) {
-
-            // --- THIS IS THE FIX ---
-            // We wait 100 milliseconds before generating the PDF.
-            // This gives the browser a moment to render the bill template, including the logo image.
-            const timer = setTimeout(() => {
-                html2canvas(billTemplateRef.current, { scale: 2 })
-                    .then(canvas => {
-                        const imgData = canvas.toDataURL('image/png');
-                        const pdf = new jsPDF('p', 'mm', 'a4');
-                        const pdfWidth = pdf.internal.pageSize.getWidth();
-                        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-                        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                        pdf.save(`invoice-${billForPdf.id.slice(-6)}.pdf`);
-                    })
-                    .catch(() => toast.error("PDF generation failed."))
-                    .finally(() => setBillForPdf(null)); // Reset the state
-            }, 100);
-
-            // Cleanup the timer if the component unmounts
-            return () => clearTimeout(timer);
-        }
-    }, [billForPdf]); // This effect still runs when billForPdf changes
-
     if (loading) {
         return <div className="text-center py-4 text-gray-500">Loading history...</div>;
     }
 
     return (
         <>
-            <div style={{ position: 'absolute', left: '-9999px', top: 0, zIndex: -1 }}>
-                <BillTemplate trade={billForPdf} billRef={billTemplateRef} />
+            {/* --- NEW WARNING MESSAGE --- */}
+            <div className="p-3 mb-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 flex items-center gap-3 rounded-r-lg">
+                <FaInfoCircle />
+                <p className="text-xs font-medium">Trade history is automatically deleted after 7 days.</p>
             </div>
 
             {assignments.length > 0 ? (
@@ -171,9 +133,7 @@ const TradeHistorySection = ({ userId, originalUserData, onViewBill }) => {
                                 <button onClick={() => handleViewBill(assignment)} disabled={!!processingId} className="flex items-center gap-2 bg-gray-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-gray-700 disabled:bg-gray-400">
                                     {processingId?.id === assignment.id ? <FaSpinner className="animate-spin" /> : <FaEye />} View
                                 </button>
-                                <button onClick={() => handleDownloadBill(assignment)} disabled={!!processingId} className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:bg-blue-400">
-                                    {processingId?.id === assignment.id ? <FaSpinner className="animate-spin" /> : <FaDownload />} Download
-                                </button>
+                                {/* --- DOWNLOAD BUTTON REMOVED --- */}
                             </div>
                         </div>
                     ))}
