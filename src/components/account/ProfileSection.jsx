@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt } from 'react-icons/fa';
-import { useSettings } from '../../context/SettingsContext'
-import { db, firebaseObjectToArray } from '../../firebase';
+import { useSettings } from '../context/SettingsContext';
+import { db, firebaseObjectToArray } from '../firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
-import Loader from '../Loader'; // Assuming you have a Loader component
+import Loader from './Loader'; // Make sure you have a Loader component
 
 // This component is now self-sufficient and fetches its own data.
 const ProfileSection = () => {
@@ -17,7 +17,7 @@ const ProfileSection = () => {
     const { userMobile } = useSettings(); // Gets the logged-in user's number from context
 
     useEffect(() => {
-        // Don't do anything if we don't have a mobile number yet.
+        // Don't do anything if we don't have a mobile number from the context yet.
         if (!userMobile) {
             setLoading(false);
             return;
@@ -27,13 +27,22 @@ const ProfileSection = () => {
             setLoading(true);
             try {
                 const usersRef = ref(db, 'users');
-                // Query the database for a user with the matching phone number
-                const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
-                const snapshot = await get(userQuery);
+                let userSnapshot = null;
 
-                if (snapshot.exists()) {
-                    const user = firebaseObjectToArray(snapshot)[0];
-                    // Populate the form with data from the database
+                // Query 1: Try with the phone number as is (e.g., +91 format from Auth)
+                const queryWithPrefix = query(usersRef, orderByChild('phone'), equalTo(userMobile));
+                userSnapshot = await get(queryWithPrefix);
+
+                // Query 2: If no user is found and the number has a country code, try without it
+                if (!userSnapshot.exists() && userMobile.startsWith('+91')) {
+                    const nonPrefixedMobile = userMobile.slice(3); // e.g., "9876543210"
+                    const queryWithoutPrefix = query(usersRef, orderByChild('phone'), equalTo(nonPrefixedMobile));
+                    userSnapshot = await get(queryWithoutPrefix);
+                }
+
+                if (userSnapshot.exists()) {
+                    const user = firebaseObjectToArray(userSnapshot)[0];
+                    // Populate the form with the data found in the database
                     setFormData({
                         name: user.name || '',
                         email: user.email || '',
@@ -41,7 +50,7 @@ const ProfileSection = () => {
                         address: user.address || ''
                     });
                 } else {
-                    console.error("ProfileSection: User not found in database.");
+                    console.error("ProfileSection: User not found in database with either format.");
                 }
             } catch (error) {
                 console.error("Error fetching profile data:", error);
@@ -51,7 +60,7 @@ const ProfileSection = () => {
         };
 
         fetchUserData();
-    }, [userMobile]); // This effect re-runs if the userMobile changes
+    }, [userMobile]); // This effect re-runs if the userMobile changes (e.g., after login)
 
     if (loading) {
         return <Loader />;
