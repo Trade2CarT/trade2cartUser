@@ -27,21 +27,12 @@ const ProfileSection = () => {
             setLoading(true);
             try {
                 const usersRef = ref(db, 'users');
-                let userSnapshot = null;
+                // Query the database for a user with the matching phone number
+                const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
+                const snapshot = await get(userQuery);
 
-                // Query 1: Try with the phone number as is (e.g., +91 format from Auth)
-                const queryWithPrefix = query(usersRef, orderByChild('phone'), equalTo(userMobile));
-                userSnapshot = await get(queryWithPrefix);
-
-                // Query 2: If no user is found and the number has a country code, try without it
-                if (!userSnapshot.exists() && userMobile.startsWith('+91')) {
-                    const nonPrefixedMobile = userMobile.slice(3); // e.g., "9876543210"
-                    const queryWithoutPrefix = query(usersRef, orderByChild('phone'), equalTo(nonPrefixedMobile));
-                    userSnapshot = await get(queryWithoutPrefix);
-                }
-
-                if (userSnapshot.exists()) {
-                    const user = firebaseObjectToArray(userSnapshot)[0];
+                if (snapshot.exists()) {
+                    const user = firebaseObjectToArray(snapshot)[0];
                     // Populate the form with the data found in the database
                     setFormData({
                         name: user.name || '',
@@ -50,7 +41,7 @@ const ProfileSection = () => {
                         address: user.address || ''
                     });
                 } else {
-                    console.error("ProfileSection: User not found in database with either format.");
+                    console.error("ProfileSection: User not found in database.");
                 }
             } catch (error) {
                 console.error("Error fetching profile data:", error);
