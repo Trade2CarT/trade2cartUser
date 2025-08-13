@@ -88,20 +88,24 @@ const HelloUser = () => {
   }, [savedData]);
 
   useEffect(() => {
-    const fetchItemsAndUser = async () => {
+    let userListener = () => { }; // Initialize as an empty function for cleanup
+
+    const fetchInitialData = async () => {
       setLoading(true);
       try {
-        // Fetch products
+        // Fetch products list
         const itemsRef = ref(db, 'items');
         const itemsSnapshot = await get(itemsRef);
         setAvailableProducts(firebaseObjectToArray(itemsSnapshot));
 
-        // Fetch user data and listen for status changes
+        // If user is not logged in, stop here.
         if (!userMobile) {
           setUserStatus('Active');
+          setLoading(false);
           return;
         }
 
+        // Find the user's unique ID first
         const usersRef = ref(db, 'users');
         const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
         const userSnapshot = await get(userQuery);
@@ -110,30 +114,43 @@ const HelloUser = () => {
           const userId = Object.keys(userSnapshot.val())[0];
           const userRef = ref(db, `users/${userId}`);
 
-          onValue(userRef, (snapshot) => {
-            const userData = snapshot.val();
-            if (userData) {
+          // Set up a real-time listener for the user's data
+          userListener = onValue(userRef, (snapshot) => {
+            if (snapshot.exists()) {
+              const userData = snapshot.val();
               setUserStatus(userData.Status || 'Active');
               if (userData.location) {
                 setLocation(userData.location);
               }
             } else {
+              // This case would be rare, e.g., if the user is deleted while logged in
               setUserStatus('Active');
+              toast.error("Your user profile was not found.");
+              navigate('/login');
             }
+            setLoading(false); // Stop loading once we get the first batch of user data
           });
         } else {
+          // This is the main error case: user is logged in, but no profile in DB
           setUserStatus('Active');
+          setLoading(false);
           toast.error("Could not find your user profile. Please log in again.");
           navigate('/login');
         }
 
       } catch (err) {
+        console.error("Data fetching error:", err);
         toast.error("Could not fetch data. Please check your connection.");
-      } finally {
         setLoading(false);
       }
     };
-    fetchItemsAndUser();
+
+    fetchInitialData();
+
+    // Cleanup function: This will run when the component is unmounted
+    return () => {
+      userListener(); // Detach the real-time listener to prevent memory leaks
+    };
   }, [userMobile, setLocation, navigate]);
 
   const categories = useMemo(() => {
