@@ -114,20 +114,30 @@ const TradeHistorySection = ({ userId, originalUserData, onViewBill }) => {
     };
 
     useEffect(() => {
+        // We still check if the data and the ref are ready
         if (billForPdf && billTemplateRef.current) {
-            html2canvas(billTemplateRef.current, { scale: 2 })
-                .then(canvas => {
-                    const imgData = canvas.toDataURL('image/png');
-                    const pdf = new jsPDF('p', 'mm', 'a4');
-                    const pdfWidth = pdf.internal.pageSize.getWidth();
-                    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-                    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                    pdf.save(`invoice-${billForPdf.id.slice(-6)}.pdf`);
-                })
-                .catch(() => toast.error("PDF generation failed."))
-                .finally(() => setBillForPdf(null));
+
+            // --- THIS IS THE FIX ---
+            // We wait 100 milliseconds before generating the PDF.
+            // This gives the browser a moment to render the bill template, including the logo image.
+            const timer = setTimeout(() => {
+                html2canvas(billTemplateRef.current, { scale: 2 })
+                    .then(canvas => {
+                        const imgData = canvas.toDataURL('image/png');
+                        const pdf = new jsPDF('p', 'mm', 'a4');
+                        const pdfWidth = pdf.internal.pageSize.getWidth();
+                        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                        pdf.save(`invoice-${billForPdf.id.slice(-6)}.pdf`);
+                    })
+                    .catch(() => toast.error("PDF generation failed."))
+                    .finally(() => setBillForPdf(null)); // Reset the state
+            }, 100);
+
+            // Cleanup the timer if the component unmounts
+            return () => clearTimeout(timer);
         }
-    }, [billForPdf]);
+    }, [billForPdf]); // This effect still runs when billForPdf changes
 
     if (loading) {
         return <div className="text-center py-4 text-gray-500">Loading history...</div>;
