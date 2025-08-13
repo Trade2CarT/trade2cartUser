@@ -1,104 +1,74 @@
 import React from 'react';
-import assetlogo from '../assets/images/logo.PNG';
 
-const BillTemplate = ({ trade, billRef }) => {
-    if (!trade) return null;
+// Helper to format the date
+const formatDate = (isoString) => {
+    if (!isoString) return 'N/A';
+    return new Date(isoString).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
 
-    const items = Array.isArray(trade.products) ? trade.products : [];
-    const tradeDate = new Date(trade.assignedAt).toLocaleString('en-IN', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-    });
+// Use React.forwardRef to allow the component to receive a ref and forward it to a DOM element.
+const BillTemplate = React.forwardRef(({ trade }, ref) => {
+    // If there's no trade data, render nothing. This prevents errors.
+    if (!trade) {
+        return null;
+    }
 
     return (
-        <div
-            ref={billRef}
-            id={`bill-${trade.id}`}
-            className="bg-white text-gray-800"
-            style={{
-                width: '210mm',
-                minHeight: '297mm',
-                padding: '20mm',
-                fontFamily: 'Arial, sans-serif',
-                boxSizing: 'border-box'
-            }}
-        >
-            {/* Header */}
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ccc', paddingBottom: '10px', marginBottom: '20px' }}>
-                <div>
-                    <h1 style={{ fontSize: '26px', fontWeight: 'bold', marginBottom: '4px' }}>Tax Invoice</h1>
-                    <p style={{ fontSize: '12px', color: '#555' }}>Invoice ID: {trade.id.slice(-8)}</p>
-                    <p style={{ fontSize: '12px', color: '#555' }}>Date: {tradeDate}</p>
+        // Attach the forwarded ref to this main div
+        <div ref={ref} className="p-8 bg-white text-gray-800" style={{ width: '210mm', minHeight: '297mm', fontFamily: 'sans-serif' }}>
+            <header className="flex justify-between items-center pb-4 border-b-2 border-gray-800">
+                <h1 className="text-4xl font-bold text-gray-900">INVOICE</h1>
+                <div className="text-right">
+                    <p className="text-sm">Invoice #: {trade.id.slice(-6)}</p>
+                    <p className="text-sm">Date: {formatDate(trade.assignedAt)}</p>
                 </div>
-                <img src={assetlogo} alt="Trade2Cart Logo" style={{ height: '60px', width: 'auto' }} />
             </header>
 
-            {/* Customer & Vendor Info */}
-            <section style={{ marginBottom: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '40px' }}>
-                    <div>
-                        <h2 style={{ fontSize: '12px', fontWeight: 'bold', color: '#555', marginBottom: '4px' }}>Billed To</h2>
-                        <p style={{ fontWeight: 'bold' }}>{trade.userName || 'Valued Customer'}</p>
-                        <p style={{ fontSize: '12px', color: '#555' }}>{trade.address || 'User Address Not Provided'}</p>
-                    </div>
-                    <div>
-                        <h2 style={{ fontSize: '12px', fontWeight: 'bold', color: '#555', marginBottom: '4px' }}>From</h2>
-                        <p style={{ fontWeight: 'bold' }}>{trade.vendorName || 'Assigned Vendor'}</p>
-                        <p style={{ fontSize: '12px', color: '#555' }}>Trade2Cart Platform</p>
-                    </div>
+            <section className="my-8 grid grid-cols-2 gap-4">
+                <div>
+                    <h2 className="text-sm font-bold mb-2">BILLED TO:</h2>
+                    <p className="font-semibold">{trade.userName || 'N/A'}</p>
+                    <p className="text-sm text-gray-600">{trade.address || 'No address provided'}</p>
+                </div>
+                <div className="text-right">
+                    <h2 className="text-sm font-bold mb-2">FROM:</h2>
+                    <p className="font-semibold">{trade.vendorName || 'N/A'}</p>
+                    <p className="text-sm text-gray-600">Trade2Cart Vendor</p>
                 </div>
             </section>
 
-            {/* Order Table */}
             <section>
-                <h3 style={{ fontSize: '16px', fontWeight: 'bold', borderBottom: '1px solid #ccc', paddingBottom: '4px', marginBottom: '8px' }}>Order Summary</h3>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                    <thead>
-                        <tr style={{ backgroundColor: '#f8f8f8', borderBottom: '1px solid #ccc' }}>
-                            <th style={{ padding: '8px', border: '1px solid #ccc' }}>Item</th>
-                            <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Weight</th>
-                            <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>Rate</th>
-                            <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc' }}>Amount</th>
+                <table className="w-full text-left">
+                    <thead className="bg-gray-800 text-white">
+                        <tr>
+                            <th className="p-2">ITEM</th>
+                            <th className="p-2 text-right">QUANTITY</th>
+                            <th className="p-2 text-right">RATE</th>
+                            <th className="p-2 text-right">TOTAL</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {items.map((item, index) => (
-                            <tr key={index}>
-                                <td style={{ padding: '8px', border: '1px solid #ccc' }}>{item.name}</td>
-                                <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>{item.quantity} {item.unit}</td>
-                                <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #ccc' }}>₹{item.rate}</td>
-                                <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #ccc' }}>₹{item.total}</td>
+                        {trade.products.map((item, index) => (
+                            <tr key={index} className="border-b">
+                                <td className="p-2 font-medium">{item.name}</td>
+                                <td className="p-2 text-right">{item.quantity} {item.unit}</td>
+                                <td className="p-2 text-right">₹{parseFloat(item.rate).toFixed(2)}</td>
+                                <td className="p-2 text-right">₹{parseFloat(item.total).toFixed(2)}</td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </section>
 
-            {/* Totals */}
-            <section style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end' }}>
-                <div style={{ width: '50%' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #ccc', paddingTop: '8px' }}>
-                        <p style={{ fontWeight: 'bold' }}>Subtotal</p>
-                        <p>₹{trade.totalAmount}</p>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', backgroundColor: '#f0f0f0', padding: '8px', borderRadius: '6px', marginTop: '8px' }}>
-                        <p style={{ fontSize: '14px', fontWeight: 'bold' }}>Total Amount</p>
-                        <p style={{ fontSize: '14px', fontWeight: 'bold' }}>₹{trade.totalAmount}</p>
-                    </div>
+            <footer className="mt-8 text-right">
+                <div className="inline-block p-4 bg-gray-100 rounded-md">
+                    <p className="text-sm font-bold">GRAND TOTAL</p>
+                    <p className="text-3xl font-bold">₹{parseFloat(trade.totalAmount).toFixed(2)}</p>
                 </div>
-            </section>
-
-            {/* Footer */}
-            <footer style={{ marginTop: '40px', paddingTop: '10px', borderTop: '1px solid #ccc', textAlign: 'center', fontSize: '10px', color: '#777' }}>
-                <p>Thank you for choosing Trade2Cart!</p>
-                <p>This is a computer-generated invoice and does not require a signature.</p>
+                <p className="text-xs text-gray-500 mt-4">Thank you for your business!</p>
             </footer>
         </div>
     );
-};
+});
 
 export default BillTemplate;
