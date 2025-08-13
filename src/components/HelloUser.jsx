@@ -2,12 +2,13 @@ import React, { useEffect, useState, useMemo } from "react";
 import { FaHome, FaTasks, FaUserAlt, FaShoppingCart, FaNewspaper, FaBox, FaQuestionCircle, FaRecycle, FaTimes, FaInfoCircle } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { db, firebaseObjectToArray } from '../firebase';
-import { ref, get, query, orderByChild, equalTo, onValue } from 'firebase/database';
+import { ref, get, query, orderByChild, equalTo, onValue, set } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
 import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
 import SEO from './SEO';
 import Loader from './Loader';
+import { getAuth } from "firebase/auth";
 
 // --- Reusable Cart Modal Component ---
 const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSchedulingDisabled }) => {
@@ -88,79 +89,85 @@ const HelloUser = () => {
   }, [savedData]);
 
   useEffect(() => {
-    let userListener = () => { }; // Initialize as an empty function for cleanup
+    let userListener = () => { }; // For cleaning up the listener
 
     const fetchInitialData = async () => {
       setLoading(true);
       try {
-        // Fetch products list first
-        const itemsRef = ref(db, 'items');
-        const itemsSnapshot = await get(itemsRef);
-        setAvailableProducts(firebaseObjectToArray(itemsSnapshot));
+        // Start fetching products immediately
+        const itemsPromise = get(ref(db, 'items'));
 
-        // If user is not logged in, stop here.
+        // Handle user logic
         if (!userMobile) {
           setUserStatus('Active');
+          setAvailableProducts(firebaseObjectToArray(await itemsPromise));
           setLoading(false);
           return;
         }
 
-        // --- ROBUST USER FETCHING LOGIC ---
         const usersRef = ref(db, 'users');
-        let userSnapshot = null;
+        const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
+        const userSnapshot = await get(userQuery);
 
-        // 1. Try fetching with the number as-is (e.g., +91987...)
-        const queryAsIs = query(usersRef, orderByChild('phone'), equalTo(userMobile));
-        userSnapshot = await get(queryAsIs);
-
-        // 2. If not found, and it's a prefixed number, try without the prefix
-        if (!userSnapshot.exists() && userMobile.startsWith('+91')) {
-          const nonPrefixedMobile = userMobile.slice(3);
-          const queryWithoutPrefix = query(usersRef, orderByChild('phone'), equalTo(nonPrefixedMobile));
-          userSnapshot = await get(queryWithoutPrefix);
-        }
-
-        // 3. Now, check if a user was found with either method
+        let userId;
         if (userSnapshot.exists()) {
-          const userId = Object.keys(userSnapshot.val())[0];
-          const userRef = ref(db, `users/${userId}`);
-
-          // Set up a real-time listener for the user's data
-          userListener = onValue(userRef, (snapshot) => {
-            if (snapshot.exists()) {
-              const userData = snapshot.val();
-              setUserStatus(userData.Status || 'Active');
-              if (userData.location) {
-                setLocation(userData.location);
-              }
-            } else {
-              setUserStatus('Active');
-              toast.error("Your user profile was not found.");
-              navigate('/login');
-            }
-          });
+          // User exists, get their ID
+          userId = Object.keys(userSnapshot.val())[0];
         } else {
-          // This block now only runs if the user truly doesn't exist in the DB
-          setUserStatus('Active');
-          toast.error("Could not find your user profile. Please log in again.");
-          navigate('/login');
+          // User does not exist, so create them
+          const auth = getAuth();
+          const currentUser = auth.currentUser;
+          if (currentUser) {
+            userId = currentUser.uid;
+            const newUserRef = ref(db, `users/${userId}`);
+            await set(newUserRef, {
+              phone: userMobile,
+              mobile: userMobile,
+              location: location || 'Unknown', // Save the location for new users
+              Status: 'Active',
+              createdAt: new Date().toISOString()
+            });
+          } else {
+            toast.error("Authentication error. Please log in again.");
+            navigate('/login');
+            setLoading(false);
+            return;
+          }
         }
+
+        // Now that we are guaranteed to have a userId, attach the real-time listener
+        const userRef = ref(db, `users/${userId}`);
+        userListener = onValue(userRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const userData = snapshot.val();
+            setUserStatus(userData.Status || 'Active');
+            if (userData.location) {
+              setLocation(userData.location);
+            }
+          } else {
+            setUserStatus('Active');
+          }
+          // We have user data, now we can stop loading
+          setLoading(false);
+        });
+
+        // Finalize setting products state
+        setAvailableProducts(firebaseObjectToArray(await itemsPromise));
 
       } catch (err) {
         console.error("Data fetching error:", err);
         toast.error("Could not fetch data. Please check your connection.");
-      } finally {
         setLoading(false);
       }
     };
 
     fetchInitialData();
 
-    // Cleanup function: This will run when the component is unmounted
+    // Cleanup function to detach the listener when the component unmounts
     return () => {
-      userListener(); // Detach the real-time listener to prevent memory leaks
+      userListener();
     };
-  }, [userMobile, setLocation, navigate]);
+  }, [userMobile, setLocation, navigate, location]);
 
   const categories = useMemo(() => {
     if (loading) return [];
