@@ -72,11 +72,10 @@ const LoginPage = () => {
     const snapshot = await get(userRef);
 
     if (!snapshot.exists()) {
-      // This part runs ONLY for a brand new user
       await set(userRef, {
-        mobile: userPhone,
+        mobile: userPhone, // Saves the full number like +91xxxxxxxxxx
         phone: userPhone,
-        location: location || 'Unknown', // Use location from context
+        location: location || 'Unknown',
         language: language || 'en',
         createdAt: new Date().toISOString(),
         Status: 'Active'
@@ -94,9 +93,10 @@ const LoginPage = () => {
       const credential = await confirmationResult.confirm(otp);
       const user = credential.user;
 
+      // Ensure the user exists in our DB before proceeding
       await ensureUserExistsInFirebase(user.uid, user.phoneNumber);
 
-      // We use the full number from auth for context now
+      // CRITICAL FIX: Store the FULL phone number in the context
       setUserMobile(user.phoneNumber);
 
       toast.success('Login Successful!');

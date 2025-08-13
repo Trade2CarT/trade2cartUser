@@ -10,13 +10,13 @@ const ProfileSection = ({ user }) => {
         address: ''
     });
 
-    // When the component loads, populate the fields with the user data.
+    // When the component loads or the user prop changes, populate the fields.
     useEffect(() => {
         if (user) {
             setFormData({
                 name: user.name || '',
                 email: user.email || '',
-                // ✨ UPDATED: Look for user.mobile first, then fall back to user.phone
+                // FIX: Robustly find the phone number from either 'mobile' or 'phone' field.
                 mobile: user.mobile || user.phone || '',
                 address: user.address || ''
             });
