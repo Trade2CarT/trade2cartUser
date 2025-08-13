@@ -61,7 +61,7 @@ const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSch
 
 // --- Main HelloUser Component ---
 const HelloUser = () => {
-  const { location, setLocation, userMobile } = useSettings(); // Get setLocation from context
+  const { location, setLocation, userMobile } = useSettings();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [savedData, setSavedData] = useState([]);
   const [availableProducts, setAvailableProducts] = useState([]);
@@ -88,63 +88,53 @@ const HelloUser = () => {
   }, [savedData]);
 
   useEffect(() => {
-    const fetchItems = async () => {
+    const fetchItemsAndUser = async () => {
       setLoading(true);
       try {
+        // Fetch products
         const itemsRef = ref(db, 'items');
         const itemsSnapshot = await get(itemsRef);
         setAvailableProducts(firebaseObjectToArray(itemsSnapshot));
+
+        // Fetch user data and listen for status changes
+        if (!userMobile) {
+          setUserStatus('Active');
+          return;
+        }
+
+        const usersRef = ref(db, 'users');
+        const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
+        const userSnapshot = await get(userQuery);
+
+        if (userSnapshot.exists()) {
+          const userId = Object.keys(userSnapshot.val())[0];
+          const userRef = ref(db, `users/${userId}`);
+
+          onValue(userRef, (snapshot) => {
+            const userData = snapshot.val();
+            if (userData) {
+              setUserStatus(userData.Status || 'Active');
+              if (userData.location) {
+                setLocation(userData.location);
+              }
+            } else {
+              setUserStatus('Active');
+            }
+          });
+        } else {
+          setUserStatus('Active');
+          toast.error("Could not find your user profile. Please log in again.");
+          navigate('/login');
+        }
+
       } catch (err) {
-        toast.error("Could not fetch products.");
+        toast.error("Could not fetch data. Please check your connection.");
       } finally {
         setLoading(false);
       }
     };
-    fetchItems();
-  }, []);
-
-  useEffect(() => {
-    if (!userMobile) {
-      setUserStatus('Active');
-      return;
-    }
-
-    let userListener;
-    const findUserAndListen = async () => {
-      const usersRef = ref(db, 'users');
-      // Use the full phone number from context for the query
-      const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
-      const userSnapshot = await get(userQuery);
-
-      if (userSnapshot.exists()) {
-        const userId = Object.keys(userSnapshot.val())[0];
-        const userRef = ref(db, `users/${userId}`);
-
-        userListener = onValue(userRef, (snapshot) => {
-          const userData = snapshot.val();
-          if (userData) {
-            setUserStatus(userData.Status || 'Active');
-            // If user has a location saved in DB, update the context
-            if (userData.location) {
-              setLocation(userData.location);
-            }
-          } else {
-            setUserStatus('Active');
-          }
-        });
-      } else {
-        setUserStatus('Active');
-      }
-    };
-
-    findUserAndListen();
-
-    return () => {
-      if (userListener) {
-        userListener();
-      }
-    };
-  }, [userMobile, setLocation]); // Add setLocation to dependency array
+    fetchItemsAndUser();
+  }, [userMobile, setLocation, navigate]);
 
   const categories = useMemo(() => {
     if (loading) return [];

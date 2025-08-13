@@ -1,30 +1,64 @@
 import React, { useState, useEffect } from 'react';
 import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt } from 'react-icons/fa';
+import { useSettings } from '../context/SettingsContext';
+import { db, firebaseObjectToArray } from '../firebase';
+import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
+import Loader from './Loader'; // Assuming you have a Loader component
 
-// This component now only displays user data.
-const ProfileSection = ({ user }) => {
+// This component is now self-sufficient and fetches its own data.
+const ProfileSection = () => {
     const [formData, setFormData] = useState({
         name: '',
         email: '',
         mobile: '',
         address: ''
     });
+    const [loading, setLoading] = useState(true);
+    const { userMobile } = useSettings(); // Gets the logged-in user's number from context
 
-    // When the component loads or the user prop changes, populate the fields.
     useEffect(() => {
-        if (user) {
-            setFormData({
-                name: user.name || '',
-                email: user.email || '',
-                // FIX: Robustly find the phone number from either 'mobile' or 'phone' field.
-                mobile: user.mobile || user.phone || '',
-                address: user.address || ''
-            });
+        // Don't do anything if we don't have a mobile number yet.
+        if (!userMobile) {
+            setLoading(false);
+            return;
         }
-    }, [user]);
 
-    if (!user) {
-        return <p>Loading user data...</p>;
+        const fetchUserData = async () => {
+            setLoading(true);
+            try {
+                const usersRef = ref(db, 'users');
+                // Query the database for a user with the matching phone number
+                const userQuery = query(usersRef, orderByChild('phone'), equalTo(userMobile));
+                const snapshot = await get(userQuery);
+
+                if (snapshot.exists()) {
+                    const user = firebaseObjectToArray(snapshot)[0];
+                    // Populate the form with data from the database
+                    setFormData({
+                        name: user.name || '',
+                        email: user.email || '',
+                        mobile: user.mobile || user.phone || '',
+                        address: user.address || ''
+                    });
+                } else {
+                    console.error("ProfileSection: User not found in database.");
+                }
+            } catch (error) {
+                console.error("Error fetching profile data:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchUserData();
+    }, [userMobile]); // This effect re-runs if the userMobile changes
+
+    if (loading) {
+        return <Loader />;
+    }
+
+    if (!formData.mobile) {
+        return <p className="text-center text-red-500">Could not load your profile. Please log in again.</p>;
     }
 
     return (
