@@ -12,7 +12,7 @@ const formatDate = (isoString) => {
     return new Date(isoString).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
+const TradeHistorySection = ({ userId, originalUserData, onViewBill }) => {
     const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState(null);
@@ -20,45 +20,48 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
     const billTemplateRef = useRef(null);
 
     useEffect(() => {
-        if (!userMobile) {
+        // If we don't have the user's ID yet, don't try to fetch.
+        if (!userId) {
             setLoading(false);
             return;
         }
 
-        // Fetches the initial list of completed assignments to ensure history is always visible
         const fetchAssignments = async () => {
             setLoading(true);
             try {
                 const assignmentsRef = ref(db, 'assignments');
-                const historyQuery = query(assignmentsRef, orderByChild('mobile'), equalTo(userMobile));
+                // This is the new, reliable query using the indexed 'userID' field.
+                const historyQuery = query(assignmentsRef, orderByChild('userID'), equalTo(userId));
                 const snapshot = await get(historyQuery);
 
                 if (snapshot.exists()) {
                     const assignmentsData = [];
                     snapshot.forEach(child => {
-                        if (child.val().status?.toLowerCase() === 'completed') {
-                            assignmentsData.push({ id: child.key, ...child.val() });
+                        const assignment = { id: child.key, ...child.val() };
+                        // Only show completed assignments in the history
+                        if (assignment.status?.toLowerCase() === 'completed') {
+                            assignmentsData.push(assignment);
                         }
                     });
+                    // Sort by date, newest first
                     assignmentsData.sort((a, b) => new Date(b.assignedAt) - new Date(a.assignedAt));
                     setAssignments(assignmentsData);
                 }
             } catch (error) {
-                toast.error("Could not fetch history.");
-                console.error(error);
+                toast.error("Could not fetch trade history.");
+                console.error("History fetch error:", error);
             } finally {
-                setLoading(false);
+                setLoading(false); // This ensures the loader always stops.
             }
         };
 
         fetchAssignments();
-    }, [userMobile]);
+    }, [userId]); // The effect now runs only when the userId is available.
 
-    // Fetches the detailed bill for a specific assignment, strictly following your security rules
     const fetchBillDetails = async (assignment) => {
+        setProcessingId({ id: assignment.id, type: 'bill' });
         try {
             const billsRef = ref(db, 'bills');
-            // This query is the ONLY one permitted by your Firebase Security Rules
             const billQuery = query(billsRef, orderByChild('assignmentID'), equalTo(assignment.id));
             const snapshot = await get(billQuery);
 
@@ -75,7 +78,7 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                 return null;
             }
 
-            const completeBill = {
+            return {
                 id: assignment.id,
                 assignedAt: assignment.assignedAt,
                 vendorName: assignment.vendorName,
@@ -90,63 +93,51 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                     total: item.total
                 }))
             };
-            return completeBill;
-
         } catch (error) {
             toast.error("Could not retrieve bill details.");
-            console.error("Error fetching bill details:", error); // This will show any remaining errors
             return null;
+        } finally {
+            setProcessingId(null);
         }
     };
 
     const handleViewBill = async (assignment) => {
-        setProcessingId({ id: assignment.id, type: 'view' });
         const completeBillData = await fetchBillDetails(assignment);
         if (completeBillData) {
             onViewBill(completeBillData);
         }
-        setProcessingId(null);
     };
 
     const handleDownloadBill = async (assignment) => {
-        setProcessingId({ id: assignment.id, type: 'download' });
         const completeBillData = await fetchBillDetails(assignment);
         if (completeBillData) {
             setBillForPdf(completeBillData);
-        } else {
-            setProcessingId(null);
         }
     };
 
     useEffect(() => {
         if (billForPdf && billTemplateRef.current) {
-            setTimeout(() => {
-                html2canvas(billTemplateRef.current, { scale: 2 })
-                    .then(canvas => {
-                        const imgData = canvas.toDataURL('image/png');
-                        const pdf = new jsPDF('p', 'mm', 'a4');
-                        const pdfWidth = pdf.internal.pageSize.getWidth();
-                        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-                        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                        pdf.save(`invoice-${billForPdf.id.slice(-6)}.pdf`);
-                    })
-                    .catch(() => toast.error("PDF generation failed."))
-                    .finally(() => {
-                        setBillForPdf(null);
-                        setProcessingId(null);
-                    });
-            }, 300);
+            html2canvas(billTemplateRef.current, { scale: 2 })
+                .then(canvas => {
+                    const imgData = canvas.toDataURL('image/png');
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    const pdfWidth = pdf.internal.pageSize.getWidth();
+                    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                    pdf.save(`invoice-${billForPdf.id.slice(-6)}.pdf`);
+                })
+                .catch(() => toast.error("PDF generation failed."))
+                .finally(() => setBillForPdf(null));
         }
     }, [billForPdf]);
 
-
     if (loading) {
-        return <p className="text-center text-gray-500 py-4">Loading history...</p>;
+        return <div className="text-center py-4 text-gray-500">Loading history...</div>;
     }
 
     return (
         <>
-            <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+            <div style={{ position: 'absolute', left: '-9999px', top: 0, zIndex: -1 }}>
                 <BillTemplate trade={billForPdf} billRef={billTemplateRef} />
             </div>
 
@@ -158,25 +149,23 @@ const TradeHistorySection = ({ userMobile, originalUserData, onViewBill }) => {
                                 <span className="px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-800">Completed</span>
                                 <p className="text-xs text-gray-500 font-medium">{formatDate(assignment.assignedAt)}</p>
                             </div>
-                            <div className="p-4">
+                            <div className="p-4 grid grid-cols-2 items-center">
                                 <div className="flex items-center gap-3">
                                     <FaUser className="text-gray-400" />
                                     <p className="text-sm text-gray-700">Vendor: <span className="font-bold">{assignment.vendorName}</span></p>
                                 </div>
-                            </div>
-                            <div className="p-3 bg-gray-50 flex justify-between items-center">
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1 justify-end">
                                     <FaRupeeSign className="text-green-600" />
                                     <p className="text-lg font-bold text-green-600">{assignment.totalAmount || '...'}</p>
                                 </div>
-                                <div className="flex items-center gap-2 sm:gap-4">
-                                    <button onClick={() => handleViewBill(assignment)} disabled={!!processingId} className="flex items-center gap-2 bg-gray-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-gray-700 disabled:bg-gray-400">
-                                        {processingId?.id === assignment.id && processingId.type === 'view' ? <FaSpinner className="animate-spin" /> : <FaEye />} View
-                                    </button>
-                                    <button onClick={() => handleDownloadBill(assignment)} disabled={!!processingId} className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:bg-blue-400">
-                                        {processingId?.id === assignment.id && processingId.type === 'download' ? <FaSpinner className="animate-spin" /> : <FaDownload />} Download
-                                    </button>
-                                </div>
+                            </div>
+                            <div className="p-3 bg-gray-50 border-t flex justify-end items-center gap-2 sm:gap-4">
+                                <button onClick={() => handleViewBill(assignment)} disabled={!!processingId} className="flex items-center gap-2 bg-gray-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-gray-700 disabled:bg-gray-400">
+                                    {processingId?.id === assignment.id ? <FaSpinner className="animate-spin" /> : <FaEye />} View
+                                </button>
+                                <button onClick={() => handleDownloadBill(assignment)} disabled={!!processingId} className="flex items-center gap-2 bg-blue-600 text-white text-xs font-bold py-1.5 px-3 rounded-md hover:bg-blue-700 disabled:bg-blue-400">
+                                    {processingId?.id === assignment.id ? <FaSpinner className="animate-spin" /> : <FaDownload />} Download
+                                </button>
                             </div>
                         </div>
                     ))}

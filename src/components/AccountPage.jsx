@@ -151,7 +151,7 @@ const AccountPage = () => {
               <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md mt-6">
                 <h2 className="text-xl font-bold mb-4 text-gray-800">Trade History</h2>
                 <TradeHistorySection
-                  userMobile={userMobile}
+                  userId={userData?.id} // Pass the reliable user ID
                   originalUserData={userData}
                   onViewBill={handleOpenBillModal}
                 />
