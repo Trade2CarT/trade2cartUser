@@ -10,7 +10,7 @@ import { toast } from 'react-hot-toast';
 import SEO from './SEO';
 import Loader from './Loader';
 
-// --- Cart Modal (Now with Quantity Controls) ---
+// --- Cart Modal (No changes here) ---
 const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSchedulingDisabled, onUpdateQuantity }) => {
   if (!isOpen) return null;
   const grandTotal = cartItems.reduce((acc, entry) => acc + (entry.total || 0), 0);
@@ -30,7 +30,6 @@ const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSch
                 <div key={entry.id} className="flex justify-between items-center">
                   <div>
                     <p className="font-semibold capitalize text-gray-800">{entry.text || entry.name}</p>
-                    {/* --- NEW: Quantity Controls --- */}
                     <div className="flex items-center gap-3 mt-1">
                       <button onClick={() => onUpdateQuantity(entry.id, entry.quantity - 1)} className="w-6 h-6 border rounded-full flex items-center justify-center text-lg text-red-500 hover:bg-gray-100">-</button>
                       <span className="text-sm font-medium">{entry.quantity} {entry.unit}</span>
@@ -77,7 +76,6 @@ const HelloUser = () => {
 
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
 
-  // --- Data Fetching and State Management (No changes) ---
   useEffect(() => {
     const stored = localStorage.getItem("wasteEntries");
     if (stored) {
@@ -154,25 +152,21 @@ const HelloUser = () => {
     toast.error("Item removed from cart.");
   };
 
-  // --- NEW: Function to handle quantity updates in the cart ---
   const handleUpdateQuantity = (itemId, newQuantity) => {
     if (newQuantity < 1) {
-      // If quantity drops to 0 or less, remove the item
       handleRemoveItem(itemId);
       return;
     }
-
     setSavedData(prev =>
       prev.map(item => {
         if (item.id === itemId) {
-          // Find the item and update its quantity and total
           return {
             ...item,
             quantity: newQuantity,
             total: parseFloat(item.rate || 0) * newQuantity,
           };
         }
-        return item; // Return other items unchanged
+        return item;
       })
     );
   };
@@ -258,7 +252,8 @@ const HelloUser = () => {
           </div>
         </nav>
 
-        <main className="flex-grow p-4">
+        {/* --- MAIN CONTENT (Now with responsive container) --- */}
+        <main className="flex-grow w-full max-w-7xl mx-auto p-4">
           {loading ? <Loader fullscreen /> : (
             <>
               {isSchedulingDisabled && (
@@ -270,7 +265,8 @@ const HelloUser = () => {
                   </div>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
+              {/* --- PRODUCT GRID (Now with responsive columns) --- */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {filteredProducts.length > 0 ? filteredProducts.map((product) => (<ProductCard key={product.id} product={product} isDisabled={isSchedulingDisabled} />)) : <p className="col-span-full text-center text-gray-500 mt-8">No products available in {location}.</p>}
               </div>
             </>
@@ -285,7 +281,6 @@ const HelloUser = () => {
           </nav>
         </footer>
 
-        {/* Pass the new update function to the modal */}
         <CartModal
           isOpen={isCartOpen}
           onClose={() => setIsCartOpen(false)}
