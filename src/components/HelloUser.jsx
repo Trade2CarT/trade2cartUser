@@ -5,12 +5,12 @@ import { db } from '../firebase';
 import { ref, get, onValue, set } from 'firebase/database';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { useSettings } from '../context/SettingsContext';
-import assetlogo from '../assets/images/logo.PNG'; // Correct logo import
+import assetlogo from '../assets/images/logo.PNG';
 import { toast } from 'react-hot-toast';
 import SEO from './SEO';
 import Loader from './Loader';
 
-// --- Cart Modal (Styling updated for consistency) ---
+// --- Cart Modal (No changes here) ---
 const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSchedulingDisabled }) => {
   if (!isOpen) return null;
   const grandTotal = cartItems.reduce((acc, entry) => acc + (entry.total || 0), 0);
@@ -57,7 +57,8 @@ const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSch
   );
 };
 
-// --- Main HelloUser Component (Rebuilt to match mockup) ---
+
+// --- Main HelloUser Component ---
 const HelloUser = () => {
   const { location, setLocation } = useSettings();
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -71,7 +72,7 @@ const HelloUser = () => {
 
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
 
-  // --- Data Fetching and State Management (No changes in logic) ---
+  // --- Data Fetching and State Management (No changes) ---
   useEffect(() => {
     const stored = localStorage.getItem("wasteEntries");
     if (stored) {
@@ -160,7 +161,7 @@ const HelloUser = () => {
     navigate("/trade");
   };
 
-  // --- Product Card Component (Rebuilt to match mockup) ---
+  // --- Product Card Component (Alignment fixed) ---
   const ProductCard = React.memo(({ product, isDisabled }) => {
     const [quantity, setQuantity] = useState(1);
     const { userMobile } = useSettings();
@@ -187,17 +188,25 @@ const HelloUser = () => {
 
     return (
       <article className={`bg-white rounded-xl shadow-md overflow-hidden flex flex-col ${isDisabled ? 'opacity-60' : ''}`}>
-        <img src={product.imageUrl || 'https://via.placeholder.com/200x150'} alt={product.name} className="w-full h-28 object-cover" />
+        <img src={product.imageUrl || 'https://placehold.co/200x150'} alt={product.name} className="w-full h-28 object-cover" />
+
+        {/* Flex container for content */}
         <div className="p-3 flex-grow flex flex-col">
-          <h3 className="text-sm font-bold text-gray-800 capitalize flex-grow">{product.name}</h3>
-          <p className="text-xs text-gray-600 mt-1">₹{product.rate} per {product.unit}</p>
+
+          {/* This div will grow, pushing the actions to the bottom */}
+          <div className="flex-grow">
+            <h3 className="text-sm font-bold text-gray-800 capitalize">{product.name}</h3>
+            <p className="text-xs text-gray-600 mt-1">₹{product.rate} per {product.unit}</p>
+          </div>
+
+          {/* Action buttons are now aligned to the bottom */}
           <div className="flex items-center justify-between mt-3">
             <div className="flex items-center">
               <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="px-2 text-lg text-gray-600" disabled={isDisabled}>-</button>
               <span className="px-2 text-sm">{quantity}</span>
               <button onClick={() => setQuantity(q => q + 1)} className="px-2 text-lg text-gray-600" disabled={isDisabled}>+</button>
             </div>
-            <button className="bg-green-600 text-white font-semibold py-1.5 px-4 rounded-lg text-sm hover:bg-green-700 disabled:bg-gray-400" onClick={handleAdd} disabled={isDisabled}>
+            <button className="bg-orange-500 text-white font-semibold py-1.5 px-4 rounded-lg text-sm hover:bg-orange-600 disabled:bg-gray-400" onClick={handleAdd} disabled={isDisabled}>
               Add
             </button>
           </div>
