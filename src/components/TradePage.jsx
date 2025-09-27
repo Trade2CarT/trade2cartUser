@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { FaHome, FaTasks, FaUserAlt, FaEnvelope, FaMapMarkerAlt, FaCamera } from 'react-icons/fa';
-import { db } from '../firebase'; // Removed firebaseObjectToArray as it's not needed for direct lookup
-import { ref, update, push, onValue, get } from 'firebase/database'; // Added onValue and get
-import { getAuth, onAuthStateChanged } from 'firebase/auth'; // Added auth imports
+import { db } from '../firebase';
+import { ref, update, push, onValue, get } from 'firebase/database';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { useSettings } from '../context/SettingsContext';
 import SEO from './SEO';
 import Loader from './Loader';
@@ -14,19 +14,16 @@ const TradePage = () => {
   const [userName, setUserName] = useState('');
   const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
-  const [userId, setUserId] = useState(null); // Changed from existingUserId
+  const [userId, setUserId] = useState(null);
   const [tradeImage, setTradeImage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [userStatus, setUserStatus] = useState(null);
   const navigate = useNavigate();
-  const { userMobile } = useSettings(); // Still needed for creating waste entries
-  const auth = getAuth(); // Get the auth instance
-
-  const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
+  const { userMobile } = useSettings();
+  const auth = getAuth();
 
   useEffect(() => {
-    // This effect runs first to load cart items from local storage.
     const localEntries = localStorage.getItem('wasteEntries');
     if (localEntries) {
       try {
@@ -46,14 +43,10 @@ const TradePage = () => {
       navigate('/hello');
     }
 
-    // This listener waits for the auth state to be confirmed.
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // User is logged in, their UID is the reliable ID.
         setUserId(user.uid);
         const userRef = ref(db, `users/${user.uid}`);
-
-        // Set up a real-time listener for the user's data.
         const dbUnsubscribe = onValue(userRef, (snapshot) => {
           if (snapshot.exists()) {
             const userData = snapshot.val();
@@ -61,33 +54,24 @@ const TradePage = () => {
             if (userData.address) setAddress(userData.address);
             if (userData.email) setEmail(userData.email);
             setUserStatus(userData.Status || 'Active');
-
-            // Check if user already has a pending schedule
             if (userData.Status === 'Pending' || userData.Status === 'On-Schedule') {
               toast.error("You already have an active pickup.");
               navigate('/task');
             }
           } else {
-            // This case handles if a user is logged in but their DB entry is missing.
             toast.error("Could not find your user profile. Please log in again.");
             navigate('/login');
           }
-          setIsLoading(false); // Mark loading as complete
+          setIsLoading(false);
         });
-
-        // Return the inner unsubscribe function for cleanup.
         return dbUnsubscribe;
       } else {
-        // User is not logged in.
         toast.error("Login required to schedule a pickup.");
         navigate('/login');
       }
     });
-
-    // Cleanup function to remove the auth listener when the component unmounts.
     return () => unsubscribe();
   }, [auth, navigate]);
-
 
   const grandTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.total) || 0), 0);
 
@@ -99,7 +83,6 @@ const TradePage = () => {
     if (!emailRegex.test(email)) {
       return toast.error("Please enter a valid email address.");
     }
-    // This check is now reliable because the button is disabled until userId is set.
     if (!userId) {
       return toast.error("User ID not found. Please wait a moment and try again.");
     }
@@ -116,10 +99,9 @@ const TradePage = () => {
 
     const updates = {};
     const wasteEntriesRef = ref(db, 'wasteEntries');
-
     entries.forEach(entry => {
       const newWasteEntryKey = push(wasteEntriesRef).key;
-      const newWastePayload = {
+      updates[`/wasteEntries/${newWasteEntryKey}`] = {
         name: entry.text || entry.name,
         address: address,
         mobile: userMobile,
@@ -130,27 +112,22 @@ const TradePage = () => {
         category: entry.category,
         location: entry.location,
         isAssigned: false,
-        userID: userId, // Use the reliable UID here
+        userID: userId,
         image: imageBase64,
         timestamp: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       };
-      updates[`/wasteEntries/${newWasteEntryKey}`] = newWastePayload;
     });
 
-    // We need to get the current user data before updating it to avoid overwriting fields.
     const userRef = ref(db, `users/${userId}`);
     const userSnapshot = await get(userRef);
-    const existingUserData = userSnapshot.val();
-
-    const userUpdatePayload = {
-      ...existingUserData, // Preserve existing user data
+    updates[`/users/${userId}`] = {
+      ...userSnapshot.val(),
       name: userName,
       address: address,
       email: email,
       Status: "Pending"
     };
-    updates[`/users/${userId}`] = userUpdatePayload;
 
     try {
       await update(ref(db), updates);
@@ -165,12 +142,11 @@ const TradePage = () => {
     }
   };
 
+  const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
+
   return (
     <>
-      <SEO
-        title="Confirm Trade - Trade2Cart"
-        description="Review your items and confirm your address to schedule a scrap pickup."
-      />
+      <SEO title="Confirm Trade - Trade2Cart" description="Review your items and confirm your address to schedule a scrap pickup." />
       <div className="min-h-screen bg-gray-100 font-sans">
         <main className="p-4 pb-24">
           {isLoading ? <Loader fullscreen /> : (
@@ -178,19 +154,19 @@ const TradePage = () => {
               <h1 className="text-3xl font-bold text-gray-900 text-center">Confirm Your Pickup</h1>
 
               <div className="bg-white p-5 rounded-xl shadow-lg">
-                <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center"><FaUserAlt className="mr-3 text-blue-500" />Your Information</h2>
+                <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center"><FaUserAlt className="mr-3 text-green-500" />Your Information</h2>
                 <div className="space-y-4">
                   <div className="relative">
                     <FaUserAlt className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
-                    <input type="text" placeholder="Full Name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                    <input type="text" placeholder="Full Name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" />
                   </div>
                   <div className="relative">
                     <FaEnvelope className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
-                    <input type="email" placeholder="Email for Bill" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
+                    <input type="email" placeholder="Email for Bill" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" required />
                   </div>
                   <div className="relative">
                     <FaMapMarkerAlt className="absolute top-4 left-3 text-gray-400" />
-                    <textarea placeholder="Full Address for Pickup" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
+                    <textarea placeholder="Full Address for Pickup" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"></textarea>
                   </div>
                 </div>
               </div>
@@ -215,9 +191,9 @@ const TradePage = () => {
               </div>
 
               <div className="bg-white p-5 rounded-xl shadow-lg">
-                <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center"><FaCamera className="mr-3 text-purple-500" />Upload Photo (Optional)</h2>
+                <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center"><FaCamera className="mr-3 text-green-500" />Upload Photo (Optional)</h2>
                 <p className="text-sm text-gray-500 mb-3">A photo helps the vendor estimate the load.</p>
-                <input type="file" accept="image/*" onChange={(e) => setTradeImage(e.target.files[0])} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200" />
+                <input type="file" accept="image/*" onChange={(e) => setTradeImage(e.target.files[0])} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-100 file:text-green-700 hover:file:bg-green-200" />
               </div>
 
               <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled} className="w-full mt-6 py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
@@ -229,7 +205,7 @@ const TradePage = () => {
 
         <footer className="sticky bottom-0 flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
           <Link to="/hello" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaHome className="text-2xl" /><span className="text-xs font-medium">Home</span></Link>
-          <Link to="/task" className="flex flex-col items-center text-green-600 p-2"><FaTasks className="text-2xl" /><span className="text-xs font-medium">Tasks</span></Link>
+          <Link to="/task" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaTasks className="text-2xl" /><span className="text-xs font-medium">Tasks</span></Link>
           <Link to="/account" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaUserAlt className="text-2xl" /><span className="text-xs font-medium">Account</span></Link>
         </footer>
       </div>

@@ -5,12 +5,12 @@ import { db } from '../firebase';
 import { ref, get, onValue, set } from 'firebase/database';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { useSettings } from '../context/SettingsContext';
-import assetlogo from '../assets/images/logo.PNG';
+import assetlogo from '../assets/images/logo.PNG'; // Correct logo import
 import { toast } from 'react-hot-toast';
 import SEO from './SEO';
 import Loader from './Loader';
 
-// --- Reusable Cart Modal Component (No major changes) ---
+// --- Cart Modal (Styling updated for consistency) ---
 const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSchedulingDisabled }) => {
   if (!isOpen) return null;
   const grandTotal = cartItems.reduce((acc, entry) => acc + (entry.total || 0), 0);
@@ -57,8 +57,7 @@ const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSch
   );
 };
 
-
-// --- Main HelloUser Component ---
+// --- Main HelloUser Component (Rebuilt to match mockup) ---
 const HelloUser = () => {
   const { location, setLocation } = useSettings();
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -72,7 +71,7 @@ const HelloUser = () => {
 
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
 
-  // --- Data Fetching and State Management (No major changes) ---
+  // --- Data Fetching and State Management (No changes in logic) ---
   useEffect(() => {
     const stored = localStorage.getItem("wasteEntries");
     if (stored) {
@@ -126,10 +125,8 @@ const HelloUser = () => {
         setLoading(false);
       }
     });
-
     return () => unsubscribeAuth();
   }, [auth, location, setLocation]);
-
 
   const categories = useMemo(() => {
     if (loading) return [];
@@ -163,6 +160,7 @@ const HelloUser = () => {
     navigate("/trade");
   };
 
+  // --- Product Card Component (Rebuilt to match mockup) ---
   const ProductCard = React.memo(({ product, isDisabled }) => {
     const [quantity, setQuantity] = useState(1);
     const { userMobile } = useSettings();
@@ -174,7 +172,7 @@ const HelloUser = () => {
       }
       const newEntry = {
         id: `${product.id}-${Date.now()}`,
-        name: product.name, // Ensure 'name' is used consistently
+        name: product.name,
         rate: product.rate,
         unit: product.unit,
         category: product.category,
@@ -188,45 +186,42 @@ const HelloUser = () => {
     };
 
     return (
-      <article className={`bg-white rounded-xl shadow-md overflow-hidden flex flex-col transition-all ${isDisabled ? 'opacity-60' : 'hover:shadow-lg'}`}>
-        {/* Placeholder for the fetched image */}
-        <img src={product.imageUrl || 'https://via.placeholder.com/150'} alt={product.name} className="w-full h-32 object-cover" />
-
-        <div className="p-4 flex-grow flex flex-col">
-          <h3 className="text-md font-bold text-gray-800 capitalize flex-grow">{product.name}</h3>
-          <p className="text-sm font-semibold text-green-600 mt-1">₹{product.rate} <span className="text-xs font-normal text-gray-500">per {product.unit}</span></p>
-
-          <div className="flex items-center justify-between mt-4">
-            <div className="flex items-center border border-gray-200 rounded-md">
-              <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="px-2 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-l-md" disabled={isDisabled}>-</button>
-              <input type="number" value={quantity} readOnly className="w-10 border-l border-r text-center text-sm" disabled={isDisabled} />
-              <button onClick={() => setQuantity(q => q + 1)} className="px-2 py-1 text-lg text-gray-600 hover:bg-gray-100 rounded-r-md" disabled={isDisabled}>+</button>
+      <article className={`bg-white rounded-xl shadow-md overflow-hidden flex flex-col ${isDisabled ? 'opacity-60' : ''}`}>
+        <img src={product.imageUrl || 'https://via.placeholder.com/200x150'} alt={product.name} className="w-full h-28 object-cover" />
+        <div className="p-3 flex-grow flex flex-col">
+          <h3 className="text-sm font-bold text-gray-800 capitalize flex-grow">{product.name}</h3>
+          <p className="text-xs text-gray-600 mt-1">₹{product.rate} per {product.unit}</p>
+          <div className="flex items-center justify-between mt-3">
+            <div className="flex items-center">
+              <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="px-2 text-lg text-gray-600" disabled={isDisabled}>-</button>
+              <span className="px-2 text-sm">{quantity}</span>
+              <button onClick={() => setQuantity(q => q + 1)} className="px-2 text-lg text-gray-600" disabled={isDisabled}>+</button>
             </div>
-            <button className="bg-orange-500 text-white font-bold py-2 px-4 rounded-md text-sm hover:bg-orange-600 disabled:bg-gray-400" onClick={handleAdd} disabled={isDisabled}>Add</button>
+            <button className="bg-green-600 text-white font-semibold py-1.5 px-4 rounded-lg text-sm hover:bg-green-700 disabled:bg-gray-400" onClick={handleAdd} disabled={isDisabled}>
+              Add
+            </button>
           </div>
         </div>
       </article>
     );
   });
 
-
   return (
     <>
       <SEO title={`Sell Scrap in ${location} - Trade2Cart`} description={`Find the best rates for scrap in ${location}. Schedule a pickup with Trade2Cart.`} />
-      <div className="min-h-screen bg-gray-100 text-gray-800 flex flex-col font-sans">
-        <header className="sticky top-0 p-4 bg-white shadow-md z-40 flex justify-between items-center">
+      <div className="min-h-screen bg-gray-100 flex flex-col font-sans">
+        <header className="sticky top-0 p-4 bg-white shadow-sm z-40 flex justify-between items-center">
           <img src={assetlogo} alt="Trade2Cart Logo" className="h-10 w-auto" />
           <div className="relative cursor-pointer" onClick={() => setIsCartOpen(true)}>
-            <FaShoppingCart className="text-gray-600 text-3xl" />
+            <FaShoppingCart className="text-gray-700 text-2xl" />
             {savedData.length > 0 && (<span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{savedData.length}</span>)}
           </div>
         </header>
 
-        {/* --- Horizontal Scrolling Categories --- */}
-        <nav className="sticky top-[76px] bg-white z-20 py-3 shadow-sm">
+        <nav className="sticky top-[72px] bg-white z-20 py-3 shadow-sm">
           <div className="flex space-x-3 px-4 overflow-x-auto">
             {categories.map(category => (
-              <button key={category} onClick={() => setSelectedCategory(category)} className={`whitespace-nowrap px-4 py-2 text-sm font-medium rounded-full ${selectedCategory === category ? 'bg-green-600 text-white shadow' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
+              <button key={category} onClick={() => setSelectedCategory(category)} className={`whitespace-nowrap px-4 py-2 text-sm font-medium rounded-full transition-colors ${selectedCategory === category ? 'bg-green-600 text-white shadow' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
                 {category}
               </button>
             ))}
@@ -245,8 +240,8 @@ const HelloUser = () => {
                   </div>
                 </div>
               )}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {filteredProducts.length > 0 ? filteredProducts.map((product) => (<ProductCard key={product.id} product={product} isDisabled={isSchedulingDisabled} />)) : <p className="col-span-full text-center text-gray-500 mt-8">No products available for this category in {location}.</p>}
+              <div className="grid grid-cols-2 gap-4">
+                {filteredProducts.length > 0 ? filteredProducts.map((product) => (<ProductCard key={product.id} product={product} isDisabled={isSchedulingDisabled} />)) : <p className="col-span-full text-center text-gray-500 mt-8">No products available in {location}.</p>}
               </div>
             </>
           )}
