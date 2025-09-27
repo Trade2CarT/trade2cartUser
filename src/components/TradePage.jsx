@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react'; // Import useRef
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { FaHome, FaTasks, FaUserAlt, FaEnvelope, FaMapMarkerAlt, FaCamera } from 'react-icons/fa';
@@ -22,6 +22,11 @@ const TradePage = () => {
   const navigate = useNavigate();
   const { userMobile } = useSettings();
   const auth = getAuth();
+
+  // --- BUG FIX: Ref to track if the initial check has been performed ---
+  const initialCheckRef = useRef(true);
+
+  const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
 
   useEffect(() => {
     const localEntries = localStorage.getItem('wasteEntries');
@@ -47,6 +52,7 @@ const TradePage = () => {
       if (user) {
         setUserId(user.uid);
         const userRef = ref(db, `users/${user.uid}`);
+
         const dbUnsubscribe = onValue(userRef, (snapshot) => {
           if (snapshot.exists()) {
             const userData = snapshot.val();
@@ -54,24 +60,34 @@ const TradePage = () => {
             if (userData.address) setAddress(userData.address);
             if (userData.email) setEmail(userData.email);
             setUserStatus(userData.Status || 'Active');
-            if (userData.Status === 'Pending' || userData.Status === 'On-Schedule') {
-              toast.error("You already have an active pickup.");
-              navigate('/task');
+
+            // --- BUG FIX: Only run the "already scheduled" check on the initial load ---
+            if (initialCheckRef.current) {
+              if (userData.Status === 'Pending' || userData.Status === 'On-Schedule') {
+                toast.error("You already have an active pickup.");
+                navigate('/task');
+              }
+              // Prevent this block from running again for this component instance
+              initialCheckRef.current = false;
             }
+
           } else {
             toast.error("Could not find your user profile. Please log in again.");
             navigate('/login');
           }
           setIsLoading(false);
         });
+
         return dbUnsubscribe;
       } else {
         toast.error("Login required to schedule a pickup.");
         navigate('/login');
       }
     });
+
     return () => unsubscribe();
   }, [auth, navigate]);
+
 
   const grandTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.total) || 0), 0);
 
@@ -99,6 +115,7 @@ const TradePage = () => {
 
     const updates = {};
     const wasteEntriesRef = ref(db, 'wasteEntries');
+
     entries.forEach(entry => {
       const newWasteEntryKey = push(wasteEntriesRef).key;
       updates[`/wasteEntries/${newWasteEntryKey}`] = {
@@ -142,11 +159,12 @@ const TradePage = () => {
     }
   };
 
-  const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
-
   return (
     <>
-      <SEO title="Confirm Trade - Trade2Cart" description="Review your items and confirm your address to schedule a scrap pickup." />
+      <SEO
+        title="Confirm Trade - Trade2Cart"
+        description="Review your items and confirm your address to schedule a scrap pickup."
+      />
       <div className="min-h-screen bg-gray-100 font-sans">
         <main className="p-4 pb-24">
           {isLoading ? <Loader fullscreen /> : (
