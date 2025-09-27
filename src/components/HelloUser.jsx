@@ -10,8 +10,8 @@ import { toast } from 'react-hot-toast';
 import SEO from './SEO';
 import Loader from './Loader';
 
-// --- Cart Modal (No changes here) ---
-const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSchedulingDisabled }) => {
+// --- Cart Modal (Now with Quantity Controls) ---
+const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSchedulingDisabled, onUpdateQuantity }) => {
   if (!isOpen) return null;
   const grandTotal = cartItems.reduce((acc, entry) => acc + (entry.total || 0), 0);
   return (
@@ -30,11 +30,16 @@ const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSch
                 <div key={entry.id} className="flex justify-between items-center">
                   <div>
                     <p className="font-semibold capitalize text-gray-800">{entry.text || entry.name}</p>
-                    <p className="text-sm text-gray-500">{entry.quantity} {entry.unit} &times; ₹{entry.rate}</p>
+                    {/* --- NEW: Quantity Controls --- */}
+                    <div className="flex items-center gap-3 mt-1">
+                      <button onClick={() => onUpdateQuantity(entry.id, entry.quantity - 1)} className="w-6 h-6 border rounded-full flex items-center justify-center text-lg text-red-500 hover:bg-gray-100">-</button>
+                      <span className="text-sm font-medium">{entry.quantity} {entry.unit}</span>
+                      <button onClick={() => onUpdateQuantity(entry.id, entry.quantity + 1)} className="w-6 h-6 border rounded-full flex items-center justify-center text-lg text-green-600 hover:bg-gray-100">+</button>
+                    </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <p className="font-bold text-lg">₹{entry.total.toFixed(2)}</p>
-                    <button onClick={() => onRemoveItem(entry.id)} className="text-red-500 hover:text-red-700"><FaTimes /></button>
+                    <button onClick={() => onRemoveItem(entry.id)} className="text-gray-400 hover:text-red-600"><FaTimes /></button>
                   </div>
                 </div>
               ))}
@@ -149,6 +154,29 @@ const HelloUser = () => {
     toast.error("Item removed from cart.");
   };
 
+  // --- NEW: Function to handle quantity updates in the cart ---
+  const handleUpdateQuantity = (itemId, newQuantity) => {
+    if (newQuantity < 1) {
+      // If quantity drops to 0 or less, remove the item
+      handleRemoveItem(itemId);
+      return;
+    }
+
+    setSavedData(prev =>
+      prev.map(item => {
+        if (item.id === itemId) {
+          // Find the item and update its quantity and total
+          return {
+            ...item,
+            quantity: newQuantity,
+            total: parseFloat(item.rate || 0) * newQuantity,
+          };
+        }
+        return item; // Return other items unchanged
+      })
+    );
+  };
+
   const handleCheckout = () => {
     if (isSchedulingDisabled) {
       toast.error("You already have an active pickup scheduled.");
@@ -161,7 +189,6 @@ const HelloUser = () => {
     navigate("/trade");
   };
 
-  // --- Product Card Component (Alignment fixed) ---
   const ProductCard = React.memo(({ product, isDisabled }) => {
     const [quantity, setQuantity] = useState(1);
     const { userMobile } = useSettings();
@@ -189,17 +216,11 @@ const HelloUser = () => {
     return (
       <article className={`bg-white rounded-xl shadow-md overflow-hidden flex flex-col ${isDisabled ? 'opacity-60' : ''}`}>
         <img src={product.imageUrl || 'https://placehold.co/200x150'} alt={product.name} className="w-full h-28 object-cover" />
-
-        {/* Flex container for content */}
         <div className="p-3 flex-grow flex flex-col">
-
-          {/* This div will grow, pushing the actions to the bottom */}
           <div className="flex-grow">
             <h3 className="text-sm font-bold text-gray-800 capitalize">{product.name}</h3>
             <p className="text-xs text-gray-600 mt-1">₹{product.rate} per {product.unit}</p>
           </div>
-
-          {/* Action buttons are now aligned to the bottom */}
           <div className="flex items-center justify-between mt-3">
             <div className="flex items-center">
               <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="px-2 text-lg text-gray-600" disabled={isDisabled}>-</button>
@@ -263,7 +284,17 @@ const HelloUser = () => {
             <Link to="/account" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaUserAlt className="text-2xl" /><span className="text-xs font-medium">Account</span></Link>
           </nav>
         </footer>
-        <CartModal isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} cartItems={savedData} onRemoveItem={handleRemoveItem} onCheckout={handleCheckout} isSchedulingDisabled={isSchedulingDisabled} />
+
+        {/* Pass the new update function to the modal */}
+        <CartModal
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          cartItems={savedData}
+          onRemoveItem={handleRemoveItem}
+          onCheckout={handleCheckout}
+          isSchedulingDisabled={isSchedulingDisabled}
+          onUpdateQuantity={handleUpdateQuantity}
+        />
       </div>
     </>
   );
