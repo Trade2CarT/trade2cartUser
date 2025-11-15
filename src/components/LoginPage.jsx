@@ -127,8 +127,101 @@ const LoginPage = () => {
     setConfirmationResult(null);
   }
 
-  const termsContent = `<h2>Terms & Conditions</h2><p>Your full terms and conditions content goes here.</p>`;
-  const privacyContent = `<h2>Privacy Policy</h2><p>Your full privacy policy content goes here.</p>`;
+  const termsContent = `
+<h2>Terms & Conditions</h2>
+<p><strong>Effective Date:</strong> [Add Date]<br><strong>Contact:</strong> [Add official email]</p>
+
+<h3>1. Introduction</h3>
+<p>Trade2Cart provides an online platform that connects users with independent scrap vendors for doorstep scrap pickup. By using Trade2Cart, you agree to these Terms and Conditions.</p>
+
+<h3>2. Nature of Service</h3>
+<p>Trade2Cart acts only as a <strong>mediator</strong> between users and vendors. Trade2Cart does not collect scrap directly, does not pay users, and is not responsible for vendor behaviour or pricing. All payments occur directly between the vendor and the user.</p>
+
+<h3>3. User Responsibilities</h3>
+<ul>
+  <li>Provide accurate location and contact details.</li>
+  <li>Ensure the scrap is ready for pickup.</li>
+  <li>Verify vendor identity before handing over scrap.</li>
+  <li>Decide whether to accept the vendor’s pricing.</li>
+</ul>
+
+<h3>4. Vendor Responsibilities</h3>
+<ul>
+  <li>Offer fair pricing.</li>
+  <li>Behave respectfully.</li>
+  <li>Arrive at the scheduled time.</li>
+  <li>Settle payments directly with users.</li>
+</ul>
+
+<h3>5. Platform Fees</h3>
+<p>Trade2Cart may charge booking fees to users. Vendors may be charged service/commission fees after an initial free period of 3–6 months.</p>
+
+<h3>6. Cancellations</h3>
+<p>Both users and vendors may cancel a booking. Trade2Cart is not responsible for any inconvenience caused by cancellations.</p>
+
+<h3>7. Disputes</h3>
+<p>Disputes regarding scrap weight, pricing, or payment must be resolved directly between the user and vendor.</p>
+
+<h3>8. Limitation of Liability</h3>
+<p>Trade2Cart is not liable for vendor misconduct, payment issues, delays, cancellations, or any damages caused by vendors.</p>
+
+<h3>9. Data Usage</h3>
+<p>Your data is handled according to our Privacy Policy.</p>
+
+<h3>10. Modifications</h3>
+<p>Trade2Cart may update these Terms without notice. Continued use means acceptance of updated Terms.</p>
+`;
+
+  const privacyContent = `
+<h2>Privacy Policy</h2>
+<p><strong>Effective Date:</strong> [Add Date]<br><strong>Contact:</strong> [Add official email]</p>
+
+<h3>1. Introduction</h3>
+<p>This Privacy Policy explains how Trade2Cart collects, uses, and protects your personal data.</p>
+
+<h3>2. Information We Collect</h3>
+<ul>
+  <li>Name</li>
+  <li>Phone number</li>
+  <li>Location / City</li>
+  <li>Pickup address</li>
+  <li>Device information</li>
+  <li>Usage analytics</li>
+</ul>
+<p>We <strong>do not</strong> collect payment card details, bank details, or sensitive personal data.</p>
+
+<h3>3. How We Use Your Information</h3>
+<ul>
+  <li>Booking confirmation</li>
+  <li>Assigning vendors</li>
+  <li>Sending notifications</li>
+  <li>Improving app performance</li>
+</ul>
+<p>We do <strong>not sell</strong> your data to any third party.</p>
+
+<h3>4. Sharing of Information</h3>
+<p>We share only the required user information with vendors to complete the pickup (name, location, phone number). Vendors are independent third parties.</p>
+
+<h3>5. Data Security</h3>
+<p>We use security measures to protect your data, but no system is 100% secure. You share data at your own risk.</p>
+
+<h3>6. Cookies & Tracking</h3>
+<p>We may use analytics tools to improve the platform experience.</p>
+
+<h3>7. User Rights</h3>
+<ul>
+  <li>Request data correction</li>
+  <li>Request data deletion</li>
+  <li>Stop receiving notifications</li>
+</ul>
+
+<h3>8. Children’s Privacy</h3>
+<p>Trade2Cart is not intended for users under 13 years of age.</p>
+
+<h3>9. Updates</h3>
+<p>We may update this Privacy Policy from time to time. Continued use means acceptance of changes.</p>
+`;
+
 
   const openModal = (content) => {
     setModalContent(content);
