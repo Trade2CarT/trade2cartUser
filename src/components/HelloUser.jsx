@@ -192,36 +192,66 @@ const HelloUser = () => {
         toast.error("You can't add items while a pickup is already scheduled.");
         return;
       }
-      const newEntry = {
-        id: `${product.id}-${Date.now()}`,
-        name: product.name,
-        rate: product.rate,
-        unit: product.unit,
-        category: product.category,
-        location: product.location,
-        quantity,
-        total: parseFloat(product.rate || 0) * quantity,
-        mobile: userMobile || "unknown",
-      };
-      setSavedData((prev) => [...prev, newEntry]);
+
+      setSavedData((prev) => {
+        // Check if same product already exists
+        const existingItem = prev.find((item) => item.productId === product.id);
+
+        if (existingItem) {
+          // Merge quantities instead of creating new row
+          return prev.map((item) =>
+            item.productId === product.id
+              ? {
+                ...item,
+                quantity: item.quantity + quantity,
+                total: (item.quantity + quantity) * parseFloat(product.rate),
+              }
+              : item
+          );
+        }
+
+        // If product not in cart → add fresh
+        const newEntry = {
+          id: product.id,            // stable id for cart item
+          productId: product.id,     // used for matching
+          name: product.name,
+          rate: product.rate,
+          unit: product.unit,
+          category: product.category,
+          location: product.location,
+          quantity,
+          total: parseFloat(product.rate) * quantity,
+          mobile: userMobile || "unknown",
+        };
+
+        return [...prev, newEntry];
+      });
+
       toast.success(`${product.name} added to cart!`);
     };
 
     return (
       <article className={`bg-white rounded-xl shadow-md overflow-hidden flex flex-col ${isDisabled ? 'opacity-60' : ''}`}>
         <img src={product.imageUrl || 'https://placehold.co/200x150'} alt={product.name} className="w-full h-28 object-cover" />
+
         <div className="p-3 flex-grow flex flex-col">
           <div className="flex-grow">
             <h3 className="text-sm font-bold text-gray-800 capitalize">{product.name}</h3>
             <p className="text-xs text-gray-600 mt-1">₹{product.rate} per {product.unit}</p>
           </div>
+
           <div className="flex items-center justify-between mt-3">
             <div className="flex items-center">
               <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="px-2 text-lg text-gray-600" disabled={isDisabled}>-</button>
               <span className="px-2 text-sm">{quantity}</span>
               <button onClick={() => setQuantity(q => q + 1)} className="px-2 text-lg text-gray-600" disabled={isDisabled}>+</button>
             </div>
-            <button className="bg-orange-500 text-white font-semibold py-1.5 px-4 rounded-lg text-sm hover:bg-orange-600 disabled:bg-gray-400" onClick={handleAdd} disabled={isDisabled}>
+
+            <button
+              className="bg-orange-500 text-white font-semibold py-1.5 px-4 rounded-lg text-sm hover:bg-orange-600 disabled:bg-gray-400"
+              onClick={handleAdd}
+              disabled={isDisabled}
+            >
               Add
             </button>
           </div>
@@ -229,6 +259,7 @@ const HelloUser = () => {
       </article>
     );
   });
+
 
   return (
     <>
