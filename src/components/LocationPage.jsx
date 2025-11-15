@@ -23,7 +23,20 @@ const LocationPage = () => {
         <div className="w-full max-w-sm text-center">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6">Select Your Location</h1>
           <div className="space-y-4">
-            {['Vellore', 'Chennai', 'Bangalore'].map((city) => (
+            {[
+  'Arcot',
+  'Bagayam',
+  'Kadappanthangal',
+  'Katpadi',
+  'Konavattam',
+  'Latheri',
+  'Melvisharam',
+  'Ranipet',
+  'SIPCOT',
+  'Vellore',
+  'VIT',
+  'Walajapet'
+].map((city) => (
               <div
                 key={city}
                 onClick={() => handleSelect(city)}
