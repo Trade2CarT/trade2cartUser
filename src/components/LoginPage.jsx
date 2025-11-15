@@ -129,7 +129,7 @@ const LoginPage = () => {
 
   const termsContent = `
 <h2>Terms & Conditions</h2>
-<p><strong>Effective Date:</strong> [Add Date]<br><strong>Contact:</strong> [Add official email]</p>
+<p><strong>Effective Date:</strong> 23/06/2025 <br><strong>Contact:</strong> trade@Trade2Cart.in | 9788335029</p>
 
 <h3>1. Introduction</h3>
 <p>Trade2Cart provides an online platform that connects users with independent scrap vendors for doorstep scrap pickup. By using Trade2Cart, you agree to these Terms and Conditions.</p>
@@ -174,7 +174,7 @@ const LoginPage = () => {
 
   const privacyContent = `
 <h2>Privacy Policy</h2>
-<p><strong>Effective Date:</strong> [Add Date]<br><strong>Contact:</strong> [Add official email]</p>
+<p><strong>Effective Date:</strong> 23/06/2025 <br><strong>Contact:</strong> trade@Trade2Cart.in | 9788335029</p>
 
 <h3>1. Introduction</h3>
 <p>This Privacy Policy explains how Trade2Cart collects, uses, and protects your personal data.</p>
