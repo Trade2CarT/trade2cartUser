@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { FaHome, FaTasks, FaUserAlt, FaShoppingCart, FaTimes, FaInfoCircle } from "react-icons/fa";
+// --- 1. ADD FaDownload ICON ---
+import { FaHome, FaTasks, FaUserAlt, FaShoppingCart, FaTimes, FaInfoCircle, FaDownload } from "react-icons/fa";
 import { Link, useNavigate } from "react-router-dom";
 import { db } from '../firebase';
 import { ref, get, onValue, set } from 'firebase/database';
@@ -64,7 +65,8 @@ const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSch
 
 // --- Main HelloUser Component ---
 const HelloUser = () => {
-  const { location, setLocation } = useSettings();
+  // --- 2. GET installPrompt FROM CONTEXT ---
+  const { location, setLocation, installPrompt } = useSettings();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [savedData, setSavedData] = useState([]);
   const [availableProducts, setAvailableProducts] = useState([]);
@@ -183,6 +185,20 @@ const HelloUser = () => {
     navigate("/trade");
   };
 
+  // --- 3. ADD THIS INSTALL HANDLER ---
+  const handleInstallClick = async () => {
+    if (!installPrompt) {
+      // If the prompt isn't available, do nothing
+      return;
+    }
+    // Show the browser's install prompt
+    installPrompt.prompt();
+
+    // Log the result (optional)
+    const { outcome } = await installPrompt.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+  };
+
   const ProductCard = React.memo(({ product, isDisabled }) => {
     const [quantity, setQuantity] = useState(1);
     const { userMobile } = useSettings();
@@ -265,11 +281,31 @@ const HelloUser = () => {
     <>
       <SEO title={`Sell Scrap in ${location} - Trade2Cart`} description={`Find the best rates for scrap in ${location}. Schedule a pickup with Trade2Cart.`} />
       <div className="min-h-screen bg-gray-100 flex flex-col font-sans">
+
+        {/* --- 4. MODIFIED HEADER --- */}
         <header className="sticky top-0 p-4 bg-white shadow-sm z-40 flex justify-between items-center">
           <img src={assetlogo} alt="Trade2Cart Logo" className="h-10 w-auto" />
-          <div className="relative cursor-pointer" onClick={() => setIsCartOpen(true)}>
-            <FaShoppingCart className="text-gray-700 text-2xl" />
-            {savedData.length > 0 && (<span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{savedData.length}</span>)}
+
+          {/* Container for the right-side icons */}
+          <div className="flex items-center gap-4">
+
+            {/* The new Install Button (it only shows if 'installPrompt' exists) */}
+            {installPrompt && (
+              <button
+                onClick={handleInstallClick}
+                className="flex items-center gap-2 bg-green-600 text-white px-3 py-2 rounded-lg font-semibold hover:bg-green-700"
+                title="Install Trade2Cart App"
+              >
+                <FaDownload />
+                <span className="hidden sm:block">Install</span>
+              </button>
+            )}
+
+            {/* Your existing Cart Button */}
+            <div className="relative cursor-pointer" onClick={() => setIsCartOpen(true)}>
+              <FaShoppingCart className="text-gray-700 text-2xl" />
+              {savedData.length > 0 && (<span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{savedData.length}</span>)}
+            </div>
           </div>
         </header>
 
