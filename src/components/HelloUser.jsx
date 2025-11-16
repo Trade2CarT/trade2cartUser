@@ -71,6 +71,7 @@ const HelloUser = () => {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [userStatus, setUserStatus] = useState(null);
+  
   const navigate = useNavigate();
   const auth = getAuth();
 
@@ -151,6 +152,11 @@ const HelloUser = () => {
     setSavedData(prev => prev.filter(item => item.id !== itemId));
     toast.error("Item removed from cart.");
   };
+  const handleInstallClick = async () => {
+    if (!installPrompt) {
+      // If the prompt isn't available, do nothing
+      return;
+    }
 
   const handleUpdateQuantity = (itemId, newQuantity) => {
     if (newQuantity < 1) {
@@ -263,6 +269,16 @@ const HelloUser = () => {
 
   return (
     <>
+      {installPrompt && (
+        <button
+          onClick={handleInstallClick}
+          className="flex items-center gap-2 bg-green-600 text-white px-3 py-2 rounded-lg font-semibold hover:bg-green-700"
+          title="Install Trade2Cart App"
+        >
+          <FaDownload />
+          <span className="hidden sm:block">Install</span>
+        </button>
+      )}
       <SEO title={`Sell Scrap in ${location} - Trade2Cart`} description={`Find the best rates for scrap in ${location}. Schedule a pickup with Trade2Cart.`} />
       <div className="min-h-screen bg-gray-100 flex flex-col font-sans">
         <header className="sticky top-0 p-4 bg-white shadow-sm z-40 flex justify-between items-center">
