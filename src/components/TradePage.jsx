@@ -191,19 +191,18 @@ const TradePage = () => {
         reader.readAsDataURL(tradeImage);
       });
 
-      // ✅ FIX 1: Fixed missing '$' signs in the map strings!
+      // Fixed the missing $ for template literals
       const mapLink = exactCoords
-        ? `https://maps.google.com/?q=${exactCoords.lat},${exactCoords.lng}`
-        : `https://maps.google.com/?q=${encodeURIComponent(address)}`;
+        ? `https://maps.google.com/maps?q=${exactCoords.lat},${exactCoords.lng}`
+        : `https://maps.google.com/maps?q=${encodeURIComponent(address)}`;
 
       const userRef = ref(db, `users/${userId}`);
       const userSnapshot = await get(userRef);
       const userData = userSnapshot.exists() ? userSnapshot.val() : {};
 
-      // ✅ FIX 2: Securely match phone for Firebase Rules
       const validPhone = userData.phone || userData.phoneNumber || userMobile || "";
 
-      // ✅ FIX 3: Update User Node FIRST (Guarantees Firebase Rules pass)
+      // 1. Update User Node FIRST
       await update(userRef, {
         phone: validPhone,
         name: userName,
@@ -214,7 +213,7 @@ const TradePage = () => {
         Status: "Pending"
       });
 
-      // ✅ FIX 4: Push waste entries securely one by one using Promise.all
+      // 2. Push waste entries securely one by one
       const promises = entries.map(entry => {
         return push(ref(db, 'wasteEntries'), {
           name: entry.name || entry.text,
@@ -222,7 +221,7 @@ const TradePage = () => {
           exactLat: exactCoords?.lat || null,
           exactLng: exactCoords?.lng || null,
           mapUrl: mapLink,
-          mobile: validPhone, // Perfectly matches Firebase Rule requirement!
+          mobile: validPhone,
           total: (entry.quantity * parseFloat(entry.rate || entry.minRate || 0)).toFixed(2),
           quantity: entry.quantity,
           unit: entry.unit,
@@ -237,12 +236,21 @@ const TradePage = () => {
 
       await Promise.all(promises);
 
+      // =================================================================
+      // 🚨 THE MAGIC TRIGGER: Ping the Admin API instantly
+      // =================================================================
+      fetch('https://trade2cart.trade.admin.trade2cart.in/api/send-alerts')
+        .then(res => res.json())
+        .then(data => console.log("Email API triggered successfully!", data))
+        .catch(err => console.error("Failed to trigger email alert silently", err));
+      // =================================================================
+
       toast.success('✅ Pickup Scheduled Successfully!');
       localStorage.removeItem('wasteEntries');
       navigate('/task');
 
     } catch (error) {
-      console.error("Firebase Submission Error:", error); // This logs exactly what failed in browser console
+      console.error("Firebase Submission Error:", error);
       toast.error("Scheduling failed. Please check connection.");
     } finally {
       setIsSubmitting(false);
