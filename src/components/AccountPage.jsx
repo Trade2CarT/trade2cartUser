@@ -120,7 +120,7 @@ const AccountPage = () => {
                 </div>
                 <div className="z-10">
                   <h1 className="text-2xl font-extrabold text-gray-900">{userData?.name || 'My Account'}</h1>
-                  <p className="text-sm text-gray-500 font-medium">{userData?.phoneNumber || 'No phone linked'}</p>
+                  {/* <p className="text-sm text-gray-500 font-medium">{userData?.phoneNumber || 'No phone linked'}</p> */}
                 </div>
               </div>
 
