@@ -3,9 +3,11 @@ import { useNavigate, Link } from 'react-router-dom';
 import { FaHome, FaTasks, FaUserAlt, FaPlus, FaMinus, FaTrash, FaShoppingCart } from 'react-icons/fa';
 import { useSettings } from '../context/SettingsContext';
 import { getAuth } from 'firebase/auth';
+import { db } from '../firebase';
+import { ref, onValue } from 'firebase/database';
 import SEO from './SEO';
+import logo from '../assets/images/logo.PNG'; // ✅ Added Logo back
 
-// Category color mapping for premium UI
 const categoryColors = {
   'paper': 'bg-blue-50 border-blue-200 text-blue-700',
   'plastic': 'bg-orange-50 border-orange-200 text-orange-700',
@@ -14,24 +16,29 @@ const categoryColors = {
   'others': 'bg-green-50 border-green-200 text-green-700'
 };
 
+// ✅ NEW: Reusable Ghost/Skeleton Loader
+const SkeletonCard = () => (
+  <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col justify-between h-36 animate-pulse">
+    <div className="w-16 h-4 bg-gray-200 rounded-full mb-3 self-end"></div>
+    <div className="space-y-2">
+      <div className="w-3/4 h-5 bg-gray-200 rounded-md"></div>
+      <div className="w-1/2 h-4 bg-gray-200 rounded-md"></div>
+    </div>
+    <div className="w-full h-10 bg-gray-200 rounded-xl mt-4"></div>
+  </div>
+);
+
 const HelloUser = () => {
   const [userName, setUserName] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
-  const [items, setItems] = useState([
-    { id: 1, name: 'Newspaper', rate: 14, category: 'paper', unit: 'kg' },
-    { id: 2, name: 'Cardboard', rate: 8, category: 'paper', unit: 'kg' },
-    { id: 3, name: 'Iron', rate: 26, category: 'metal', unit: 'kg' },
-    { id: 4, name: 'Plastic Bottles', rate: 10, category: 'plastic', unit: 'kg' },
-    { id: 5, name: 'Aluminium', rate: 105, category: 'metal', unit: 'kg' },
-    { id: 6, name: 'Copper', rate: 450, category: 'metal', unit: 'kg' },
-    { id: 7, name: 'E-Waste', rate: 20, category: 'e-waste', unit: 'kg' },
-    { id: 8, name: 'Mixed Scrap', rate: 12, category: 'others', unit: 'kg' }
-  ]);
+  const [items, setItems] = useState([]);
+  const [isLoading, setIsLoading] = useState(true); // ✅ Loading state for ghost animation
   const [cart, setCart] = useState({});
   const navigate = useNavigate();
   const { location } = useSettings();
 
   useEffect(() => {
+    // 1. Fetch User Name (Preserved Logic)
     const auth = getAuth();
     if (auth.currentUser?.displayName) {
       setUserName(auth.currentUser.displayName.split(' ')[0]);
@@ -39,17 +46,46 @@ const HelloUser = () => {
       setUserName('User');
     }
 
-    const savedCart = localStorage.getItem('wasteEntries');
-    if (savedCart) {
-      const parsedCart = JSON.parse(savedCart);
-      const initialCart = {};
-      parsedCart.forEach(item => {
-        const originalItem = items.find(i => i.name === (item.text || item.name));
-        if (originalItem) {
-          initialCart[originalItem.id] = parseFloat(item.quantity);
-        }
-      });
-      setCart(initialCart);
+    // 2. Fetch Items from Firebase (Preserved Logic)
+    const itemsRef = ref(db, 'items');
+    const unsubscribe = onValue(itemsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const fetchedItems = Object.keys(data).map(key => ({
+          id: key,
+          ...data[key]
+        }));
+
+        // Filter by location if your logic requires it, or just set all
+        const locationItems = fetchedItems.filter(item =>
+          !item.location || item.location.toLowerCase() === (location?.toLowerCase() || '')
+        );
+
+        setItems(locationItems.length > 0 ? locationItems : fetchedItems);
+      } else {
+        setItems([]);
+      }
+      setIsLoading(false); // Turn off ghost loaders
+    });
+
+    return () => unsubscribe();
+  }, [location]);
+
+  // 3. Sync Cart with LocalStorage (Preserved Logic)
+  useEffect(() => {
+    if (items.length > 0) {
+      const savedCart = localStorage.getItem('wasteEntries');
+      if (savedCart) {
+        const parsedCart = JSON.parse(savedCart);
+        const initialCart = {};
+        parsedCart.forEach(item => {
+          const originalItem = items.find(i => i.name === (item.text || item.name));
+          if (originalItem) {
+            initialCart[originalItem.id] = parseFloat(item.quantity);
+          }
+        });
+        setCart(initialCart);
+      }
     }
   }, [items]);
 
@@ -67,14 +103,19 @@ const HelloUser = () => {
 
   const handleCheckout = () => {
     const entriesToSave = Object.keys(cart).map(id => {
-      const item = items.find(i => i.id === parseInt(id));
+      const item = items.find(i => i.id === id);
+      const rateUsed = item.minRate ? `${item.minRate}-${item.maxRate}` : item.rate; // Save range info
+
       return {
+        id: item.id,
         name: item.name,
         quantity: cart[id],
         unit: item.unit,
-        rate: item.rate,
-        category: item.category,
-        total: cart[id] * item.rate,
+        rate: item.rate || item.minRate, // Default rate for fallback
+        minRate: item.minRate || null,
+        maxRate: item.maxRate || null,
+        total: cart[id] * (item.rate || item.minRate || 0), // Fallback total
+        category: item.category || 'others',
         location: location || 'Unknown',
       };
     });
@@ -83,42 +124,52 @@ const HelloUser = () => {
   };
 
   const totalCartItems = Object.keys(cart).length;
-  const grandTotal = Object.keys(cart).reduce((total, id) => {
-    const item = items.find(i => i.id === parseInt(id));
-    return total + (cart[id] * item.rate);
+
+  // ✅ NEW: Calculate Min and Max Grand Totals
+  const minTotal = Object.keys(cart).reduce((total, id) => {
+    const item = items.find(i => i.id === id);
+    const rate = parseFloat(item?.minRate) || parseFloat(item?.rate) || 0;
+    return total + (cart[id] * rate);
   }, 0);
 
-  const categories = ['All', 'paper', 'metal', 'plastic', 'e-waste', 'others'];
-  const filteredItems = activeCategory === 'All' ? items : items.filter(i => i.category === activeCategory);
+  const maxTotal = Object.keys(cart).reduce((total, id) => {
+    const item = items.find(i => i.id === id);
+    const rate = parseFloat(item?.maxRate) || parseFloat(item?.rate) || 0;
+    return total + (cart[id] * rate);
+  }, 0);
+
+  const categories = ['All', ...new Set(items.map(i => i.category || 'others'))];
+  const filteredItems = activeCategory === 'All' ? items : items.filter(i => (i.category || 'others') === activeCategory);
 
   return (
     <>
       <SEO title="Home - Trade2Cart" description="Sell scrap online instantly." />
       <div className="min-h-screen bg-gray-50 pb-32 font-sans">
 
-        {/* Modern App Header */}
-        <header className="bg-white shadow-sm sticky top-0 z-40 px-5 pt-6 pb-4 rounded-b-3xl">
+        {/* ✅ Header with Logo preserved */}
+        <header className="bg-white shadow-sm sticky top-0 z-40 px-5 pt-4 pb-4 rounded-b-3xl">
           <div className="flex justify-between items-center mb-4">
-            <div>
-              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Location</p>
-              <h2 className="text-xl font-extrabold text-gray-800 flex items-center gap-1">
-                {location || 'Set Location'} <span className="text-green-500 text-2xl mb-1">▾</span>
-              </h2>
+            <div className="flex items-center gap-2">
+              <img src={logo} alt="Trade2Cart Logo" className="w-10 h-10 rounded-full shadow-sm" />
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-tight">Location</p>
+                <h2 className="text-sm font-extrabold text-gray-800 flex items-center gap-1 leading-tight">
+                  {location || 'Set Location'} <span className="text-green-500 text-lg">▾</span>
+                </h2>
+              </div>
             </div>
-            <div className="w-12 h-12 bg-green-100 rounded-full flex justify-center items-center text-green-700 font-bold text-xl shadow-inner">
+            <div className="w-10 h-10 bg-green-100 rounded-full flex justify-center items-center text-green-700 font-bold shadow-inner">
               {userName.charAt(0).toUpperCase()}
             </div>
           </div>
 
-          <div className="bg-gray-100 rounded-2xl p-4 flex items-center justify-between shadow-inner">
-            <div>
-              <h1 className="text-xl font-bold text-gray-800">Hello, {userName}! 👋</h1>
-              <p className="text-gray-500 text-sm mt-1">What are we recycling today?</p>
-            </div>
+          <div className="bg-gray-100 rounded-2xl p-4 shadow-inner">
+            <h1 className="text-xl font-bold text-gray-800">Hello, {userName}! 👋</h1>
+            <p className="text-gray-500 text-sm mt-1">Select scrap items to add to your cart.</p>
           </div>
         </header>
 
-        {/* Categories Pill Menu */}
+        {/* Category Pills */}
         <div className="flex overflow-x-auto hide-scrollbar gap-3 px-5 py-4 mt-2">
           {categories.map(cat => (
             <button
@@ -132,52 +183,72 @@ const HelloUser = () => {
           ))}
         </div>
 
-        {/* Item Grid */}
+        {/* Item Grid & Ghost Loaders */}
         <main className="px-5 mt-2 grid grid-cols-2 gap-4">
-          {filteredItems.map(item => {
-            const qty = cart[item.id] || 0;
-            const colorClass = categoryColors[item.category] || categoryColors['others'];
+          {isLoading ? (
+            // ✅ Show Ghost Loaders while fetching from Firebase
+            <>
+              <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
+            </>
+          ) : filteredItems.length > 0 ? (
+            filteredItems.map(item => {
+              const qty = cart[item.id] || 0;
+              const catName = item.category ? item.category.toLowerCase() : 'others';
+              const colorClass = categoryColors[catName] || categoryColors['others'];
 
-            return (
-              <div key={item.id} className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden">
-                {/* Category Badge */}
-                <span className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-bold uppercase tracking-wider border-b border-l ${colorClass}`}>
-                  {item.category}
-                </span>
+              // ✅ NEW: Price Range Rendering Logic
+              const showRange = item.minRate && item.maxRate && item.minRate !== item.maxRate;
 
-                <div className="mt-4">
-                  <h3 className="text-lg font-bold text-gray-800 leading-tight">{item.name}</h3>
-                  <p className="text-green-600 font-extrabold mt-1">₹{item.rate} <span className="text-gray-400 font-medium text-xs">/ {item.unit}</span></p>
+              return (
+                <div key={item.id} className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden">
+                  <span className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-bold uppercase tracking-wider border-b border-l ${colorClass}`}>
+                    {catName}
+                  </span>
+
+                  <div className="mt-4">
+                    <h3 className="text-lg font-bold text-gray-800 leading-tight">{item.name}</h3>
+
+                    {/* Display Range or Single Rate */}
+                    <p className="text-green-600 font-extrabold mt-1 text-sm md:text-base">
+                      {showRange ? `₹${item.minRate}-₹${item.maxRate}` : `₹${item.rate || item.minRate || 0}`}
+                      <span className="text-gray-400 font-medium text-xs"> / {item.unit || 'kg'}</span>
+                    </p>
+                  </div>
+
+                  <div className="mt-4 h-10">
+                    {qty === 0 ? (
+                      <button onClick={() => updateCart(item.id, 1)} className="w-full h-full bg-white border-2 border-green-500 text-green-600 font-bold rounded-xl hover:bg-green-50 transition-colors flex items-center justify-center gap-1 shadow-sm">
+                        <FaPlus size={12} /> ADD
+                      </button>
+                    ) : (
+                      <div className="flex items-center justify-between w-full h-full bg-green-500 text-white rounded-xl shadow-md overflow-hidden">
+                        <button onClick={() => updateCart(item.id, -1)} className="w-1/3 h-full flex items-center justify-center hover:bg-green-600 active:bg-green-700 transition"><FaMinus size={12} /></button>
+                        <span className="w-1/3 text-center font-bold text-lg">{qty}</span>
+                        <button onClick={() => updateCart(item.id, 1)} className="w-1/3 h-full flex items-center justify-center hover:bg-green-600 active:bg-green-700 transition"><FaPlus size={12} /></button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-
-                <div className="mt-5 h-10">
-                  {qty === 0 ? (
-                    <button onClick={() => updateCart(item.id, 1)} className="w-full h-full bg-white border-2 border-green-500 text-green-600 font-bold rounded-xl hover:bg-green-50 transition-colors flex items-center justify-center gap-1 shadow-sm">
-                      <FaPlus size={12} /> ADD
-                    </button>
-                  ) : (
-                    <div className="flex items-center justify-between w-full h-full bg-green-500 text-white rounded-xl shadow-md overflow-hidden">
-                      <button onClick={() => updateCart(item.id, -1)} className="w-1/3 h-full flex items-center justify-center hover:bg-green-600 active:bg-green-700 transition"><FaMinus size={12} /></button>
-                      <span className="w-1/3 text-center font-bold text-lg">{qty}</span>
-                      <button onClick={() => updateCart(item.id, 1)} className="w-1/3 h-full flex items-center justify-center hover:bg-green-600 active:bg-green-700 transition"><FaPlus size={12} /></button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          ) : (
+            <p className="col-span-2 text-center text-gray-500 mt-10 font-medium">No items available for this category.</p>
+          )}
         </main>
 
         {/* Floating Cart Footer */}
         {totalCartItems > 0 && (
           <div className="fixed bottom-20 left-0 right-0 px-5 z-40 animate-fade-in-up">
-            <div onClick={handleCheckout} className="bg-green-600 text-white p-4 rounded-2xl shadow-2xl flex justify-between items-center cursor-pointer hover:bg-green-700 transition-colors active:scale-95">
+            <div onClick={handleCheckout} className="bg-green-600 text-white p-4 rounded-2xl shadow-2xl flex justify-between items-center cursor-pointer hover:bg-green-700 transition-colors active:scale-95 border border-green-500">
               <div className="flex flex-col">
-                <span className="text-xs text-green-200 font-bold uppercase tracking-wider">{totalCartItems} Items Added</span>
-                <span className="text-xl font-extrabold">₹{grandTotal.toFixed(2)} Est. Total</span>
+                <span className="text-xs text-green-200 font-bold uppercase tracking-wider">{totalCartItems} Items in Bin</span>
+                {/* ✅ Range Display in Cart */}
+                <span className="text-lg font-extrabold tracking-tight">
+                  {minTotal === maxTotal ? `Est. ₹${minTotal.toFixed(2)}` : `Est. ₹${minTotal.toFixed(0)} - ₹${maxTotal.toFixed(0)}`}
+                </span>
               </div>
               <div className="flex items-center gap-2 bg-white text-green-700 px-4 py-2 rounded-xl font-bold shadow-sm">
-                View Cart <FaShoppingCart />
+                Next <FaShoppingCart />
               </div>
             </div>
           </div>

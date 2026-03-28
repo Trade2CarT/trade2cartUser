@@ -1,44 +1,50 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { FaHome, FaTasks, FaUserAlt, FaEnvelope, FaMapMarkerAlt, FaCamera, FaCrosshairs, FaCheckCircle } from 'react-icons/fa';
+import { FaHome, FaTasks, FaUserAlt, FaMapMarkerAlt, FaCamera, FaCrosshairs, FaCheckCircle, FaInfoCircle } from 'react-icons/fa';
 import { db } from '../firebase';
 import { ref, update, push, onValue, get } from 'firebase/database';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { useSettings } from '../context/SettingsContext';
 import SEO from './SEO';
-import Loader from './Loader';
+
+// ✅ NEW: Ghost Loader for Checkout
+const CheckoutSkeleton = () => (
+  <div className="space-y-5 animate-pulse">
+    <div className="h-32 bg-gray-200 rounded-2xl w-full"></div>
+    <div className="h-40 bg-gray-200 rounded-2xl w-full"></div>
+    <div className="h-32 bg-gray-200 rounded-2xl w-full"></div>
+  </div>
+);
 
 const TradePage = () => {
   const [entries, setEntries] = useState([]);
   const [userName, setUserName] = useState('');
   const [address, setAddress] = useState('');
-  const [email, setEmail] = useState('');
-
-  // exactCoords holds the Latitude and Longitude
   const [exactCoords, setExactCoords] = useState(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
-
   const [userId, setUserId] = useState(null);
   const [tradeImage, setTradeImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // ✅ Controls Ghost Loaders
   const [userStatus, setUserStatus] = useState(null);
+
   const navigate = useNavigate();
   const { userMobile } = useSettings();
   const auth = getAuth();
-
   const initialCheckRef = useRef(true);
+
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
 
   useEffect(() => {
+    // 1. Load Cart (Preserved Logic)
     const localEntries = localStorage.getItem('wasteEntries');
     if (localEntries) {
       try {
         const parsedEntries = JSON.parse(localEntries);
         if (parsedEntries.length === 0) {
-          toast.error("Your cart is empty. Add items first.");
+          toast.error("Your cart is empty.");
           navigate('/hello');
           return;
         }
@@ -50,6 +56,7 @@ const TradePage = () => {
       navigate('/hello');
     }
 
+    // 2. Auth & User Status (Preserved Logic)
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUserId(user.uid);
@@ -59,7 +66,6 @@ const TradePage = () => {
             const userData = snapshot.val();
             if (userData.name) setUserName(userData.name);
             if (userData.address) setAddress(userData.address);
-            if (userData.email) setEmail(userData.email);
             setUserStatus(userData.Status || 'Active');
 
             if (initialCheckRef.current) {
@@ -70,7 +76,7 @@ const TradePage = () => {
               initialCheckRef.current = false;
             }
           }
-          setIsLoading(false);
+          setIsLoading(false); // ✅ Turn off ghost loaders
         });
       } else {
         navigate('/login');
@@ -79,12 +85,13 @@ const TradePage = () => {
     return () => unsubscribe();
   }, [auth, navigate]);
 
-  const grandTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.total) || 0), 0);
+  // ✅ NEW: Calculate Min/Max Totals for the Summary
+  const minTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.minRate || entry.rate || 0) * entry.quantity), 0);
+  const maxTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.maxRate || entry.rate || 0) * entry.quantity), 0);
 
-  // ✅ NEW: Powerful Google Maps Exact Location Finder
   const handleDetectLocation = () => {
     if (navigator.vibrate) navigator.vibrate(50);
-    if (!navigator.geolocation) return toast.error("GPS not supported by your device.");
+    if (!navigator.geolocation) return toast.error("GPS not supported.");
 
     setIsDetectingLocation(true);
     toast.loading("Finding exact location...", { id: 'gps' });
@@ -94,29 +101,23 @@ const TradePage = () => {
         const { latitude, longitude } = position.coords;
         setExactCoords({ lat: latitude, lng: longitude });
 
-        // 🛑 IMPORTANT: Put your Google Maps API Key here to auto-type the street name
-        const GOOGLE_API_KEY = import.meta.env.VITE_API_KEY;
-
-        try {
-          const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`);
-          const data = await res.json();
-
-          if (data.status === "OK" && data.results[0]) {
-            setAddress(data.results[0].formatted_address); // Auto-fills the text box
-            toast.success("Exact address mapped!", { id: 'gps' });
-          } else {
-            // If no API key is set yet, it still captures the GPS coordinates perfectly!
-            toast.success("GPS Captured! Please add your door number.", { id: 'gps' });
-          }
-        } catch (err) {
-          toast.success("GPS Captured! Please type your full address.", { id: 'gps' });
+        const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+        if (GOOGLE_API_KEY) {
+          try {
+            const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`);
+            const data = await res.json();
+            if (data.status === "OK" && data.results[0]) {
+              setAddress(data.results[0].formatted_address);
+              toast.success("Exact address mapped!", { id: 'gps' });
+            }
+          } catch (err) { }
+        } else {
+          toast.success("GPS Captured! Add door number below.", { id: 'gps' });
         }
         setIsDetectingLocation(false);
       },
       (error) => {
-        let errMsg = "Please enable GPS permissions.";
-        if (error.code === 1) errMsg = "Location access denied. Please allow GPS.";
-        toast.error(errMsg, { id: 'gps' });
+        toast.error("Please allow GPS access.", { id: 'gps' });
         setIsDetectingLocation(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -134,8 +135,8 @@ const TradePage = () => {
   };
 
   const handleConfirmTrade = async () => {
-    if (!userName.trim() || !address.trim() || !email.trim()) {
-      return toast.error("Please fill in your name, email, and address.");
+    if (!userName.trim() || !address.trim()) {
+      return toast.error("Please fill in your name and address.");
     }
     if (!exactCoords) {
       return toast.error("Please click 'Detect Exact Location' so our driver can find you.");
@@ -153,24 +154,23 @@ const TradePage = () => {
 
     const updates = {};
     const wasteEntriesRef = ref(db, 'wasteEntries');
-
-    // ✅ Generates a direct Google Maps link for the Vendor to click
     const mapLink = `https://www.google.com/maps/search/?api=1&query=${exactCoords.lat},${exactCoords.lng}`;
 
+    // Preserved exact DB schema insertion
     entries.forEach(entry => {
       const newWasteEntryKey = push(wasteEntriesRef).key;
       updates[`/wasteEntries/${newWasteEntryKey}`] = {
-        name: entry.text || entry.name,
+        name: entry.name || entry.text,
         address: address,
         exactLat: exactCoords.lat,
         exactLng: exactCoords.lng,
         mapUrl: mapLink,
         mobile: userMobile,
-        total: entry.total.toFixed(2),
+        total: (entry.quantity * parseFloat(entry.rate || entry.minRate || 0)).toFixed(2),
         quantity: entry.quantity,
         unit: entry.unit,
-        rate: entry.rate,
-        category: entry.category,
+        rate: entry.rate || entry.minRate || 0,
+        category: entry.category || 'others',
         isAssigned: false,
         userID: userId,
         image: imageBase64,
@@ -184,7 +184,6 @@ const TradePage = () => {
       ...userSnapshot.val(),
       name: userName,
       address: address,
-      email: email,
       lastLat: exactCoords.lat,
       lastLng: exactCoords.lng,
       Status: "Pending"
@@ -196,7 +195,7 @@ const TradePage = () => {
       localStorage.removeItem('wasteEntries');
       navigate('/task');
     } catch (error) {
-      toast.error("Scheduling failed. Please check your connection.");
+      toast.error("Scheduling failed. Please check connection.");
     } finally {
       setIsSubmitting(false);
     }
@@ -204,30 +203,26 @@ const TradePage = () => {
 
   return (
     <>
-      <SEO title="Confirm Trade - Trade2Cart" description="Review items and confirm your address." />
+      <SEO title="Confirm Trade" description="Review items and confirm your address." />
       <div className="min-h-screen bg-gray-50 font-sans pb-24">
 
-        <div className="bg-green-600 text-white pt-8 pb-12 px-6 rounded-b-[40px] shadow-md">
-          <h1 className="text-3xl font-extrabold text-center">Confirm Pickup</h1>
-          <p className="text-green-100 text-center mt-2 text-sm">Review details to schedule an agent</p>
+        <div className="bg-gray-900 text-white pt-8 pb-12 px-6 rounded-b-[40px] shadow-md">
+          <h1 className="text-3xl font-extrabold text-center">Checkout</h1>
+          <p className="text-gray-400 text-center mt-2 text-sm">Review details to schedule an agent</p>
         </div>
 
         <main className="p-4 -mt-8">
-          {isLoading ? <Loader fullscreen /> : (
+          {isLoading ? <CheckoutSkeleton /> : (
             <div className="max-w-lg mx-auto space-y-5">
 
               <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
                 <h2 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center"><FaUserAlt size={14} /></span>
-                  Contact Details
+                  <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center"><FaUserAlt size={14} /></span>
+                  Your Info
                 </h2>
-                <div className="space-y-4">
-                  <input type="text" placeholder="Full Name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-medium text-gray-700" />
-                  <input type="email" placeholder="Email Address (For Bill)" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-medium text-gray-700" />
-                </div>
+                <input type="text" placeholder="Full Name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-700" />
               </div>
 
-              {/* ✅ GPS LOCATION CARD */}
               <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
                 <h2 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
                   <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center"><FaMapMarkerAlt size={14} /></span>
@@ -237,15 +232,9 @@ const TradePage = () => {
                 {exactCoords ? (
                   <div className="mb-4">
                     <div className="w-full h-36 rounded-xl overflow-hidden shadow-inner border border-gray-200 mb-3">
-                      {/* Live Google Map Iframe using exact coordinates */}
                       <iframe
-                        width="100%"
-                        height="100%"
-                        style={{ border: 0 }}
-                        loading="lazy"
-                        allowFullScreen
+                        width="100%" height="100%" style={{ border: 0 }} loading="lazy" allowFullScreen
                         src={`https://maps.google.com/maps?q=${exactCoords.lat},${exactCoords.lng}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
-                        title="User Location Map"
                       ></iframe>
                     </div>
                     <div className="bg-green-50 border border-green-200 p-3 rounded-xl flex items-center gap-3">
@@ -262,39 +251,43 @@ const TradePage = () => {
                     disabled={isDetectingLocation}
                     className="w-full mb-4 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-blue-700 active:scale-95 transition-all shadow-lg"
                   >
-                    {isDetectingLocation ? <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div> : <><FaCrosshairs /> Detect Exact Location (Required)</>}
+                    {isDetectingLocation ? <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div> : <><FaCrosshairs /> Detect Exact Location</>}
                   </button>
                 )}
 
-                <textarea placeholder="Please confirm your Door No, Floor, or Landmark..." value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-medium text-gray-700"></textarea>
+                <textarea placeholder="Please add Door No, Floor, or Landmark..." value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-700"></textarea>
               </div>
 
               <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
-                <h2 className="text-lg font-bold mb-4 text-gray-800">Your Scrap Items</h2>
+                <h2 className="text-lg font-bold mb-4 text-gray-800">Scrap Summary</h2>
                 <div className="space-y-3">
                   {entries.map((entry, idx) => (
                     <div key={idx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
                       <div>
-                        <p className="font-bold text-gray-800 capitalize">{entry.text || entry.name}</p>
-                        <p className="text-sm text-gray-500">{entry.quantity} {entry.unit} × ₹{entry.rate}</p>
+                        <p className="font-bold text-gray-800 capitalize">{entry.name || entry.text}</p>
+                        <p className="text-sm text-gray-500">{entry.quantity} {entry.unit} × {entry.minRate ? `₹${entry.minRate}-₹${entry.maxRate}` : `₹${entry.rate}`}</p>
                       </div>
-                      <p className="font-extrabold text-gray-800">₹{parseFloat(entry.total).toFixed(2)}</p>
                     </div>
                   ))}
-                  <div className="flex justify-between items-center pt-4 border-t border-gray-200 font-extrabold text-xl">
-                    <p>Estimated Total</p>
-                    <p className="text-green-600">₹{grandTotal.toFixed(2)}</p>
+
+                  {/* Estimated Final Value with Disclaimer */}
+                  <div className="pt-4 border-t border-gray-200">
+                    <div className="flex justify-between items-center font-extrabold text-xl mb-1">
+                      <p>Estimated Value</p>
+                      <p className="text-green-600">{minTotal === maxTotal ? `₹${minTotal.toFixed(2)}` : `₹${minTotal.toFixed(0)} - ₹${maxTotal.toFixed(0)}`}</p>
+                    </div>
+                    <p className="text-[10px] text-gray-400 flex items-center gap-1"><FaInfoCircle /> Final value is calculated by agent after exact weighing.</p>
                   </div>
                 </div>
               </div>
 
               <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
-                <h2 className="text-lg font-bold mb-2 text-gray-800">Take a Photo (Optional)</h2>
-                <p className="text-sm text-gray-500 mb-4">Helps the agent bring the right vehicle.</p>
+                <h2 className="text-lg font-bold mb-2 text-gray-800">Add Photo (Optional)</h2>
+                <p className="text-sm text-gray-500 mb-4">Helps agent bring the right vehicle size.</p>
                 <div className="flex items-center gap-4">
-                  <label className="flex-1 cursor-pointer bg-green-50 border-2 border-dashed border-green-300 text-green-700 font-semibold text-center py-6 rounded-xl hover:bg-green-100 transition-colors">
+                  <label className="flex-1 cursor-pointer bg-blue-50 border-2 border-dashed border-blue-300 text-blue-700 font-semibold text-center py-6 rounded-xl hover:bg-blue-100 transition-colors">
                     <FaCamera className="mx-auto text-3xl mb-2 opacity-80" />
-                    <span>Tap to Open Camera</span>
+                    <span>Open Camera</span>
                     <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} className="hidden" />
                   </label>
                   {imagePreview && (
@@ -305,8 +298,8 @@ const TradePage = () => {
                 </div>
               </div>
 
-              <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled} className="w-full py-4 mt-4 bg-gray-900 text-white rounded-xl font-bold text-lg shadow-xl hover:bg-gray-800 active:scale-95 transition-transform disabled:bg-gray-400">
-                {isSubmitting ? 'Scheduling Pickup...' : 'Confirm & Schedule Pickup'}
+              <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled} className="w-full py-4 mt-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-xl hover:bg-green-700 active:scale-95 transition-transform disabled:bg-gray-400">
+                {isSubmitting ? 'Scheduling Pickup...' : 'Confirm & Book Pickup'}
               </button>
             </div>
           )}
