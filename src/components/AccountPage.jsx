@@ -9,13 +9,11 @@ import { useSettings } from '../context/SettingsContext';
 import { getAuth, signOut, onAuthStateChanged } from "firebase/auth";
 import SEO from './SEO';
 
-// Modular Components (Assuming you have these in your project)
 import TradeHistorySection from './account/TradeHistorySection';
 import BillModal from './account/BillModal';
 import ProfileSection from './account/ProfileSection';
 import PoliciesAndTerms from './account/PoliciesAndTerms';
 
-// ✅ NEW: Ghost Loader for Account Page
 const AccountSkeleton = () => (
   <div className="animate-pulse space-y-6">
     <div className="flex items-center gap-4 bg-white p-6 rounded-[32px] border border-gray-100">
@@ -30,10 +28,15 @@ const AccountSkeleton = () => (
   </div>
 );
 
+// ✅ FIX: Z-Index increased to 100, Added Click-Outside to close, improved layout
 const Modal = ({ title, children, onClose }) => (
-  <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex justify-center items-end sm:items-center transition-all duration-300">
-    <div className="bg-white rounded-t-3xl sm:rounded-[32px] shadow-2xl w-full max-w-lg h-[85vh] sm:max-h-[85vh] flex flex-col animate-slide-up sm:animate-fade-in">
-      <header className="flex justify-between items-center p-6 border-b border-gray-100">
+  <div className="fixed inset-0 z-[100] flex justify-center items-end sm:items-center transition-all duration-300">
+    {/* Dark Overlay Background - Click to close */}
+    <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm" onClick={onClose}></div>
+
+    {/* Modal Content Box */}
+    <div className="bg-white rounded-t-3xl sm:rounded-[32px] shadow-2xl w-full max-w-lg h-[85vh] sm:max-h-[85vh] flex flex-col animate-slide-up sm:animate-fade-in relative z-10">
+      <header className="flex justify-between items-center p-6 border-b border-gray-100 bg-white rounded-t-3xl sm:rounded-t-[32px]">
         <h3 className="text-xl font-extrabold text-gray-900">{title}</h3>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-900 bg-gray-50 p-2 rounded-full hover:bg-gray-200 transition">
           <FaTimes />
@@ -57,7 +60,6 @@ const AccountPage = () => {
   const [isProfileModalOpen, setProfileModalOpen] = useState(false);
   const [isPoliciesModalOpen, setPoliciesModalOpen] = useState(false);
 
-  // EXACT LOGIC PRESERVED
   useEffect(() => {
     let unsubscribeFromAuth;
     let unsubscribeFromUser;
@@ -95,10 +97,9 @@ const AccountPage = () => {
   return (
     <>
       <SEO title="My Account - Trade2Cart" description="Manage your profile, view history, and download bills." />
-      <div className="h-screen bg-gray-50 flex flex-col font-sans pb-20">
+      <div className="h-[100dvh] bg-gray-50 flex flex-col font-sans overflow-hidden">
 
-        {/* Modern Header */}
-        <header className="sticky top-0 p-4 bg-white shadow-sm z-30 flex justify-between items-center rounded-b-3xl">
+        <header className="flex-none sticky top-0 p-4 bg-white shadow-sm z-30 flex justify-between items-center rounded-b-3xl">
           <div className="flex items-center gap-3">
             <img src={assetlogo} alt="Trade2Cart Logo" className="h-10 w-10 rounded-full" />
             <div className="hidden sm:flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
@@ -108,11 +109,10 @@ const AccountPage = () => {
           </div>
         </header>
 
-        <main className="flex-grow p-5 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto p-5 pb-24">
           {userLoading ? <AccountSkeleton /> : (
             <div className="max-w-2xl mx-auto space-y-6 mt-2">
 
-              {/* Profile Card */}
               <div className="bg-white p-6 rounded-[32px] shadow-xl border border-gray-100 flex items-center space-x-5 relative overflow-hidden">
                 <div className="absolute right-0 top-0 w-24 h-24 bg-blue-50 rounded-bl-[100px] z-0"></div>
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 shadow-inner z-10 text-2xl font-black">
@@ -120,11 +120,10 @@ const AccountPage = () => {
                 </div>
                 <div className="z-10">
                   <h1 className="text-2xl font-extrabold text-gray-900">{userData?.name || 'My Account'}</h1>
-                  {/* <p className="text-sm text-gray-500 font-medium">{userData?.phoneNumber || 'No phone linked'}</p> */}
+                  <p className="text-sm text-gray-500 font-medium">{userData?.phoneNumber || auth.currentUser?.phoneNumber || 'No phone linked'}</p>
                 </div>
               </div>
 
-              {/* Navigation Cards */}
               <div className="bg-white rounded-[32px] shadow-xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
                 <button onClick={() => setProfileModalOpen(true)} className="flex justify-between items-center w-full p-5 text-left hover:bg-gray-50 transition-colors group">
                   <div className="flex items-center gap-4">
@@ -143,23 +142,16 @@ const AccountPage = () => {
                 </button>
               </div>
 
-              {/* Trade History Section */}
               <div className="bg-white p-6 rounded-[32px] shadow-xl border border-gray-100">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center"><FaHistory size={12} /></div>
                   <h2 className="text-xl font-extrabold text-gray-900">Trade History</h2>
                 </div>
-
                 <div className="bg-gray-50 rounded-2xl p-2 border border-gray-100">
-                  <TradeHistorySection
-                    userId={userData?.id}
-                    originalUserData={userData}
-                    onViewBill={setBillToView}
-                  />
+                  <TradeHistorySection userId={userData?.id} originalUserData={userData} onViewBill={setBillToView} />
                 </div>
               </div>
 
-              {/* Logout Button */}
               <div className="pt-4 pb-8">
                 <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-4 bg-red-50 text-red-600 rounded-2xl font-bold border border-red-100 hover:bg-red-500 hover:text-white transition-colors shadow-sm">
                   <FaSignOutAlt /> Secure Logout
@@ -169,7 +161,7 @@ const AccountPage = () => {
           )}
         </main>
 
-        <footer className="fixed bottom-0 w-full flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
+        <footer className="flex-none w-full flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
           <Link to="/hello" className="flex flex-col items-center text-gray-400 p-2 hover:text-blue-600 transition-colors"><FaHome className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Home</span></Link>
           <Link to="/task" className="flex flex-col items-center text-gray-400 p-2 hover:text-blue-600 transition-colors"><FaTasks className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Orders</span></Link>
           <Link to="/account" className="flex flex-col items-center text-blue-600 p-2"><FaUserAlt className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Profile</span></Link>

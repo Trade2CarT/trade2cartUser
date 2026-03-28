@@ -15,7 +15,6 @@ const ProfileSection = ({ user }) => {
     const [address, setAddress] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
-    // ✅ Computed directly exactly like AccountPage.jsx (No useState delay!)
     const displayPhone = user?.phoneNumber || user?.phone || user?.mobile || auth.currentUser?.phoneNumber || userMobile || '';
 
     useEffect(() => {
@@ -37,7 +36,7 @@ const ProfileSection = ({ user }) => {
                 name,
                 email,
                 address,
-                phoneNumber: displayPhone // Saves the directly computed phone number back safely
+                phoneNumber: displayPhone
             });
             toast.success("Profile updated successfully!");
         } catch (error) {
@@ -48,9 +47,9 @@ const ProfileSection = ({ user }) => {
     };
 
     return (
-        <form onSubmit={handleSave} className="space-y-5 animate-fade-in-up">
+        // ✅ FIX: Added pb-12 here to allow scrolling past the safe-area
+        <form onSubmit={handleSave} className="space-y-5 animate-fade-in-up pb-12">
 
-            {/* Name Input */}
             <div className="space-y-1">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 ml-1">Full Name</label>
                 <div className="relative">
@@ -65,21 +64,19 @@ const ProfileSection = ({ user }) => {
                 </div>
             </div>
 
-            {/* Mobile Input (Read-Only to prevent auth issues) */}
             <div className="space-y-1">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 ml-1">Mobile Number</label>
                 <div className="relative">
                     <FaPhoneAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                         type="tel"
-                        value={displayPhone} // ✅ Uses direct derived logic now
+                        value={displayPhone}
                         disabled
                         className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-500 cursor-not-allowed shadow-inner"
                     />
                 </div>
             </div>
 
-            {/* Email Input */}
             <div className="space-y-1">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 ml-1">Email Address</label>
                 <div className="relative">
@@ -94,7 +91,6 @@ const ProfileSection = ({ user }) => {
                 </div>
             </div>
 
-            {/* Address Input */}
             <div className="space-y-1">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 ml-1">Default Address</label>
                 <div className="relative">
@@ -109,8 +105,8 @@ const ProfileSection = ({ user }) => {
                 </div>
             </div>
 
-            {/* Save Button */}
-            <div className="pt-4 pb-2">
+            {/* ✅ FIX: Extra top padding ensures separation from text box */}
+            <div className="pt-6">
                 <button
                     type="submit"
                     disabled={isSaving}
