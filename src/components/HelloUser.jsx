@@ -53,7 +53,6 @@ const HelloUser = () => {
           ...data[key]
         }));
 
-        // ✅ STRICT FILTERING FIX: Only show items matching the exact location
         const locationItems = fetchedItems.filter(item =>
           item.location && item.location.toLowerCase() === (location?.toLowerCase() || '')
         );
@@ -136,7 +135,8 @@ const HelloUser = () => {
   return (
     <>
       <SEO title="Home - Trade2Cart" description="Sell scrap online instantly." />
-      <div className="min-h-screen bg-gray-50 pb-32 font-sans">
+      {/* Changed pb-32 to pb-10 since the spacer div handles the scroll room now */}
+      <div className="min-h-screen bg-gray-50 pb-10 font-sans">
 
         <header className="bg-white shadow-sm sticky top-0 z-40 px-5 pt-4 pb-4 rounded-b-3xl">
           <div className="flex justify-between items-center mb-4">
@@ -219,6 +219,9 @@ const HelloUser = () => {
               <p className="text-gray-400 text-sm mt-2">We are currently updating prices for {location}. Check back soon!</p>
             </div>
           )}
+
+          {/* ✅ FIX: Spacer div guarantees you can scroll completely past the floating cart */}
+          <div className="col-span-2 h-40"></div>
         </main>
 
         {totalCartItems > 0 && (
