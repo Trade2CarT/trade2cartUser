@@ -7,9 +7,8 @@ import { get, ref, set } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
 
 import SEO from './SEO';
-import Loader from './Loader';
 import Modal from './Modal';
-import logo from '../assets/images/logo.PNG'; // ✅ Added Logo
+import logo from '../assets/images/logo.PNG';
 
 const LoginPage = () => {
   const [phone, setPhone] = useState('');
@@ -27,7 +26,6 @@ const LoginPage = () => {
   const auth = getAuth();
   const recaptchaVerifierRef = useRef(null);
 
-  // EXACT FIREBASE LOGIC PRESERVED
   useEffect(() => {
     if (!recaptchaVerifierRef.current) {
       recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
@@ -141,9 +139,20 @@ const LoginPage = () => {
                     />
                   </div>
 
-                  <div className="space-y-3 mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                    <CheckboxLink label="Terms & Conditions" checked={termsAccepted} onChange={setTermsAccepted} onLinkClick={() => openModal('<h2>Terms</h2><p>Standard Trade2Cart Terms...</p>')} />
-                    <CheckboxLink label="Privacy Policy" checked={privacyAccepted} onChange={setPrivacyAccepted} onLinkClick={() => openModal('<h2>Privacy</h2><p>Standard Trade2Cart Privacy...</p>')} />
+                  {/* ✅ FIX: Separate Checkbox Area & Link Area */}
+                  <div className="space-y-4 mb-8 bg-gray-50 p-5 rounded-xl border border-gray-100">
+                    <CheckboxLink
+                      label="Terms & Conditions"
+                      checked={termsAccepted}
+                      onChange={setTermsAccepted}
+                      onLinkClick={() => openModal('<h2>Terms</h2><p>Standard Trade2Cart Terms...</p>')}
+                    />
+                    <CheckboxLink
+                      label="Privacy Policy"
+                      checked={privacyAccepted}
+                      onChange={setPrivacyAccepted}
+                      onLinkClick={() => openModal('<h2>Privacy Policy</h2><p>Standard Trade2Cart Privacy...</p>')}
+                    />
                   </div>
 
                   <button
@@ -160,7 +169,7 @@ const LoginPage = () => {
                     <input
                       type="text"
                       inputMode="numeric"
-                      autoComplete="one-time-code" // ✅ Native Auto-Read on iOS/Android
+                      autoComplete="one-time-code"
                       placeholder="000000"
                       value={otp}
                       onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
@@ -191,15 +200,34 @@ const LoginPage = () => {
   );
 };
 
+// ✅ FIX: Rebuilt Checkbox to prevent overlap clicking
 const CheckboxLink = ({ label, checked, onChange, onLinkClick }) => (
-  <label className="flex items-center space-x-3 cursor-pointer group">
-    <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${checked ? 'bg-green-500 border-green-500' : 'border-gray-300 bg-white group-hover:border-green-400'}`}>
+  <div className="flex items-center space-x-3">
+
+    {/* 1. Clickable Box Area */}
+    <div
+      onClick={() => onChange(!checked)}
+      className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 ${checked ? 'bg-green-500 border-green-500' : 'border-gray-300 bg-white hover:border-green-400'}`}
+    >
       {checked && <span className="text-white font-bold text-xs">✓</span>}
     </div>
+
+    {/* 2. Text & Link Area */}
     <span className="text-sm font-medium text-gray-600 flex-1">
-      I agree to the <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLinkClick(); }} className="text-blue-600 font-bold hover:underline">{label}</button>
+      <span onClick={() => onChange(!checked)} className="cursor-pointer">I agree to the </span>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onLinkClick();
+        }}
+        className="text-blue-600 font-bold hover:underline ml-1"
+      >
+        {label}
+      </button>
     </span>
-  </label>
+  </div>
 );
 
 export default LoginPage;
