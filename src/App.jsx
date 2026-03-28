@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 import SEO from './components/SEO'; // Import the SEO component
@@ -25,6 +25,35 @@ const ProtectedRoutes = () => {
   return userMobile ? <Outlet /> : <Navigate to="/language" replace />;
 };
 
+// ✅ NEW: Animated Route Wrapper (Preserves your routing logic inside)
+const AnimatedRoutes = () => {
+  const location = useLocation();
+
+  return (
+    <div key={location.pathname} className="page-transition">
+      <Routes location={location}>
+        {/* --- Protected Routes --- */}
+        <Route element={<ProtectedRoutes />}>
+          <Route path="/hello" element={<HelloUser />} />
+          <Route path="/trade" element={<TradePage />} />
+          <Route path="/task" element={<TaskPage />} />
+          <Route path="/account" element={<AccountPage />} />
+        </Route>
+
+        {/* --- Public Routes --- */}
+        <Route element={<PublicRoutes />}>
+          <Route path="/language" element={<LanguageSelection />} />
+          <Route path="/location" element={<LocationPage />} />
+          <Route path="/login" element={<LoginPage />} />
+        </Route>
+
+        {/* --- Fallback Redirect --- */}
+        <Route path="*" element={<Navigate to="/hello" replace />} />
+      </Routes>
+    </div>
+  );
+};
+
 
 const App = () => {
   const [showSplash, setShowSplash] = useState(true);
@@ -37,7 +66,7 @@ const App = () => {
     "image": "https://trade2cart.in/logo.png",
     "@id": "https://trade2cart.in",
     "url": "https://trade2cart.in",
-    "telephone": "+91-9876543210", // Example phone number
+    "telephone": "+91-9876543210",
     "description": "Trade2Cart is an online scrap pickup service in India that connects sellers with verified scrap buyers. Book pickup online and get instant payment.",
     "address": {
       "@type": "PostalAddress",
@@ -61,64 +90,35 @@ const App = () => {
     return <Splash />;
   }
 
-  // return (
-  //   <ErrorBoundary>
-  //     {/* Default SEO and sitewide Schema */}
-  //     <SEO>
-  //       <script type="application/ld+json">
-  //         {JSON.stringify(schemaMarkup)}
-  //       </script>
-  //     </SEO>
-
-  //     <Router>
-  //       <Toaster position="top-center" reverseOrder={false} />
-  //       <Routes>
-  //         {/* --- Protected Routes --- */}
-  //         <Route element={<ProtectedRoutes />}>
-  //           <Route path="/hello" element={<HelloUser />} />
-  //           <Route path="/trade" element={<TradePage />} />
-  //           <Route path="/task" element={<TaskPage />} />
-  //           <Route path="/account" element={<AccountPage />} />
-  //         </Route>
-
-  //         {/* --- Public Routes --- */}
-  //         <Route element={<PublicRoutes />}>
-  //           <Route path="/language" element={<LanguageSelection />} />
-  //           <Route path="/location" element={<LocationPage />} />
-  //           <Route path="/login" element={<LoginPage />} />
-  //         </Route>
-
-  //         {/* --- Fallback Redirect --- */}
-  //         <Route path="*" element={<Navigate to="/hello" replace />} />
-  //       </Routes>
-  //     </Router>
-  //   </ErrorBoundary>
-  // );
-  // Inside your App.jsx render:
-
   return (
-    <SettingsProvider>
+    <ErrorBoundary>
+      {/* Default SEO and sitewide Schema */}
+      <SEO>
+        <script type="application/ld+json">
+          {JSON.stringify(schemaMarkup)}
+        </script>
+      </SEO>
+
       <Router>
-        <ErrorBoundary>
+        {/* Upgraded Toaster UI */}
+        <Toaster
+          position="top-center"
+          reverseOrder={false}
+          toastOptions={{
+            style: {
+              borderRadius: '16px',
+              background: '#333',
+              color: '#fff',
+              fontWeight: 'bold',
+              padding: '16px',
+            },
+          }}
+        />
 
-          {/* THIS DIV ADDS THE SMOOTH NATIVE GESTURE TO ALL PAGES */}
-          <div className="page-transition">
-
-            <Routes>
-              <Route path="/" element={<Navigate to="/splash" replace />} />
-              <Route path="/splash" element={<SplashWrapper />} />
-              <Route path="/language" element={<LanguageSelection />} />
-              <Route path="/location" element={<LocationPage />} />
-              <Route path="/login" element={<LoginPage />} />
-              {/* ... rest of your routes ... */}
-            </Routes>
-
-          </div>
-
-        </ErrorBoundary>
+        {/* Using the AnimatedRoutes wrapper here */}
+        <AnimatedRoutes />
       </Router>
-      <Toaster position="top-center" />
-    </SettingsProvider>
+    </ErrorBoundary>
   );
 };
 
