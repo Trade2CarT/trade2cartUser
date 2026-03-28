@@ -219,7 +219,6 @@ const TradePage = () => {
           {isLoading ? <CheckoutSkeleton /> : (
             <div className="max-w-lg mx-auto space-y-4 -mt-6">
 
-              {/* CONTACT DETAILS CARD */}
               <div className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-gray-100 relative">
                 <h2 className="text-[14px] font-black uppercase tracking-widest mb-4 text-gray-800 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-green-50 text-green-600 flex items-center justify-center"><FaUserAlt size={12} /></div>
@@ -240,7 +239,6 @@ const TradePage = () => {
                 </div>
               </div>
 
-              {/* LOCATION CARD */}
               <div className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
                 <h2 className="text-[14px] font-black uppercase tracking-widest mb-4 text-gray-800 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center"><FaMapMarkerAlt size={12} /></div>
@@ -277,41 +275,43 @@ const TradePage = () => {
               </div>
 
               {/* SUMMARY CARD */}
-              <div className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-gray-100">
+              <div className="bg-white p-4 md:p-6 rounded-3xl shadow-sm border border-gray-100">
                 <h2 className="text-[14px] font-black uppercase tracking-widest mb-4 text-gray-800 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center"><FaTasks size={12} /></div>
                   Scrap Summary
                 </h2>
-                <div className="space-y-2 mb-4">
+                <div className="space-y-3 mb-4">
                   {entries.map((entry, idx) => (
-                    <div key={idx} className="flex justify-between items-center bg-gray-50 px-4 py-3 rounded-xl border border-gray-100">
+                    <div key={idx} className="bg-gray-50 p-3 rounded-2xl border border-gray-100 flex items-center gap-4">
 
-                      {/* ✅ THE FIX: Perfectly loads "imageUrl", "image", "icon", or "imgUrl" from the DB */}
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-white border border-gray-200 shadow-sm flex items-center justify-center overflow-hidden flex-shrink-0">
-                          {entry.imageUrl || entry.image || entry.icon || entry.imgUrl ? (
-                            <img
-                              src={entry.imageUrl || entry.image || entry.icon || entry.imgUrl}
-                              alt={entry.name || entry.text}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-[10px] font-bold text-gray-400">N/A</span>
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-extrabold text-gray-800 text-sm capitalize">{entry.name || entry.text}</p>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                            {entry.quantity} {entry.unit} × {entry.minRate ? `₹${entry.minRate}-₹${entry.maxRate}` : `₹${entry.rate}`}
-                          </p>
-                        </div>
+                      {/* ✅ THE UI FIX: Massive, highly visible Image Thumbnails */}
+                      <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-white border-2 border-gray-200 shadow-sm flex items-center justify-center overflow-hidden flex-shrink-0">
+                        {entry.imageUrl || entry.image || entry.icon || entry.imgUrl ? (
+                          <img
+                            src={entry.imageUrl || entry.image || entry.icon || entry.imgUrl}
+                            alt={entry.name || entry.text}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-xs font-bold text-gray-400">No Image</span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col justify-center">
+                        <p className="font-extrabold text-gray-900 text-base sm:text-lg capitalize leading-tight">{entry.name || entry.text}</p>
+                        <p className="text-xs sm:text-sm font-bold text-gray-500 uppercase tracking-widest mt-1">
+                          {entry.quantity} {entry.unit}
+                        </p>
+                        <p className="text-sm font-black text-green-600 mt-1">
+                          {entry.minRate ? `₹${entry.minRate}-₹${entry.maxRate}` : `₹${entry.rate}`}
+                        </p>
                       </div>
 
                     </div>
                   ))}
                 </div>
 
-                <div className="pt-4 border-t border-gray-100 bg-green-50/50 -mx-5 md:-mx-6 -mb-5 md:-mb-6 p-5 md:p-6 rounded-b-3xl">
+                <div className="pt-4 border-t border-gray-100 bg-green-50/50 -mx-4 md:-mx-6 -mb-4 md:-mb-6 p-5 md:p-6 rounded-b-3xl">
                   <div className="flex justify-between items-center font-black text-xl mb-1">
                     <p className="text-gray-800">Est. Value</p>
                     <p className="text-green-600">{minTotal === maxTotal ? `₹${minTotal.toFixed(2)}` : `₹${minTotal.toFixed(0)} - ₹${maxTotal.toFixed(0)}`}</p>

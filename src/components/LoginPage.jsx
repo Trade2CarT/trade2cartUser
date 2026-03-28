@@ -7,8 +7,10 @@ import { get, ref, set } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
 
 import SEO from './SEO';
-import Modal from './Modal';
 import logo from '../assets/images/logo.PNG';
+
+// ✅ THE FIX: We import your actual component instead of using the broken string-based Modal
+import PoliciesAndTerms from './account/PoliciesAndTerms';
 
 const translations = {
   English: {
@@ -59,8 +61,9 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalContent, setModalContent] = useState(null);
+
+  // ✅ THE FIX: State to control the full-screen overlay for Policies
+  const [showPolicies, setShowPolicies] = useState(false);
 
   const { setUserMobile, location, language } = useSettings();
   const navigate = useNavigate();
@@ -140,8 +143,6 @@ const LoginPage = () => {
     setOtpSent(false); setOtpArray(['', '', '', '', '', '']); setPhone(''); setConfirmationResult(null);
   };
 
-  const openModal = (content) => { setModalContent(content); setIsModalOpen(true); };
-
   const handleOtpChange = (index, e) => {
     const value = e.target.value.replace(/\D/g, '');
     if (!value) return;
@@ -181,10 +182,24 @@ const LoginPage = () => {
   return (
     <>
       <SEO title="Login to Trade2Cart" description="Login to schedule scrap pickups." />
-      <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 sm:p-6 font-sans">
+      <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 sm:p-6 font-sans relative">
         <div id="recaptcha-container"></div>
 
-        {isModalOpen && <Modal content={modalContent} onClose={() => setIsModalOpen(false)} />}
+        {/* ✅ THE FIX: Rendering your actual PoliciesAndTerms file in a sleek, scrollable overlay */}
+        {showPolicies && (
+          <div className="fixed inset-0 z-50 bg-white flex flex-col animate-slide-up overflow-hidden">
+            <div className="flex-none flex justify-between items-center p-4 bg-white border-b border-gray-100 shadow-sm">
+              <h2 className="text-xl font-black text-gray-900">Legal Policies</h2>
+              <button onClick={() => setShowPolicies(false)} className="px-4 py-2 bg-gray-100 text-gray-800 rounded-full font-bold text-sm hover:bg-gray-200 transition-colors">
+                ✕ Close
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 pb-20">
+              {/* This pulls your exact component! */}
+              <PoliciesAndTerms />
+            </div>
+          </div>
+        )}
 
         <div className="w-full max-w-md">
           {loading ? (
@@ -222,27 +237,18 @@ const LoginPage = () => {
                   </div>
 
                   <div className="space-y-4 mb-8 bg-gray-50 p-4 sm:p-5 rounded-xl border border-gray-100">
+                    {/* Checkboxes now trigger the sleek overlay instead of the broken modal */}
                     <CheckboxLink
                       label={t.terms}
                       checked={termsAccepted}
                       onChange={setTermsAccepted}
-                      onLinkClick={() => openModal(
-                        <div className="text-left space-y-3">
-                          <h2 className="text-2xl font-black text-gray-900">Terms & Conditions</h2>
-                          <p className="text-gray-600 font-medium leading-relaxed">By using Trade2Cart, you agree to our standard pickup policies. Final prices are determined by the vendor upon accurate weighing at your location.</p>
-                        </div>
-                      )}
+                      onLinkClick={() => setShowPolicies(true)}
                     />
                     <CheckboxLink
                       label={t.privacy}
                       checked={privacyAccepted}
                       onChange={setPrivacyAccepted}
-                      onLinkClick={() => openModal(
-                        <div className="text-left space-y-3">
-                          <h2 className="text-2xl font-black text-gray-900">Privacy Policy</h2>
-                          <p className="text-gray-600 font-medium leading-relaxed">We securely store your phone number and address solely for the purpose of completing your scrap pickup requests. We do not sell your data.</p>
-                        </div>
-                      )}
+                      onLinkClick={() => setShowPolicies(true)}
                     />
                   </div>
 
@@ -256,7 +262,6 @@ const LoginPage = () => {
                 </>
               ) : (
                 <>
-                  {/* ✅ THE FIX: Perfectly centered and responsive OTP Grid */}
                   <div className="flex justify-center items-center gap-2 sm:gap-3 mb-8 mt-4 w-full" onPaste={handleOtpPaste}>
                     {otpArray.map((data, index) => (
                       <input
