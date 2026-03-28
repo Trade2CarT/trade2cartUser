@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { FaHome, FaTasks, FaUserAlt, FaPlus, FaMinus, FaShoppingCart } from 'react-icons/fa';
+import { FaHome, FaTasks, FaUserAlt, FaPlus, FaMinus, FaShoppingCart, FaDownload } from 'react-icons/fa';
 import { useSettings } from '../context/SettingsContext';
-import { getAuth } from 'firebase/auth';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { db } from '../firebase';
 import { ref, onValue } from 'firebase/database';
 import SEO from './SEO';
@@ -33,17 +33,59 @@ const HelloUser = () => {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [cart, setCart] = useState({});
+
+  // ✅ NEW: PWA Install States
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
   const navigate = useNavigate();
   const { location } = useSettings();
+  const auth = getAuth();
 
+  // ✅ FIX 1: Fetch actual User Name from Realtime Database
   useEffect(() => {
-    const auth = getAuth();
-    if (auth.currentUser?.displayName) {
-      setUserName(auth.currentUser.displayName.split(' ')[0]);
-    } else {
-      setUserName('User');
-    }
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const userRef = ref(db, `users/${user.uid}`);
+        onValue(userRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const userData = snapshot.val();
+            // Grab just the first name for the greeting
+            setUserName(userData.name ? userData.name.split(' ')[0] : 'User');
+          }
+        });
+      } else {
+        setUserName('User');
+      }
+    });
 
+    return () => unsubscribeAuth();
+  }, [auth]);
+
+  // ✅ FIX 2: PWA Install Prompt Listener
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true); // Shows the Install Banner
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsInstallable(false); // Hide banner if they installed it
+      }
+      setDeferredPrompt(null);
+    }
+  };
+
+  // Fetch Items based on location
+  useEffect(() => {
     const itemsRef = ref(db, 'items');
     const unsubscribe = onValue(itemsRef, (snapshot) => {
       const data = snapshot.val();
@@ -67,6 +109,7 @@ const HelloUser = () => {
     return () => unsubscribe();
   }, [location]);
 
+  // Load existing cart from LocalStorage
   useEffect(() => {
     if (items.length > 0) {
       const savedCart = localStorage.getItem('wasteEntries');
@@ -136,10 +179,8 @@ const HelloUser = () => {
     <>
       <SEO title="Home - Trade2Cart" description="Sell scrap online instantly." />
 
-      {/* ✅ NEW: Strict flexbox layout locks the height to the device viewport so the footer never covers content */}
       <div className="h-[100dvh] bg-gray-50 flex flex-col font-sans overflow-hidden relative">
 
-        {/* HEADER: Flex-none prevents it from shrinking */}
         <header className="flex-none bg-white shadow-sm z-30 px-5 pt-4 pb-4 rounded-b-3xl">
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
@@ -157,12 +198,32 @@ const HelloUser = () => {
           </div>
 
           <div className="bg-gray-100 rounded-2xl p-4 shadow-inner border border-gray-200">
-            <h1 className="text-xl font-bold text-gray-800">Hello, {userName}! 👋</h1>
+            <h1 className="text-xl font-bold text-gray-800 truncate">Hello, {userName}! 👋</h1>
             <p className="text-gray-500 text-sm mt-1">Select scrap items to add to your cart.</p>
           </div>
         </header>
 
-        {/* CATEGORY PILLS: Flex-none */}
+        {/* ✅ NEW: Premium PWA Install Banner */}
+        {isInstallable && (
+          <div className="flex-none px-5 pt-4 animate-fade-in-down">
+            <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-4 flex justify-between items-center shadow-lg border border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center text-white">
+                  <img src={logo} alt="App" className="w-full h-full rounded-full object-contain p-1" />
+                </div>
+                <div>
+                  <p className="font-extrabold text-sm text-white">Install Trade2Cart App</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Faster & Smoother</p>
+                </div>
+              </div>
+              <button onClick={handleInstallClick} className="flex items-center gap-1.5 bg-green-500 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md hover:bg-green-400 active:scale-95 transition-all">
+                <FaDownload /> Get
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* CATEGORY PILLS */}
         <div className="flex-none flex overflow-x-auto hide-scrollbar gap-3 px-5 py-4">
           {categories.map(cat => (
             <button
@@ -176,7 +237,7 @@ const HelloUser = () => {
           ))}
         </div>
 
-        {/* ✅ MIDDLE CONTENT: Flex-1 and overflow-y-auto allows ONLY this area to scroll */}
+        {/* MIDDLE CONTENT GRID */}
         <main className="flex-1 overflow-y-auto px-5 pb-24">
           <div className="grid grid-cols-2 gap-4">
             {isLoading ? (
@@ -225,9 +286,10 @@ const HelloUser = () => {
               </div>
             )}
           </div>
+          <div className="col-span-2 h-40"></div>
         </main>
 
-        {/* ✅ FLOATING CART: Adjusted to sit precisely above the real footer */}
+        {/* FLOATING CART */}
         {totalCartItems > 0 && (
           <div className="absolute bottom-[88px] left-0 right-0 px-5 z-40 animate-fade-in-up">
             <div onClick={handleCheckout} className="bg-green-600 text-white p-4 rounded-2xl shadow-2xl flex justify-between items-center cursor-pointer hover:bg-green-700 transition-colors active:scale-95 border border-green-500">
@@ -244,7 +306,7 @@ const HelloUser = () => {
           </div>
         )}
 
-        {/* ✅ FOOTER: Flex-none. It is now part of the natural document flow! No fixed positioning. */}
+        {/* BOTTOM NAVIGATION */}
         <footer className="flex-none w-full flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
           <Link to="/hello" className="flex flex-col items-center text-green-600 p-2"><FaHome className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Home</span></Link>
           <Link to="/task" className="flex flex-col items-center text-gray-400 p-2 hover:text-green-600 transition-colors"><FaTasks className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Orders</span></Link>
