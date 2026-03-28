@@ -15,7 +15,7 @@ const TradePage = () => {
   const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
 
-  // ✅ NEW: State to hold exact GPS coordinates
+  // exactCoords holds the Latitude and Longitude
   const [exactCoords, setExactCoords] = useState(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
 
@@ -81,7 +81,7 @@ const TradePage = () => {
 
   const grandTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.total) || 0), 0);
 
-  // ✅ NEW: Get Exact GPS Location for Vendors
+  // ✅ NEW: Powerful Google Maps Exact Location Finder
   const handleDetectLocation = () => {
     if (navigator.vibrate) navigator.vibrate(50);
     if (!navigator.geolocation) return toast.error("GPS not supported by your device.");
@@ -93,25 +93,33 @@ const TradePage = () => {
       async (position) => {
         const { latitude, longitude } = position.coords;
         setExactCoords({ lat: latitude, lng: longitude });
-        toast.success("Exact location captured!", { id: 'gps' });
 
-        // Optional: Free Reverse Geocoding to auto-fill the text box
+        // 🛑 IMPORTANT: Put your Google Maps API Key here to auto-type the street name
+        const GOOGLE_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY";
+
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`);
+          const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`);
           const data = await res.json();
-          if (data && data.display_name) {
-            setAddress(data.display_name); // Auto-fill address text
+
+          if (data.status === "OK" && data.results[0]) {
+            setAddress(data.results[0].formatted_address); // Auto-fills the text box
+            toast.success("Exact address mapped!", { id: 'gps' });
+          } else {
+            // If no API key is set yet, it still captures the GPS coordinates perfectly!
+            toast.success("GPS Captured! Please add your door number.", { id: 'gps' });
           }
         } catch (err) {
-          // Silently fail reverse geocoding, we still have the coordinates
+          toast.success("GPS Captured! Please type your full address.", { id: 'gps' });
         }
         setIsDetectingLocation(false);
       },
       (error) => {
-        toast.error("Please enable GPS permissions.", { id: 'gps' });
+        let errMsg = "Please enable GPS permissions.";
+        if (error.code === 1) errMsg = "Location access denied. Please allow GPS.";
+        toast.error(errMsg, { id: 'gps' });
         setIsDetectingLocation(false);
       },
-      { enableHighAccuracy: true }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
@@ -146,7 +154,7 @@ const TradePage = () => {
     const updates = {};
     const wasteEntriesRef = ref(db, 'wasteEntries');
 
-    // Create a Google Maps link for the vendor
+    // ✅ Generates a direct Google Maps link for the Vendor to click
     const mapLink = `https://www.google.com/maps/search/?api=1&query=${exactCoords.lat},${exactCoords.lng}`;
 
     entries.forEach(entry => {
@@ -154,9 +162,9 @@ const TradePage = () => {
       updates[`/wasteEntries/${newWasteEntryKey}`] = {
         name: entry.text || entry.name,
         address: address,
-        exactLat: exactCoords.lat,   // Saved for Map integration
-        exactLng: exactCoords.lng,   // Saved for Map integration
-        mapUrl: mapLink,             // Direct link for vendor app
+        exactLat: exactCoords.lat,
+        exactLng: exactCoords.lng,
+        mapUrl: mapLink,
         mobile: userMobile,
         total: entry.total.toFixed(2),
         quantity: entry.quantity,
@@ -199,7 +207,6 @@ const TradePage = () => {
       <SEO title="Confirm Trade - Trade2Cart" description="Review items and confirm your address." />
       <div className="min-h-screen bg-gray-50 font-sans pb-24">
 
-        {/* Modern Header */}
         <div className="bg-green-600 text-white pt-8 pb-12 px-6 rounded-b-[40px] shadow-md">
           <h1 className="text-3xl font-extrabold text-center">Confirm Pickup</h1>
           <p className="text-green-100 text-center mt-2 text-sm">Review details to schedule an agent</p>
@@ -209,51 +216,59 @@ const TradePage = () => {
           {isLoading ? <Loader fullscreen /> : (
             <div className="max-w-lg mx-auto space-y-5">
 
-              {/* Profile Card */}
               <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
                 <h2 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
                   <span className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center"><FaUserAlt size={14} /></span>
                   Contact Details
                 </h2>
                 <div className="space-y-4">
-                  <div className="relative">
-                    <input type="text" placeholder="Full Name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-medium text-gray-700" />
-                  </div>
-                  <div className="relative">
-                    <input type="email" placeholder="Email Address (For Bill)" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-medium text-gray-700" />
-                  </div>
+                  <input type="text" placeholder="Full Name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-medium text-gray-700" />
+                  <input type="email" placeholder="Email Address (For Bill)" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-medium text-gray-700" />
                 </div>
               </div>
 
-              {/* Exact Location Card (CRITICAL UPDATE) */}
-              <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
+              {/* ✅ GPS LOCATION CARD */}
+              <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
                 <h2 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
                   <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center"><FaMapMarkerAlt size={14} /></span>
                   Pickup Location
                 </h2>
 
                 {exactCoords ? (
-                  <div className="bg-green-50 border border-green-200 p-4 rounded-xl mb-4 flex items-center gap-3">
-                    <FaCheckCircle className="text-green-600 text-2xl flex-shrink-0" />
-                    <div>
-                      <p className="font-bold text-green-800">Exact GPS Captured</p>
-                      <p className="text-xs text-green-600">The agent will navigate directly here.</p>
+                  <div className="mb-4">
+                    <div className="w-full h-36 rounded-xl overflow-hidden shadow-inner border border-gray-200 mb-3">
+                      {/* Live Google Map Iframe using exact coordinates */}
+                      <iframe
+                        width="100%"
+                        height="100%"
+                        style={{ border: 0 }}
+                        loading="lazy"
+                        allowFullScreen
+                        src={`https://maps.google.com/maps?q=${exactCoords.lat},${exactCoords.lng}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
+                        title="User Location Map"
+                      ></iframe>
+                    </div>
+                    <div className="bg-green-50 border border-green-200 p-3 rounded-xl flex items-center gap-3">
+                      <FaCheckCircle className="text-green-600 text-xl flex-shrink-0" />
+                      <div>
+                        <p className="font-bold text-green-800 text-sm">GPS Captured Successfully</p>
+                        <p className="text-xs text-green-600">Agent will navigate to this pin.</p>
+                      </div>
                     </div>
                   </div>
                 ) : (
                   <button
                     onClick={handleDetectLocation}
                     disabled={isDetectingLocation}
-                    className="w-full mb-4 py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 active:scale-95 transition-all shadow-md"
+                    className="w-full mb-4 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2 hover:bg-blue-700 active:scale-95 transition-all shadow-lg"
                   >
-                    {isDetectingLocation ? <Loader /> : <><FaCrosshairs /> Detect Exact Location (Required)</>}
+                    {isDetectingLocation ? <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div> : <><FaCrosshairs /> Detect Exact Location (Required)</>}
                   </button>
                 )}
 
-                <textarea placeholder="Door No, Landmark, Full Address" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-medium text-gray-700"></textarea>
+                <textarea placeholder="Please confirm your Door No, Floor, or Landmark..." value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-medium text-gray-700"></textarea>
               </div>
 
-              {/* Items Card */}
               <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
                 <h2 className="text-lg font-bold mb-4 text-gray-800">Your Scrap Items</h2>
                 <div className="space-y-3">
@@ -261,7 +276,7 @@ const TradePage = () => {
                     <div key={idx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
                       <div>
                         <p className="font-bold text-gray-800 capitalize">{entry.text || entry.name}</p>
-                        <p className="text-sm text-gray-500">{entry.quantity} {entry.unit} &times; ₹{entry.rate}</p>
+                        <p className="text-sm text-gray-500">{entry.quantity} {entry.unit} × ₹{entry.rate}</p>
                       </div>
                       <p className="font-extrabold text-gray-800">₹{parseFloat(entry.total).toFixed(2)}</p>
                     </div>
@@ -273,7 +288,6 @@ const TradePage = () => {
                 </div>
               </div>
 
-              {/* Camera Card */}
               <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
                 <h2 className="text-lg font-bold mb-2 text-gray-800">Take a Photo (Optional)</h2>
                 <p className="text-sm text-gray-500 mb-4">Helps the agent bring the right vehicle.</p>
@@ -298,7 +312,6 @@ const TradePage = () => {
           )}
         </main>
 
-        {/* Bottom Nav */}
         <footer className="fixed bottom-0 w-full flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
           <Link to="/hello" className="flex flex-col items-center text-gray-400 p-2 hover:text-green-600 transition-colors"><FaHome className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Home</span></Link>
           <Link to="/task" className="flex flex-col items-center text-gray-400 p-2 hover:text-green-600 transition-colors"><FaTasks className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Orders</span></Link>

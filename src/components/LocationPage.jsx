@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FaMapMarkerAlt, FaSearch, FaLocationArrow } from 'react-icons/fa';
+import { FaMapMarkerAlt, FaSearch, FaLocationArrow, FaMap } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../context/SettingsContext';
@@ -9,6 +9,7 @@ const LocationPage = () => {
   const { setLocation } = useSettings();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  const [isDetecting, setIsDetecting] = useState(false);
 
   const handleSelect = (loc) => {
     if (navigator.vibrate) navigator.vibrate(50);
@@ -18,30 +19,52 @@ const LocationPage = () => {
 
   const handleCurrentLocation = () => {
     if (navigator.vibrate) navigator.vibrate(50);
-    if (navigator.geolocation) {
-      toast.loading("Finding your location...", { id: 'gps' });
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            // Free reverse geocode just to get a readable City name for the UI context
-            const { latitude, longitude } = position.coords;
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`);
-            const data = await res.json();
-            const city = data.address.city || data.address.town || data.address.county || "Detected Area";
-            toast.success("Location found!", { id: 'gps' });
+    if (!navigator.geolocation) {
+      return toast.error("Geolocation is not supported by your browser.");
+    }
+
+    setIsDetecting(true);
+    toast.loading("Finding your city...", { id: 'gps' });
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+
+        // 🛑 IMPORTANT: Put your Google Maps API Key here
+        const GOOGLE_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY";
+
+        try {
+          const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`);
+          const data = await res.json();
+
+          if (data.status === "OK") {
+            // Find the "locality" (City) in Google Maps results
+            let city = "Detected Location";
+            const addressComponents = data.results[0].address_components;
+            for (let i = 0; i < addressComponents.length; i++) {
+              if (addressComponents[i].types.includes("locality")) {
+                city = addressComponents[i].long_name;
+                break;
+              }
+            }
+            toast.success(`Found: ${city}`, { id: 'gps' });
             handleSelect(city);
-          } catch (e) {
+          } else {
             toast.success("Location mapped!", { id: 'gps' });
             handleSelect("Detected Location");
           }
-        },
-        (error) => {
-          toast.error("Could not get location. Please select manually.", { id: 'gps' });
+        } catch (e) {
+          toast.success("Location mapped!", { id: 'gps' });
+          handleSelect("Detected Location");
         }
-      );
-    } else {
-      toast.error("Geolocation is not supported by this browser.");
-    }
+        setIsDetecting(false);
+      },
+      (error) => {
+        toast.error("Could not get location. Please select manually.", { id: 'gps' });
+        setIsDetecting(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   const cities = ['Arcot', 'Bagayam', 'Kadappanthangal', 'Katpadi', 'Konavattam', 'Latheri', 'Melvisharam', 'Ranipet', 'SIPCOT', 'Vellore', 'VIT', 'Walajapet'];
@@ -63,9 +86,10 @@ const LocationPage = () => {
 
           <button
             onClick={handleCurrentLocation}
-            className="w-full mb-6 flex items-center justify-center gap-2 bg-gray-900 text-white py-4 rounded-2xl font-bold shadow-xl hover:bg-gray-800 transition-all active:scale-95"
+            disabled={isDetecting}
+            className="w-full mb-6 flex items-center justify-center gap-2 bg-gray-900 text-white py-4 rounded-2xl font-bold shadow-xl hover:bg-gray-800 transition-all active:scale-95 disabled:bg-gray-400"
           >
-            <FaLocationArrow /> Detect My Current Location
+            {isDetecting ? <div className="w-6 h-6 border-4 border-white border-t-transparent rounded-full animate-spin"></div> : <><FaLocationArrow /> Detect My City Automatically</>}
           </button>
 
           <div className="bg-white rounded-[32px] shadow-xl p-6 border border-gray-100 flex flex-col h-[45vh]">
