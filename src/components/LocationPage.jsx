@@ -2,20 +2,31 @@ import React, { useState } from 'react';
 import { FaMapMarkerAlt, FaSearch } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useSettings } from '../context/SettingsContext';
+import { getAuth } from 'firebase/auth'; // ✅ Imported to check login status
 import SEO from './SEO';
 
 const LocationPage = () => {
   const { setLocation } = useSettings();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  const auth = getAuth();
 
   const handleSelect = (loc) => {
     if (navigator.vibrate) navigator.vibrate(50);
+
+    // ✅ Saves instantly to Context AND LocalStorage
     setLocation(loc);
-    navigate('/login');
+
+    // ✅ FIX 2: Smart Routing!
+    // If the user is already logged in, send them back to the Home Dashboard. 
+    // If they aren't logged in, send them to the Login screen.
+    if (auth.currentUser) {
+      navigate('/hello');
+    } else {
+      navigate('/login');
+    }
   };
 
-  // Your strict list of operational areas
   const cities = [
     'Arcot', 'Bagayam', 'Kadappanthangal', 'Katpadi', 'Konavattam',
     'Latheri', 'Melvisharam', 'Ranipet', 'SIPCOT', 'Vellore', 'VIT', 'Walajapet'
