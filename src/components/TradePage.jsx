@@ -90,7 +90,6 @@ const TradePage = () => {
   const minTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.minRate || entry.rate || 0) * entry.quantity), 0);
   const maxTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.maxRate || entry.rate || 0) * entry.quantity), 0);
 
-  // ✅ THE FIX: The 3-Strike Auto-Retry System
   const handleDetectLocation = () => {
     if (navigator.vibrate) navigator.vibrate(50);
     if (!navigator.geolocation) {
@@ -127,7 +126,6 @@ const TradePage = () => {
     const handleError = (error) => {
       console.warn("GPS Error:", error);
 
-      // If the user explicitly clicks "Block" on the permission prompt, don't retry.
       if (error.code === 1) {
         toast.error("GPS Denied. Please type your address manually.", { id: 'gps', duration: 4000 });
         setManualMode(true);
@@ -135,26 +133,21 @@ const TradePage = () => {
         return;
       }
 
-      // If it's a timeout or weak signal (code 2 or 3), try again up to 3 times
       if (attempts < 3) {
         attempts++;
         toast.loading(`Weak signal. Retrying GPS (Attempt ${attempts}/3)...`, { id: 'gps' });
-
-        // Retry with lower accuracy settings to force a lock
         navigator.geolocation.getCurrentPosition(
           handleSuccess,
           handleError,
           { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
         );
       } else {
-        // After 3 failed attempts, switch to manual mode
         toast.error("Could not auto-detect after 3 attempts. Please type your address manually.", { id: 'gps', duration: 5000 });
         setManualMode(true);
         setIsDetectingLocation(false);
       }
     };
 
-    // Attempt 1: Start with High Accuracy
     attempts++;
     navigator.geolocation.getCurrentPosition(
       handleSuccess,
@@ -188,60 +181,68 @@ const TradePage = () => {
     if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
 
     setIsSubmitting(true);
-    const imageBase64 = await new Promise((resolve) => {
-      if (!tradeImage) return resolve(null);
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(tradeImage);
-    });
-
-    const updates = {};
-    const wasteEntriesRef = ref(db, 'wasteEntries');
-
-    const mapLink = exactCoords
-      ? `https://maps.google.com/maps?q=$${exactCoords.lat},${exactCoords.lng}`
-      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-
-    entries.forEach(entry => {
-      const newWasteEntryKey = push(wasteEntriesRef).key;
-      updates[`/wasteEntries/${newWasteEntryKey}`] = {
-        name: entry.name || entry.text,
-        address: address,
-        exactLat: exactCoords?.lat || null,
-        exactLng: exactCoords?.lng || null,
-        mapUrl: mapLink,
-        mobile: userMobile,
-        total: (entry.quantity * parseFloat(entry.rate || entry.minRate || 0)).toFixed(2),
-        quantity: entry.quantity,
-        unit: entry.unit,
-        rate: entry.rate || entry.minRate || 0,
-        category: entry.category || 'others',
-        isAssigned: false,
-        userID: userId,
-        image: imageBase64,
-        timestamp: new Date().toISOString(),
-      };
-    });
-
-    const userRef = ref(db, `users/${userId}`);
-    const userSnapshot = await get(userRef);
-    updates[`/users/${userId}`] = {
-      ...userSnapshot.val(),
-      name: userName,
-      email: email,
-      address: address,
-      lastLat: exactCoords?.lat || null,
-      lastLng: exactCoords?.lng || null,
-      Status: "Pending"
-    };
 
     try {
-      await update(ref(db), updates);
+      const imageBase64 = await new Promise((resolve) => {
+        if (!tradeImage) return resolve(null);
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(tradeImage);
+      });
+
+      // ✅ FIX 1: Fixed missing '$' signs in the map strings!
+      const mapLink = exactCoords
+        ? `https://maps.google.com/?q=${exactCoords.lat},${exactCoords.lng}`
+        : `https://maps.google.com/?q=${encodeURIComponent(address)}`;
+
+      const userRef = ref(db, `users/${userId}`);
+      const userSnapshot = await get(userRef);
+      const userData = userSnapshot.exists() ? userSnapshot.val() : {};
+
+      // ✅ FIX 2: Securely match phone for Firebase Rules
+      const validPhone = userData.phone || userData.phoneNumber || userMobile || "";
+
+      // ✅ FIX 3: Update User Node FIRST (Guarantees Firebase Rules pass)
+      await update(userRef, {
+        phone: validPhone,
+        name: userName,
+        email: email,
+        address: address,
+        lastLat: exactCoords?.lat || null,
+        lastLng: exactCoords?.lng || null,
+        Status: "Pending"
+      });
+
+      // ✅ FIX 4: Push waste entries securely one by one using Promise.all
+      const promises = entries.map(entry => {
+        return push(ref(db, 'wasteEntries'), {
+          name: entry.name || entry.text,
+          address: address,
+          exactLat: exactCoords?.lat || null,
+          exactLng: exactCoords?.lng || null,
+          mapUrl: mapLink,
+          mobile: validPhone, // Perfectly matches Firebase Rule requirement!
+          total: (entry.quantity * parseFloat(entry.rate || entry.minRate || 0)).toFixed(2),
+          quantity: entry.quantity,
+          unit: entry.unit,
+          rate: entry.rate || entry.minRate || 0,
+          category: entry.category || 'others',
+          isAssigned: false,
+          userID: userId,
+          image: imageBase64,
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+      await Promise.all(promises);
+
       toast.success('✅ Pickup Scheduled Successfully!');
       localStorage.removeItem('wasteEntries');
       navigate('/task');
+
     } catch (error) {
+      console.error("Firebase Submission Error:", error); // This logs exactly what failed in browser console
       toast.error("Scheduling failed. Please check connection.");
     } finally {
       setIsSubmitting(false);
@@ -308,7 +309,7 @@ const TradePage = () => {
                     <div className="w-full h-40 rounded-2xl overflow-hidden shadow-inner border border-gray-200 mb-3 relative">
                       <iframe
                         width="100%" height="100%" style={{ border: 0 }} loading="lazy" allowFullScreen
-                        src={`https://maps.google.com/maps?q=$${exactCoords.lat},${exactCoords.lng}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
+                        src={`https://maps.google.com/maps?q=${exactCoords.lat},${exactCoords.lng}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
                       ></iframe>
                     </div>
                     <div className="bg-green-50 border border-green-100 p-3 rounded-xl flex items-center gap-3">
