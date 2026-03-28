@@ -61,38 +61,64 @@ const App = () => {
     return <Splash />;
   }
 
+  // return (
+  //   <ErrorBoundary>
+  //     {/* Default SEO and sitewide Schema */}
+  //     <SEO>
+  //       <script type="application/ld+json">
+  //         {JSON.stringify(schemaMarkup)}
+  //       </script>
+  //     </SEO>
+
+  //     <Router>
+  //       <Toaster position="top-center" reverseOrder={false} />
+  //       <Routes>
+  //         {/* --- Protected Routes --- */}
+  //         <Route element={<ProtectedRoutes />}>
+  //           <Route path="/hello" element={<HelloUser />} />
+  //           <Route path="/trade" element={<TradePage />} />
+  //           <Route path="/task" element={<TaskPage />} />
+  //           <Route path="/account" element={<AccountPage />} />
+  //         </Route>
+
+  //         {/* --- Public Routes --- */}
+  //         <Route element={<PublicRoutes />}>
+  //           <Route path="/language" element={<LanguageSelection />} />
+  //           <Route path="/location" element={<LocationPage />} />
+  //           <Route path="/login" element={<LoginPage />} />
+  //         </Route>
+
+  //         {/* --- Fallback Redirect --- */}
+  //         <Route path="*" element={<Navigate to="/hello" replace />} />
+  //       </Routes>
+  //     </Router>
+  //   </ErrorBoundary>
+  // );
+  // Inside your App.jsx render:
+
   return (
-    <ErrorBoundary>
-      {/* Default SEO and sitewide Schema */}
-      <SEO>
-        <script type="application/ld+json">
-          {JSON.stringify(schemaMarkup)}
-        </script>
-      </SEO>
-
+    <SettingsProvider>
       <Router>
-        <Toaster position="top-center" reverseOrder={false} />
-        <Routes>
-          {/* --- Protected Routes --- */}
-          <Route element={<ProtectedRoutes />}>
-            <Route path="/hello" element={<HelloUser />} />
-            <Route path="/trade" element={<TradePage />} />
-            <Route path="/task" element={<TaskPage />} />
-            <Route path="/account" element={<AccountPage />} />
-          </Route>
+        <ErrorBoundary>
 
-          {/* --- Public Routes --- */}
-          <Route element={<PublicRoutes />}>
-            <Route path="/language" element={<LanguageSelection />} />
-            <Route path="/location" element={<LocationPage />} />
-            <Route path="/login" element={<LoginPage />} />
-          </Route>
+          {/* THIS DIV ADDS THE SMOOTH NATIVE GESTURE TO ALL PAGES */}
+          <div className="page-transition">
 
-          {/* --- Fallback Redirect --- */}
-          <Route path="*" element={<Navigate to="/hello" replace />} />
-        </Routes>
+            <Routes>
+              <Route path="/" element={<Navigate to="/splash" replace />} />
+              <Route path="/splash" element={<SplashWrapper />} />
+              <Route path="/language" element={<LanguageSelection />} />
+              <Route path="/location" element={<LocationPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              {/* ... rest of your routes ... */}
+            </Routes>
+
+          </div>
+
+        </ErrorBoundary>
       </Router>
-    </ErrorBoundary>
+      <Toaster position="top-center" />
+    </SettingsProvider>
   );
 };
 
