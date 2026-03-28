@@ -95,7 +95,7 @@ const TradePage = () => {
         setExactCoords({ lat: latitude, lng: longitude });
 
         // 🛑 IMPORTANT: Put your Google Maps API Key here to auto-type the street name
-        const GOOGLE_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY";
+        const GOOGLE_API_KEY = import.meta.env.VITE_API_KEY;
 
         try {
           const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`);
