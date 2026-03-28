@@ -5,7 +5,6 @@ import BillTemplate from '../BillTemplate';
 const BillModal = ({ bill, onClose }) => {
     const billContentRef = useRef(null);
 
-    // EXACT PRINT LOGIC PRESERVED
     const handlePrint = () => {
         const content = billContentRef.current;
         if (!content) return;
@@ -22,7 +21,7 @@ const BillModal = ({ bill, onClose }) => {
         printWindow.document.write('</body></html>');
         printWindow.document.close();
         printWindow.focus();
-        setTimeout(() => { printWindow.print(); }, 250); // Slight delay ensures styles load
+        setTimeout(() => { printWindow.print(); }, 250);
     };
 
     if (!bill) return null;
@@ -45,11 +44,8 @@ const BillModal = ({ bill, onClose }) => {
                     </button>
                 </div>
 
-                {/* Modal Body (Contains your BillTemplate) */}
-                <div className="p-6 overflow-y-auto bg-gray-50 custom-scrollbar flex-1">
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                        <BillTemplate trade={bill} billRef={billContentRef} />
-                    </div>
+                <div className="p-4 sm:p-6 overflow-y-auto bg-gray-50 custom-scrollbar flex-1">
+                    <BillTemplate trade={bill} billRef={billContentRef} />
                 </div>
 
                 {/* Modal Footer / Action */}
