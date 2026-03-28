@@ -9,9 +9,8 @@ import { useSettings } from '../context/SettingsContext';
 import { toast } from 'react-hot-toast';
 import SEO from './SEO';
 
-// ✅ NEW: Ghost Loader for Task Page
 const TaskSkeleton = () => (
-  <div className="animate-pulse space-y-8">
+  <div className="animate-pulse space-y-8 mt-4">
     <div className="flex justify-between items-center px-4">
       <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
       <div className="flex-1 h-2 mx-4 bg-gray-200"></div>
@@ -19,7 +18,7 @@ const TaskSkeleton = () => (
       <div className="flex-1 h-2 mx-4 bg-gray-200"></div>
       <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
     </div>
-    <div className="h-40 bg-gray-200 rounded-2xl w-full"></div>
+    <div className="h-40 bg-white border border-gray-100 rounded-3xl w-full shadow-sm"></div>
   </div>
 );
 
@@ -65,7 +64,7 @@ const TaskPage = () => {
           } else {
             setStatus('');
           }
-          setLoading(false); // ✅ Turn off Ghost Loader
+          setLoading(false);
         });
 
         return unsubscribeDb;
@@ -105,109 +104,118 @@ const TaskPage = () => {
   return (
     <>
       <SEO title="Track Order - Trade2Cart" description="Real-time status of your scrap pickup." />
-      <div className="h-screen bg-gray-50 flex flex-col font-sans pb-20">
-        <header className="sticky top-0 p-4 bg-white shadow-sm z-30 flex justify-between items-center rounded-b-3xl">
+
+      {/* ✅ FIX: Strict flexbox layout (h-[100dvh]) ensures footer NEVER overlaps content */}
+      <div className="h-[100dvh] bg-gray-50 flex flex-col font-sans overflow-hidden">
+
+        {/* HEADER: Flex-none */}
+        <header className="flex-none p-4 bg-white shadow-sm z-30 flex justify-between items-center rounded-b-3xl relative">
           <div className="flex items-center gap-3">
-            <img src={assetlogo} alt="Trade2Cart Logo" className="h-10 w-10 rounded-full" />
-            <div className="hidden sm:flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
-              <FaMapMarkerAlt className="text-blue-500" />
-              <span className="text-sm font-bold text-gray-600">{location || '...'}</span>
+            <img src={assetlogo} alt="Trade2Cart Logo" className="h-10 w-10 rounded-full border border-gray-100 shadow-sm" />
+            <div className="hidden sm:flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200">
+              <FaMapMarkerAlt className="text-blue-500" size={12} />
+              <span className="text-sm font-bold text-gray-700">{location || '...'}</span>
             </div>
           </div>
         </header>
 
-        <main className="flex-grow p-5 overflow-y-auto mt-4">
+        {/* MAIN CONTENT: Flex-1 and overflow-y-auto (ONLY this scrolls) */}
+        <main className="flex-1 overflow-y-auto p-5 pb-10">
           <div className="max-w-3xl mx-auto">
-            <h1 className="text-2xl font-extrabold mb-8 text-gray-800 flex items-center gap-3">
-              <span className="w-10 h-10 bg-blue-100 text-blue-600 flex justify-center items-center rounded-full"><FaTruck /></span>
-              Live Tracking
-            </h1>
+
+            <div className="flex items-center gap-3 mb-8 mt-2">
+              <div className="w-10 h-10 bg-blue-100 text-blue-600 flex justify-center items-center rounded-full shadow-sm">
+                <FaTruck size={18} />
+              </div>
+              <h1 className="text-2xl font-black text-gray-900 tracking-tight">Live Tracking</h1>
+            </div>
 
             {loading ? (
-              <TaskSkeleton /> // ✅ Renders Ghost Loader
+              <TaskSkeleton />
             ) : statusIndex === -1 ? (
-              <div className="text-center mt-10 bg-white p-8 rounded-[32px] shadow-xl border border-gray-100">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FaTasks className="text-4xl text-gray-400" />
+              <div className="text-center mt-6 bg-white p-8 rounded-[32px] shadow-sm border border-gray-100">
+                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-5 border border-gray-100">
+                  <FaTasks className="text-4xl text-gray-300" />
                 </div>
-                <h2 className="text-2xl font-extrabold text-gray-800">No Active Orders</h2>
-                <p className="text-gray-500 mt-2 mb-8 font-medium">Schedule a pickup and your progress will appear right here.</p>
-                <Link to="/hello" className="bg-blue-600 text-white font-bold py-4 px-8 rounded-xl hover:bg-blue-700 transition-colors shadow-lg active:scale-95 block w-full">
+                <h2 className="text-xl font-black text-gray-900 mb-1">No Active Orders</h2>
+                <p className="text-gray-500 text-sm font-medium mb-8">Schedule a pickup and your progress will appear right here.</p>
+                <Link to="/hello" className="bg-blue-600 text-white font-bold py-4 px-8 rounded-2xl hover:bg-blue-700 transition-all shadow-md active:scale-95 block w-full">
                   Schedule New Pickup
                 </Link>
               </div>
             ) : (
-              <div className='space-y-8'>
-                <div className="w-full bg-white p-6 rounded-[32px] shadow-xl border border-gray-100">
+              <div className='space-y-6'>
+                {/* Progress Bar Container */}
+                <div className="w-full bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
                   <div className="flex justify-between items-center relative">
-                    {/* Progress Background Line */}
-                    <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-100 -translate-y-1/2 z-0"></div>
+                    <div className="absolute top-1/2 left-0 w-full h-1.5 bg-gray-100 -translate-y-1/2 z-0 rounded-full"></div>
 
                     {statusSteps.map((step, index) => (
                       <div key={step.title} className="flex flex-col items-center z-10 relative bg-white px-2">
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl transition-all duration-500 shadow-md border-4 border-white ${index <= statusIndex ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                          <step.icon className={index === statusIndex ? 'animate-bounce' : ''} />
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl transition-all duration-500 shadow-sm border-4 border-white ${index <= statusIndex ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                          <step.icon className={index === statusIndex ? 'animate-bounce' : ''} size={18} />
                         </div>
-                        <p className={`mt-3 text-[10px] md:text-xs text-center font-bold uppercase tracking-wider ${index <= statusIndex ? 'text-gray-800' : 'text-gray-400'}`}>{step.title}</p>
+                        <p className={`mt-3 text-[10px] sm:text-xs text-center font-black uppercase tracking-wider ${index <= statusIndex ? 'text-gray-900' : 'text-gray-400'}`}>{step.title}</p>
                       </div>
                     ))}
                   </div>
                 </div>
 
                 {status.toLowerCase() === 'pending' && (
-                  <div className="p-8 bg-white rounded-[32px] shadow-xl text-center border border-gray-100">
-                    <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-                      <FaHourglassHalf className="text-4xl text-blue-500" />
+                  <div className="p-8 bg-white rounded-3xl shadow-sm text-center border border-gray-100">
+                    <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-100 animate-pulse">
+                      <FaHourglassHalf className="text-3xl text-blue-500" />
                     </div>
-                    <h3 className="text-xl font-extrabold text-gray-800">Assigning Agent...</h3>
-                    <p className="text-gray-500 mt-2 font-medium">We are matching you with the nearest collection agent. Hang tight!</p>
+                    <h3 className="text-xl font-black text-gray-900">Assigning Agent...</h3>
+                    <p className="text-gray-500 mt-2 text-sm font-medium">We are matching you with the nearest collection agent. Hang tight!</p>
                   </div>
                 )}
 
                 {status.toLowerCase() === 'on-schedule' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     {vendorDetails ? (
-                      <div className="p-6 bg-white rounded-3xl shadow-xl flex flex-col items-center border border-gray-100 relative overflow-hidden">
-                        <div className="absolute top-0 w-full h-1 bg-blue-500"></div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3 mt-2">Assigned Agent</p>
+                      <div className="p-6 bg-white rounded-3xl shadow-sm flex flex-col items-center border border-gray-100 relative overflow-hidden">
+                        <div className="absolute top-0 w-full h-1.5 bg-blue-500"></div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-4 mt-2">Assigned Agent</p>
                         <img
                           src={`https://ui-avatars.com/api/?name=${vendorDetails.name}&background=3b82f6&color=fff&size=80`}
                           alt="Agent"
-                          className="w-20 h-20 rounded-full shadow-md mb-3 border-4 border-blue-50"
+                          className="w-20 h-20 rounded-full shadow-sm mb-4 border-4 border-blue-50"
                         />
-                        <p className="text-xl font-extrabold text-gray-800">{vendorDetails.name}</p>
-                        <a href={`tel:${vendorDetails.phone}`} className="mt-4 bg-gray-900 text-white font-bold py-3 px-8 rounded-xl inline-flex items-center gap-2 hover:bg-gray-800 transition active:scale-95 shadow-md">
+                        <p className="text-lg font-black text-gray-900 mb-1">{vendorDetails.name}</p>
+                        <a href={`tel:${vendorDetails.phone}`} className="mt-4 w-full bg-gray-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-800 transition active:scale-[0.98] shadow-md">
                           <FaPhoneAlt size={14} /> Call Agent
                         </a>
                       </div>
-                    ) : <p className="text-center text-gray-500">Fetching agent info...</p>}
+                    ) : <div className="p-6 bg-white rounded-3xl border border-gray-100 text-center text-gray-500">Fetching agent info...</div>}
 
                     {otp ? (
-                      <div className="p-6 bg-gray-900 rounded-3xl shadow-xl text-center flex flex-col justify-center relative overflow-hidden">
-                        <div className="absolute inset-0 bg-blue-500 opacity-20 animate-pulse mix-blend-overlay"></div>
+                      <div className="p-6 bg-gray-900 rounded-3xl shadow-lg text-center flex flex-col justify-center relative overflow-hidden">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(59,130,246,0.15)_0%,rgba(0,0,0,0)_70%)] animate-pulse pointer-events-none"></div>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 relative z-10">Secure OTP Code</p>
 
-                        <div onClick={handleCopyOtp} className="relative z-10 cursor-pointer group mt-2">
-                          <p className="text-5xl font-black tracking-[0.2em] text-white py-4 drop-shadow-md group-hover:scale-105 transition-transform">
+                        <div onClick={handleCopyOtp} className="relative z-10 cursor-pointer group mt-3">
+                          <p className="text-5xl font-black tracking-[0.2em] text-white py-4 drop-shadow-md group-hover:scale-[1.02] transition-transform">
                             {otp}
                           </p>
-                          <p className="text-[10px] font-bold text-blue-400 bg-blue-900/50 py-1.5 px-4 rounded-full inline-block group-hover:bg-blue-800 transition uppercase tracking-wider">
+                          <p className="text-[10px] font-bold text-blue-300 bg-blue-900/40 py-1.5 px-4 rounded-full inline-block group-hover:bg-blue-800/60 transition uppercase tracking-wider border border-blue-800">
                             Tap to Copy
                           </p>
                         </div>
-                        <p className="text-xs text-gray-400 mt-6 relative z-10">Share this ONLY when agent arrives.</p>
+                        <p className="text-xs text-gray-400 mt-6 relative z-10 font-medium">Share this ONLY when agent arrives.</p>
                       </div>
-                    ) : <p className="text-center text-gray-500">Generating OTP...</p>}
+                    ) : <div className="p-6 bg-white rounded-3xl border border-gray-100 text-center text-gray-500">Generating OTP...</div>}
                   </div>
                 )}
 
                 {status.toLowerCase() === 'completed' && (
-                  <div className="p-8 bg-green-50 rounded-[32px] shadow-lg text-center border border-green-200">
-                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <FaCheckCircle className="text-5xl text-green-500" />
+                  <div className="p-8 bg-green-50 rounded-3xl shadow-sm text-center border border-green-200 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-1.5 bg-green-500"></div>
+                    <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-5 shadow-sm border border-green-100">
+                      <FaCheckCircle className="text-4xl text-green-500" />
                     </div>
-                    <h3 className="text-2xl font-extrabold text-green-900">Trade Completed!</h3>
-                    <p className="text-green-700 mt-2 font-medium">Thank you for making the planet greener.</p>
+                    <h3 className="text-2xl font-black text-green-900 tracking-tight">Trade Completed!</h3>
+                    <p className="text-green-700 mt-2 text-sm font-medium">Thank you for making the planet greener.</p>
                   </div>
                 )}
               </div>
@@ -215,11 +223,13 @@ const TaskPage = () => {
           </div>
         </main>
 
-        <footer className="fixed bottom-0 w-full flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
+        {/* ✅ FIX: FOOTER (Flex-none guarantees it never floats over content) */}
+        <footer className="flex-none w-full flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
           <Link to="/hello" className="flex flex-col items-center text-gray-400 p-2 hover:text-blue-600 transition-colors"><FaHome className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Home</span></Link>
           <Link to="/task" className="flex flex-col items-center text-blue-600 p-2"><FaTasks className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Orders</span></Link>
           <Link to="/account" className="flex flex-col items-center text-gray-400 p-2 hover:text-blue-600 transition-colors"><FaUserAlt className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Profile</span></Link>
         </footer>
+
       </div>
     </>
   );
