@@ -1,196 +1,200 @@
-  import React, { useEffect, useState } from 'react';
-  import { Link, useNavigate } from 'react-router-dom';
-  import { FaHome, FaTasks, FaUserAlt, FaMapMarkerAlt, FaSignOutAlt, FaUserCog, FaShieldAlt, FaChevronRight, FaTimes } from 'react-icons/fa';
-  import { db } from '../firebase';
-  import { ref, onValue } from 'firebase/database'; // Import onValue for real-time updates
-  import assetlogo from '../assets/images/logo.PNG';
-  import { toast } from 'react-hot-toast';
-  import { useSettings } from '../context/SettingsContext';
-  import { getAuth, signOut, onAuthStateChanged } from "firebase/auth";
-  import SEO from './SEO';
-  import Loader from './Loader';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { FaHome, FaTasks, FaUserAlt, FaMapMarkerAlt, FaSignOutAlt, FaUserCog, FaShieldAlt, FaChevronRight, FaTimes, FaHistory } from 'react-icons/fa';
+import { db } from '../firebase';
+import { ref, onValue } from 'firebase/database';
+import assetlogo from '../assets/images/logo.PNG';
+import { toast } from 'react-hot-toast';
+import { useSettings } from '../context/SettingsContext';
+import { getAuth, signOut, onAuthStateChanged } from "firebase/auth";
+import SEO from './SEO';
 
-  // Import the modular components
-  import TradeHistorySection from './account/TradeHistorySection';
-  import BillModal from './account/BillModal';
-  import ProfileSection from './account/ProfileSection';
-  import PoliciesAndTerms from './account/PoliciesAndTerms';
+// Modular Components (Assuming you have these in your project)
+import TradeHistorySection from './account/TradeHistorySection';
+import BillModal from './account/BillModal';
+import ProfileSection from './account/ProfileSection';
+import PoliciesAndTerms from './account/PoliciesAndTerms';
 
-  // A generic modal component to wrap content
-  const Modal = ({ title, children, onClose }) => (
-    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4 transition-opacity duration-300">
-      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col animate-in slide-in-from-bottom-10">
-        <header className="flex justify-between items-center p-4 border-b">
-          <h3 className="text-xl font-bold text-gray-800">{title}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100">
-            <FaTimes className="text-xl" />
-          </button>
-        </header>
-        <main className="overflow-y-auto p-6">
-          {children}
-        </main>
+// ✅ NEW: Ghost Loader for Account Page
+const AccountSkeleton = () => (
+  <div className="animate-pulse space-y-6">
+    <div className="flex items-center gap-4 bg-white p-6 rounded-[32px] border border-gray-100">
+      <div className="w-16 h-16 bg-gray-200 rounded-full"></div>
+      <div className="space-y-2 flex-1">
+        <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+        <div className="h-4 bg-gray-200 rounded w-1/3"></div>
       </div>
     </div>
-  );
+    <div className="h-32 bg-gray-200 rounded-[32px] w-full"></div>
+    <div className="h-64 bg-gray-200 rounded-[32px] w-full"></div>
+  </div>
+);
 
+const Modal = ({ title, children, onClose }) => (
+  <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex justify-center items-end sm:items-center transition-all duration-300">
+    <div className="bg-white rounded-t-3xl sm:rounded-[32px] shadow-2xl w-full max-w-lg h-[85vh] sm:max-h-[85vh] flex flex-col animate-slide-up sm:animate-fade-in">
+      <header className="flex justify-between items-center p-6 border-b border-gray-100">
+        <h3 className="text-xl font-extrabold text-gray-900">{title}</h3>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-900 bg-gray-50 p-2 rounded-full hover:bg-gray-200 transition">
+          <FaTimes />
+        </button>
+      </header>
+      <main className="overflow-y-auto p-6 flex-1 bg-gray-50">
+        {children}
+      </main>
+    </div>
+  </div>
+);
 
-  const AccountPage = () => {
-    const { location, setUserMobile, userMobile } = useSettings();
-    const navigate = useNavigate();
-    const auth = getAuth();
+const AccountPage = () => {
+  const { location, setUserMobile } = useSettings();
+  const navigate = useNavigate();
+  const auth = getAuth();
 
-    const [userData, setUserData] = useState(null);
-    const [userLoading, setUserLoading] = useState(true);
-    const [billToView, setBillToView] = useState(null);
+  const [userData, setUserData] = useState(null);
+  const [userLoading, setUserLoading] = useState(true);
+  const [billToView, setBillToView] = useState(null);
+  const [isProfileModalOpen, setProfileModalOpen] = useState(false);
+  const [isPoliciesModalOpen, setPoliciesModalOpen] = useState(false);
 
-    // State to control the visibility of the modals
-    const [isProfileModalOpen, setProfileModalOpen] = useState(false);
-    const [isPoliciesModalOpen, setPoliciesModalOpen] = useState(false);
+  // EXACT LOGIC PRESERVED
+  useEffect(() => {
+    let unsubscribeFromAuth;
+    let unsubscribeFromUser;
 
-    useEffect(() => {
-      // This listener will be cleaned up when the component unmounts
-      let unsubscribeFromAuth;
-      let unsubscribeFromUser;
-
-      unsubscribeFromAuth = onAuthStateChanged(auth, (user) => {
-        if (user) {
-          const userRef = ref(db, `users/${user.uid}`);
-
-          // **CRITICAL FIX: Use onValue for real-time updates instead of get()**
-          unsubscribeFromUser = onValue(userRef, (snapshot) => {
-            if (snapshot.exists()) {
-              const data = { id: snapshot.key, ...snapshot.val() };
-              setUserData(data);
-            } else {
-              toast.error("Could not find user data in the database.");
-            }
-            setUserLoading(false);
-          });
-
-        } else {
+    unsubscribeFromAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const userRef = ref(db, `users/${user.uid}`);
+        unsubscribeFromUser = onValue(userRef, (snapshot) => {
+          if (snapshot.exists()) {
+            setUserData({ id: snapshot.key, ...snapshot.val() });
+          }
           setUserLoading(false);
-          navigate('/login');
-        }
-      });
+        });
+      } else {
+        setUserLoading(false);
+        navigate('/login');
+      }
+    });
 
-      // Cleanup function to prevent memory leaks
-      return () => {
-        unsubscribeFromAuth();
-        if (unsubscribeFromUser) {
-          unsubscribeFromUser();
-        }
-      };
-    }, [auth, navigate]);
-
-    const handleLogout = () => {
-      signOut(auth).then(() => {
-        setUserMobile(null);
-        localStorage.clear();
-        toast.success('Logged out successfully!');
-        navigate('/language', { replace: true });
-      }).catch(() => toast.error('Logout failed.'));
+    return () => {
+      unsubscribeFromAuth();
+      if (unsubscribeFromUser) unsubscribeFromUser();
     };
+  }, [auth, navigate]);
 
-    const handleOpenBillModal = (billData) => {
-      setBillToView(billData);
-    };
-
-    const handleCloseBillModal = () => {
-      setBillToView(null);
-    };
-
-    return (
-      <>
-        <SEO title="My Account - Trade2Cart" description="Manage your profile, view history, and download bills." />
-        <div className="h-screen bg-gray-50 flex flex-col">
-          {/* Header */}
-          <header className="sticky top-0 flex-shrink-0 p-4 bg-white shadow-md z-30 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <img src={assetlogo} alt="Trade2Cart Logo" className="h-8 w-auto" />
-              <div className="hidden sm:flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full">
-                <FaMapMarkerAlt className="text-green-500" />
-                <span className="text-sm font-medium">{location}</span>
-              </div>
-            </div>
-
-          </header>
-
-          <main className="flex-grow p-4 overflow-y-auto">
-            {userLoading ? <Loader fullscreen /> : (
-              <>
-                {/* --- Profile Header --- */}
-                <div className="flex items-center space-x-4 mb-6">
-                  <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center ring-4 ring-white shadow-sm">
-                    <FaUserAlt className="text-3xl text-gray-500" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl font-bold text-gray-800">{userData?.name || 'My Account'}</h1>
-                    <p className="text-sm text-gray-500">Manage your profile and view trades.</p>
-                  </div>
-                </div>
-
-                {/* --- Navigation Buttons --- */}
-                <div className="bg-white p-2 sm:p-4 rounded-xl shadow-md space-y-2">
-                  <button onClick={() => setProfileModalOpen(true)} className="flex justify-between items-center w-full p-4 font-medium text-left text-gray-800 hover:bg-gray-50 rounded-lg transition-colors">
-                    <div className="flex items-center gap-4">
-                      <FaUserCog className="text-xl text-blue-500" />
-                      <span>My Profile</span>
-                    </div>
-                    <FaChevronRight className="text-gray-400" />
-                  </button>
-                  <button onClick={() => setPoliciesModalOpen(true)} className="flex justify-between items-center w-full p-4 font-medium text-left text-gray-800 hover:bg-gray-50 rounded-lg transition-colors">
-                    <div className="flex items-center gap-4">
-                      <FaShieldAlt className="text-xl text-green-500" />
-                      <span>Policies & Terms</span>
-                    </div>
-                    <FaChevronRight className="text-gray-400" />
-                  </button>
-                </div>
-
-                {/* Container for Trade History */}
-                <div className="bg-white p-4 sm:p-6 rounded-xl shadow-md mt-6">
-                  <h2 className="text-xl font-bold mb-4 text-gray-800">Trade History</h2>
-                  <TradeHistorySection
-                    userId={userData?.id} // Pass the reliable user ID
-                    originalUserData={userData}
-                    onViewBill={handleOpenBillModal}
-                  />
-                </div>
-
-                {/* Logout Button */}
-                <div className="mt-6">
-                  <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-3 bg-red-500 text-white rounded-lg font-bold shadow-lg hover:bg-red-600"><FaSignOutAlt /> Logout</button>
-                </div>
-              </>
-            )}
-          </main>
-
-          {/* Footer */}
-          <footer className="sticky bottom-0 flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
-            <Link to="/hello" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaHome className="text-2xl" /><span className="text-xs font-medium">Home</span></Link>
-            <Link to="/task" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaTasks className="text-2xl" /><span className="text-xs font-medium">Tasks</span></Link>
-            <Link to="/account" className="flex flex-col items-center text-green-600 p-2 no-underline"><FaUserAlt className="text-2xl" /><span className="text-xs font-medium">Account</span></Link>
-          </footer>
-
-          {billToView && <BillModal bill={billToView} onClose={handleCloseBillModal} />}
-
-          {/* Profile Modal */}
-          {isProfileModalOpen && (
-            <Modal title="My Profile" onClose={() => setProfileModalOpen(false)}>
-              <ProfileSection user={userData} />
-            </Modal>
-          )}
-
-          {/* Policies Modal */}
-          {isPoliciesModalOpen && (
-            <Modal title="Policies & Terms" onClose={() => setPoliciesModalOpen(false)}>
-              <PoliciesAndTerms />
-            </Modal>
-          )}
-
-        </div>
-      </>
-    );
+  const handleLogout = () => {
+    signOut(auth).then(() => {
+      setUserMobile(null);
+      localStorage.clear();
+      toast.success('Logged out successfully!');
+      navigate('/language', { replace: true });
+    });
   };
 
-  export default AccountPage;
+  return (
+    <>
+      <SEO title="My Account - Trade2Cart" description="Manage your profile, view history, and download bills." />
+      <div className="h-screen bg-gray-50 flex flex-col font-sans pb-20">
+
+        {/* Modern Header */}
+        <header className="sticky top-0 p-4 bg-white shadow-sm z-30 flex justify-between items-center rounded-b-3xl">
+          <div className="flex items-center gap-3">
+            <img src={assetlogo} alt="Trade2Cart Logo" className="h-10 w-10 rounded-full" />
+            <div className="hidden sm:flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full border border-gray-200">
+              <FaMapMarkerAlt className="text-blue-500" />
+              <span className="text-sm font-bold text-gray-600">{location || '...'}</span>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-grow p-5 overflow-y-auto">
+          {userLoading ? <AccountSkeleton /> : (
+            <div className="max-w-2xl mx-auto space-y-6 mt-2">
+
+              {/* Profile Card */}
+              <div className="bg-white p-6 rounded-[32px] shadow-xl border border-gray-100 flex items-center space-x-5 relative overflow-hidden">
+                <div className="absolute right-0 top-0 w-24 h-24 bg-blue-50 rounded-bl-[100px] z-0"></div>
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 shadow-inner z-10 text-2xl font-black">
+                  {userData?.name ? userData.name.charAt(0).toUpperCase() : <FaUserAlt />}
+                </div>
+                <div className="z-10">
+                  <h1 className="text-2xl font-extrabold text-gray-900">{userData?.name || 'My Account'}</h1>
+                  <p className="text-sm text-gray-500 font-medium">{userData?.phoneNumber || 'No phone linked'}</p>
+                </div>
+              </div>
+
+              {/* Navigation Cards */}
+              <div className="bg-white rounded-[32px] shadow-xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
+                <button onClick={() => setProfileModalOpen(true)} className="flex justify-between items-center w-full p-5 text-left hover:bg-gray-50 transition-colors group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-colors"><FaUserCog /></div>
+                    <span className="font-extrabold text-gray-800">Account Details</span>
+                  </div>
+                  <FaChevronRight className="text-gray-300 group-hover:text-blue-500 transition-colors" />
+                </button>
+
+                <button onClick={() => setPoliciesModalOpen(true)} className="flex justify-between items-center w-full p-5 text-left hover:bg-gray-50 transition-colors group">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-green-50 text-green-500 rounded-full flex items-center justify-center group-hover:bg-green-500 group-hover:text-white transition-colors"><FaShieldAlt /></div>
+                    <span className="font-extrabold text-gray-800">Policies & Terms</span>
+                  </div>
+                  <FaChevronRight className="text-gray-300 group-hover:text-green-500 transition-colors" />
+                </button>
+              </div>
+
+              {/* Trade History Section */}
+              <div className="bg-white p-6 rounded-[32px] shadow-xl border border-gray-100">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center"><FaHistory size={12} /></div>
+                  <h2 className="text-xl font-extrabold text-gray-900">Trade History</h2>
+                </div>
+
+                <div className="bg-gray-50 rounded-2xl p-2 border border-gray-100">
+                  <TradeHistorySection
+                    userId={userData?.id}
+                    originalUserData={userData}
+                    onViewBill={setBillToView}
+                  />
+                </div>
+              </div>
+
+              {/* Logout Button */}
+              <div className="pt-4 pb-8">
+                <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-4 bg-red-50 text-red-600 rounded-2xl font-bold border border-red-100 hover:bg-red-500 hover:text-white transition-colors shadow-sm">
+                  <FaSignOutAlt /> Secure Logout
+                </button>
+              </div>
+            </div>
+          )}
+        </main>
+
+        <footer className="fixed bottom-0 w-full flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
+          <Link to="/hello" className="flex flex-col items-center text-gray-400 p-2 hover:text-blue-600 transition-colors"><FaHome className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Home</span></Link>
+          <Link to="/task" className="flex flex-col items-center text-gray-400 p-2 hover:text-blue-600 transition-colors"><FaTasks className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Orders</span></Link>
+          <Link to="/account" className="flex flex-col items-center text-blue-600 p-2"><FaUserAlt className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Profile</span></Link>
+        </footer>
+
+        {billToView && <BillModal bill={billToView} onClose={() => setBillToView(null)} />}
+
+        {isProfileModalOpen && (
+          <Modal title="Account Details" onClose={() => setProfileModalOpen(false)}>
+            <ProfileSection user={userData} />
+          </Modal>
+        )}
+
+        {isPoliciesModalOpen && (
+          <Modal title="Policies & Terms" onClose={() => setPoliciesModalOpen(false)}>
+            <PoliciesAndTerms />
+          </Modal>
+        )}
+      </div>
+      <style>{`
+        @keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        .animate-slide-up { animation: slide-up 0.3s ease-out forwards; }
+      `}</style>
+    </>
+  );
+};
+
+export default AccountPage;
