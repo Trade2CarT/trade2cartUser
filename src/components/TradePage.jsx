@@ -87,38 +87,66 @@ const TradePage = () => {
   const minTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.minRate || entry.rate || 0) * entry.quantity), 0);
   const maxTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.maxRate || entry.rate || 0) * entry.quantity), 0);
 
+  // ✅ THE FIX: Smarter GPS Detection with Auto-Fallback
   const handleDetectLocation = () => {
     if (navigator.vibrate) navigator.vibrate(50);
-    if (!navigator.geolocation) return toast.error("GPS not supported.");
+    if (!navigator.geolocation) return toast.error("GPS not supported by your browser.");
 
     setIsDetectingLocation(true);
     toast.loading("Finding exact location...", { id: 'gps' });
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        setExactCoords({ lat: latitude, lng: longitude });
+    // Success behavior extracted into a variable so we can reuse it
+    const handleSuccess = async (position) => {
+      const { latitude, longitude } = position.coords;
+      setExactCoords({ lat: latitude, lng: longitude });
 
-        const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
-        if (GOOGLE_API_KEY) {
-          try {
-            const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`);
-            const data = await res.json();
-            if (data.status === "OK" && data.results[0]) {
-              setAddress(data.results[0].formatted_address);
-              toast.success("Exact address mapped!", { id: 'gps' });
-            }
-          } catch (err) { }
-        } else {
-          toast.success("GPS Captured! Add door number below.", { id: 'gps' });
-        }
+      const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+      if (GOOGLE_API_KEY) {
+        try {
+          const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_API_KEY}`);
+          const data = await res.json();
+          if (data.status === "OK" && data.results[0]) {
+            setAddress(data.results[0].formatted_address);
+            toast.success("Exact address mapped!", { id: 'gps' });
+          }
+        } catch (err) { }
+      } else {
+        toast.success("GPS Captured! Add door number below.", { id: 'gps' });
+      }
+      setIsDetectingLocation(false);
+    };
+
+    // Error behavior with smart fallbacks
+    const handleError = (error) => {
+      console.warn("GPS Error:", error);
+
+      // ERROR 1: User clicked "Block" or browser permissions disabled
+      if (error.code === 1) {
+        toast.error("Permission Denied. Please allow location access in your browser settings.", { id: 'gps', duration: 4000 });
         setIsDetectingLocation(false);
-      },
-      (error) => {
-        toast.error("Please allow GPS access.", { id: 'gps' });
-        setIsDetectingLocation(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      }
+      // ERROR 2 or 3: GPS is ON, but signal is too weak (indoors/bad device)
+      else if (error.code === 2 || error.code === 3) {
+        toast.loading("Weak GPS signal. Trying alternative method...", { id: 'gps' });
+
+        // 🔄 FALLBACK: Ask again, but allow low-accuracy network/wifi location!
+        navigator.geolocation.getCurrentPosition(
+          handleSuccess,
+          (fallbackError) => {
+            // If it STILL fails, it means GPS is physically turned off on the device level
+            toast.error("Could not find location. Please ensure your device Location/GPS is turned ON.", { id: 'gps', duration: 4000 });
+            setIsDetectingLocation(false);
+          },
+          { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 } // Low accuracy settings
+        );
+      }
+    };
+
+    // Try High Accuracy GPS first
+    navigator.geolocation.getCurrentPosition(
+      handleSuccess,
+      handleError,
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   };
 
@@ -152,7 +180,7 @@ const TradePage = () => {
 
     const updates = {};
     const wasteEntriesRef = ref(db, 'wasteEntries');
-    const mapLink = `https://www.google.com/maps/search/?api=1&query=${exactCoords.lat},${exactCoords.lng}`;
+    const mapLink = `https://maps.google.com/maps?q=${exactCoords.lat},${exactCoords.lng}`;
 
     entries.forEach(entry => {
       const newWasteEntryKey = push(wasteEntriesRef).key;
@@ -284,7 +312,6 @@ const TradePage = () => {
                   {entries.map((entry, idx) => (
                     <div key={idx} className="bg-gray-50 p-3 rounded-2xl border border-gray-100 flex items-center gap-4">
 
-                      {/* ✅ THE UI FIX: Massive, highly visible Image Thumbnails */}
                       <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl bg-white border-2 border-gray-200 shadow-sm flex items-center justify-center overflow-hidden flex-shrink-0">
                         {entry.imageUrl || entry.image || entry.icon || entry.imgUrl ? (
                           <img
