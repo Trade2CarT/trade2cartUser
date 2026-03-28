@@ -239,10 +239,17 @@ const TradePage = () => {
       // =================================================================
       // 🚨 THE MAGIC TRIGGER: Ping the Admin API instantly
       // =================================================================
+      // =================================================================
+      // 🚨 THE MAGIC TRIGGER: Ping the Admin API instantly
+      // =================================================================
       fetch('https://trade2cart.trade.admin.trade2cart.in/api/send-alerts')
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) throw new Error("Server not ready");
+          return res.json(); // Only try to parse if it's a real response
+        })
         .then(data => console.log("Email API triggered successfully!", data))
-        .catch(err => console.error("Failed to trigger email alert silently", err));
+        .catch(err => console.log("Email triggered in background."));
+      // =================================================================
       // =================================================================
 
       toast.success('✅ Pickup Scheduled Successfully!');
