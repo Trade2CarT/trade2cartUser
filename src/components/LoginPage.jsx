@@ -10,7 +10,6 @@ import SEO from './SEO';
 import Modal from './Modal';
 import logo from '../assets/images/logo.PNG';
 
-// ✅ NEW: Auto-Translate Dictionary
 const translations = {
   English: {
     welcome: "Welcome Back",
@@ -52,8 +51,6 @@ const translations = {
 
 const LoginPage = () => {
   const [phone, setPhone] = useState('');
-
-  // ✅ NEW: Premium 6-Box OTP State
   const [otpArray, setOtpArray] = useState(['', '', '', '', '', '']);
   const inputRefs = useRef([]);
 
@@ -63,14 +60,13 @@ const LoginPage = () => {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalContent, setModalContent] = useState('');
+  const [modalContent, setModalContent] = useState(null); // ✅ Changed to accept React Nodes safely
 
   const { setUserMobile, location, language } = useSettings();
   const navigate = useNavigate();
   const auth = getAuth();
   const recaptchaVerifierRef = useRef(null);
 
-  // ✅ Select translation based on user's choice from LanguagePage
   const t = translations[language] || translations['English'];
 
   useEffect(() => {
@@ -94,7 +90,6 @@ const LoginPage = () => {
       setOtpSent(true);
       toast.success('OTP Sent!');
 
-      // Auto-focus first OTP box after slight delay
       setTimeout(() => { if (inputRefs.current[0]) inputRefs.current[0].focus(); }, 300);
 
     } catch (error) {
@@ -147,16 +142,14 @@ const LoginPage = () => {
 
   const openModal = (content) => { setModalContent(content); setIsModalOpen(true); };
 
-  // ✅ PREMIUM OTP INPUT LOGIC
   const handleOtpChange = (index, e) => {
-    const value = e.target.value.replace(/\D/g, ''); // Only allow numbers
+    const value = e.target.value.replace(/\D/g, ''); 
     if (!value) return;
 
     const newOtp = [...otpArray];
-    newOtp[index] = value.substring(value.length - 1); // Take last char
+    newOtp[index] = value.substring(value.length - 1); 
     setOtpArray(newOtp);
 
-    // Move to next box
     if (index < 5 && value) {
       inputRefs.current[index + 1].focus();
     }
@@ -180,7 +173,6 @@ const LoginPage = () => {
       const newOtp = [...otpArray];
       pastedData.split('').forEach((char, i) => { newOtp[i] = char; });
       setOtpArray(newOtp);
-      // Focus last filled box
       const focusIndex = Math.min(pastedData.length, 5);
       inputRefs.current[focusIndex].focus();
     }
@@ -189,8 +181,10 @@ const LoginPage = () => {
   return (
     <>
       <SEO title="Login to Trade2Cart" description="Login to schedule scrap pickups." />
-      <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 font-sans">
+      <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 sm:p-6 font-sans">
         <div id="recaptcha-container"></div>
+        
+        {/* MODAL IS NOW RENDERED SAFELY */}
         {isModalOpen && <Modal content={modalContent} onClose={() => setIsModalOpen(false)} />}
 
         <div className="w-full max-w-md">
@@ -200,11 +194,11 @@ const LoginPage = () => {
               <p className="text-gray-500 font-bold uppercase tracking-widest text-sm animate-pulse">{t.processing}</p>
             </div>
           ) : (
-            <div className="bg-white p-8 rounded-[32px] shadow-2xl border border-gray-100 transition-all duration-300 transform scale-100">
+            <div className="bg-white p-6 sm:p-8 rounded-[32px] shadow-2xl border border-gray-100 transition-all duration-300">
 
               <div className="flex flex-col items-center mb-8">
                 <img src={logo} alt="Trade2Cart Logo" className="w-16 h-16 rounded-full mb-4 shadow-sm" />
-                <h1 className="text-2xl font-extrabold text-gray-900">
+                <h1 className="text-2xl font-extrabold text-gray-900 text-center">
                   {otpSent ? t.enterOtp : t.welcome}
                 </h1>
                 <p className="text-gray-500 text-sm font-medium text-center mt-1">
@@ -228,9 +222,30 @@ const LoginPage = () => {
                     />
                   </div>
 
-                  <div className="space-y-4 mb-8 bg-gray-50 p-5 rounded-xl border border-gray-100">
-                    <CheckboxLink label={t.terms} checked={termsAccepted} onChange={setTermsAccepted} onLinkClick={() => openModal('<h2>Terms</h2><p>Standard Trade2Cart Terms...</p>')} />
-                    <CheckboxLink label={t.privacy} checked={privacyAccepted} onChange={setPrivacyAccepted} onLinkClick={() => openModal('<h2>Privacy Policy</h2><p>Standard Trade2Cart Privacy...</p>')} />
+                  <div className="space-y-4 mb-8 bg-gray-50 p-4 sm:p-5 rounded-xl border border-gray-100">
+                    {/* ✅ FIX 2: Passing clean React components to the Modal instead of strings */}
+                    <CheckboxLink 
+                      label={t.terms} 
+                      checked={termsAccepted} 
+                      onChange={setTermsAccepted} 
+                      onLinkClick={() => openModal(
+                        <div className="text-left space-y-3">
+                          <h2 className="text-2xl font-black text-gray-900">Terms & Conditions</h2>
+                          <p className="text-gray-600 font-medium leading-relaxed">By using Trade2Cart, you agree to our standard pickup policies. Final prices are determined by the vendor upon accurate weighing at your location.</p>
+                        </div>
+                      )} 
+                    />
+                    <CheckboxLink 
+                      label={t.privacy} 
+                      checked={privacyAccepted} 
+                      onChange={setPrivacyAccepted} 
+                      onLinkClick={() => openModal(
+                        <div className="text-left space-y-3">
+                          <h2 className="text-2xl font-black text-gray-900">Privacy Policy</h2>
+                          <p className="text-gray-600 font-medium leading-relaxed">We securely store your phone number and address solely for the purpose of completing your scrap pickup requests. We do not sell your data.</p>
+                        </div>
+                      )} 
+                    />
                   </div>
 
                   <button
@@ -243,8 +258,8 @@ const LoginPage = () => {
                 </>
               ) : (
                 <>
-                  {/* ✅ PREMIUM 6-BOX OTP UI */}
-                  <div className="flex justify-between gap-2 mb-8 mt-4" onPaste={handleOtpPaste}>
+                  {/* ✅ FIX 1: Fully Responsive OTP Grid using gap-1 for tiny phones and smaller base widths */}
+                  <div className="flex justify-between gap-1 sm:gap-2 mb-8 mt-4" onPaste={handleOtpPaste}>
                     {otpArray.map((data, index) => (
                       <input
                         key={index}
@@ -256,7 +271,7 @@ const LoginPage = () => {
                         value={data}
                         onChange={(e) => handleOtpChange(index, e)}
                         onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                        className="w-12 h-14 sm:w-14 sm:h-16 text-center text-2xl font-black text-gray-900 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-green-50 focus:border-green-500 focus:ring-4 focus:ring-green-500/20 outline-none transition-all shadow-inner"
+                        className="w-10 h-12 sm:w-12 sm:h-14 md:w-14 md:h-16 text-center text-xl sm:text-2xl font-black text-gray-900 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-green-50 focus:border-green-500 focus:ring-4 focus:ring-green-500/20 outline-none transition-all shadow-inner"
                       />
                     ))}
                   </div>

@@ -8,7 +8,6 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { useSettings } from '../context/SettingsContext';
 import SEO from './SEO';
 
-// Skeleton Loader styled to match the new premium cards
 const CheckoutSkeleton = () => (
   <div className="space-y-4 animate-pulse px-2 mt-4">
     <div className="h-32 bg-white rounded-3xl w-full shadow-sm border border-gray-100"></div>
@@ -38,7 +37,6 @@ const TradePage = () => {
 
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
 
-  // --- FIREBASE LOGIC (100% PRESERVED) ---
   useEffect(() => {
     const localEntries = localStorage.getItem('wasteEntries');
     if (localEntries) {
@@ -205,13 +203,10 @@ const TradePage = () => {
     <>
       <SEO title="Confirm Trade" description="Review items and confirm your address." />
 
-      {/* ✅ STRICT FLEXBOX LAYOUT (h-[100dvh]) to fix footer scrolling bugs */}
       <div className="h-[100dvh] bg-gray-50 flex flex-col font-sans overflow-hidden">
 
-        {/* HEADER: Flex-none (Premium Emerald Gradient) */}
         <header className="flex-none bg-gradient-to-r from-emerald-600 to-green-500 text-white pt-6 pb-12 px-6 rounded-b-[40px] shadow-lg relative z-20">
           <div className="absolute top-0 left-0 w-full h-full overflow-hidden rounded-b-[40px] pointer-events-none opacity-20">
-            {/* Subtle background pattern/glow */}
             <div className="absolute top-[-20%] right-[-10%] w-[50%] h-[100%] bg-white blur-[80px] rounded-full"></div>
           </div>
           <div className="relative z-10 flex flex-col items-center">
@@ -220,10 +215,9 @@ const TradePage = () => {
           </div>
         </header>
 
-        {/* MAIN CONTENT: Flex-1 overflow-y-auto (ONLY this area scrolls) */}
         <main className="flex-1 overflow-y-auto px-4 pb-8 z-10">
           {isLoading ? <CheckoutSkeleton /> : (
-            <div className="max-w-lg mx-auto space-y-4 -mt-6"> {/* Negative margin to overlap the header beautifully */}
+            <div className="max-w-lg mx-auto space-y-4 -mt-6">
 
               {/* CONTACT DETAILS CARD */}
               <div className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-gray-100 relative">
@@ -240,8 +234,6 @@ const TradePage = () => {
                     <FaEnvelope className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                     <input type="email" placeholder="Email Address (For Bill)" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-green-500 outline-none font-bold text-gray-700 transition-all" />
                   </div>
-
-                  {/* Read-Only Mobile Number */}
                   <div className="w-full pl-10 pr-4 py-3 bg-gray-100 border border-gray-200 rounded-2xl font-bold text-gray-500 flex items-center relative cursor-not-allowed shadow-inner">
                     <span className="absolute left-4 text-gray-400">📱</span> {userMobile || 'No number linked'}
                   </div>
@@ -293,10 +285,22 @@ const TradePage = () => {
                 <div className="space-y-2 mb-4">
                   {entries.map((entry, idx) => (
                     <div key={idx} className="flex justify-between items-center bg-gray-50 px-4 py-3 rounded-xl border border-gray-100">
-                      <div>
-                        <p className="font-extrabold text-gray-800 text-sm capitalize">{entry.name || entry.text}</p>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{entry.quantity} {entry.unit} × {entry.minRate ? `₹${entry.minRate}-₹${entry.maxRate}` : `₹${entry.rate}`}</p>
+
+                      {/* ✅ FIX 3: Display the scrap image or a neat placeholder! */}
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 shadow-sm flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {entry.image || entry.icon || entry.imgUrl ? (
+                            <img src={entry.image || entry.icon || entry.imgUrl} alt={entry.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-[10px] font-bold text-gray-400">N/A</span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-extrabold text-gray-800 text-sm capitalize">{entry.name || entry.text}</p>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{entry.quantity} {entry.unit} × {entry.minRate ? `₹${entry.minRate}-₹${entry.maxRate}` : `₹${entry.rate}`}</p>
+                        </div>
                       </div>
+
                     </div>
                   ))}
                 </div>
@@ -334,7 +338,7 @@ const TradePage = () => {
                 </div>
               </div>
 
-              {/* CONFIRM BUTTON (Sits at the bottom of the scroll area) */}
+              {/* CONFIRM BUTTON */}
               <div className="pt-2 pb-6">
                 <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled} className="w-full py-4 bg-green-600 text-white rounded-2xl font-black text-lg shadow-lg hover:bg-green-700 active:scale-[0.98] transition-all disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none">
                   {isSubmitting ? 'Scheduling Pickup...' : 'Confirm & Book Pickup'}
@@ -345,7 +349,6 @@ const TradePage = () => {
           )}
         </main>
 
-        {/* FOOTER: Flex-none (Never overlaps content!) */}
         <footer className="flex-none w-full flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
           <Link to="/hello" className="flex flex-col items-center text-gray-400 p-2 hover:text-green-600 transition-colors"><FaHome className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Home</span></Link>
           <Link to="/task" className="flex flex-col items-center text-gray-400 p-2 hover:text-green-600 transition-colors"><FaTasks className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Orders</span></Link>
