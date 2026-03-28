@@ -1,363 +1,196 @@
-import React, { useEffect, useState, useMemo } from "react";
-// --- 1. ADD FaDownload ICON ---
-import { FaHome, FaTasks, FaUserAlt, FaShoppingCart, FaTimes, FaInfoCircle, FaDownload } from "react-icons/fa";
-import { Link, useNavigate } from "react-router-dom";
-import { db } from '../firebase';
-import { ref, get, onValue, set } from 'firebase/database';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { FaHome, FaTasks, FaUserAlt, FaPlus, FaMinus, FaTrash, FaShoppingCart } from 'react-icons/fa';
 import { useSettings } from '../context/SettingsContext';
-import assetlogo from '../assets/images/logo.PNG';
-import { toast } from 'react-hot-toast';
+import { getAuth } from 'firebase/auth';
 import SEO from './SEO';
-import Loader from './Loader';
 
-// --- Cart Modal (No changes here) ---
-const CartModal = ({ isOpen, onClose, cartItems, onRemoveItem, onCheckout, isSchedulingDisabled, onUpdateQuantity }) => {
-  if (!isOpen) return null;
-  const grandTotal = cartItems.reduce((acc, entry) => acc + (entry.total || 0), 0);
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 flex justify-center items-end z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-t-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-        <header className="p-5 border-b flex justify-between items-center">
-          <h2 className="text-xl font-bold text-gray-800">Your Cart</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><FaTimes className="w-6 h-6" /></button>
-        </header>
-        <main className="p-5 max-h-[50vh] overflow-y-auto">
-          {cartItems.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">Your cart is empty.</p>
-          ) : (
-            <div className="space-y-4">
-              {cartItems.map((entry) => (
-                <div key={entry.id} className="flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold capitalize text-gray-800">{entry.text || entry.name}</p>
-                    <div className="flex items-center gap-3 mt-1">
-                      <button onClick={() => onUpdateQuantity(entry.id, entry.quantity - 1)} className="w-6 h-6 border rounded-full flex items-center justify-center text-lg text-red-500 hover:bg-gray-100">-</button>
-                      <span className="text-sm font-medium">{entry.quantity} {entry.unit}</span>
-                      <button onClick={() => onUpdateQuantity(entry.id, entry.quantity + 1)} className="w-6 h-6 border rounded-full flex items-center justify-center text-lg text-green-600 hover:bg-gray-100">+</button>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <p className="font-bold text-lg">₹{entry.total.toFixed(2)}</p>
-                    <button onClick={() => onRemoveItem(entry.id)} className="text-gray-400 hover:text-red-600"><FaTimes /></button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </main>
-        {cartItems.length > 0 && (
-          <footer className="p-5 bg-gray-50 border-t">
-            <div className="flex justify-between items-center font-bold text-xl mb-4">
-              <p>Grand Total</p>
-              <p className="text-green-600">₹{grandTotal.toFixed(2)}</p>
-            </div>
-            <button onClick={onCheckout} disabled={isSchedulingDisabled} className="w-full py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed">
-              {isSchedulingDisabled ? 'Pickup Already Scheduled' : 'Proceed to Checkout'}
-            </button>
-          </footer>
-        )}
-      </div>
-    </div>
-  );
+// Category color mapping for premium UI
+const categoryColors = {
+  'paper': 'bg-blue-50 border-blue-200 text-blue-700',
+  'plastic': 'bg-orange-50 border-orange-200 text-orange-700',
+  'metal': 'bg-gray-100 border-gray-300 text-gray-800',
+  'e-waste': 'bg-purple-50 border-purple-200 text-purple-700',
+  'others': 'bg-green-50 border-green-200 text-green-700'
 };
 
-
-// --- Main HelloUser Component ---
 const HelloUser = () => {
-  // --- 2. GET installPrompt FROM CONTEXT ---
-  const { location, setLocation, installPrompt } = useSettings();
-  const [isCartOpen, setIsCartOpen] = useState(false);
-  const [savedData, setSavedData] = useState([]);
-  const [availableProducts, setAvailableProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [userStatus, setUserStatus] = useState(null);
+  const [userName, setUserName] = useState('');
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [items, setItems] = useState([
+    { id: 1, name: 'Newspaper', rate: 14, category: 'paper', unit: 'kg' },
+    { id: 2, name: 'Cardboard', rate: 8, category: 'paper', unit: 'kg' },
+    { id: 3, name: 'Iron', rate: 26, category: 'metal', unit: 'kg' },
+    { id: 4, name: 'Plastic Bottles', rate: 10, category: 'plastic', unit: 'kg' },
+    { id: 5, name: 'Aluminium', rate: 105, category: 'metal', unit: 'kg' },
+    { id: 6, name: 'Copper', rate: 450, category: 'metal', unit: 'kg' },
+    { id: 7, name: 'E-Waste', rate: 20, category: 'e-waste', unit: 'kg' },
+    { id: 8, name: 'Mixed Scrap', rate: 12, category: 'others', unit: 'kg' }
+  ]);
+  const [cart, setCart] = useState({});
   const navigate = useNavigate();
-  const auth = getAuth();
-
-  const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
+  const { location } = useSettings();
 
   useEffect(() => {
-    const stored = localStorage.getItem("wasteEntries");
-    if (stored) {
-      try {
-        setSavedData(JSON.parse(stored));
-      } catch { setSavedData([]); }
+    const auth = getAuth();
+    if (auth.currentUser?.displayName) {
+      setUserName(auth.currentUser.displayName.split(' ')[0]);
+    } else {
+      setUserName('User');
     }
-  }, []);
 
-  useEffect(() => {
-    localStorage.setItem("wasteEntries", JSON.stringify(savedData));
-  }, [savedData]);
-
-  useEffect(() => {
-    setLoading(true);
-    const itemsRef = ref(db, 'items');
-    get(itemsRef).then(snapshot => {
-      if (snapshot.exists()) {
-        const productsArray = Object.keys(snapshot.val()).map(key => ({ id: key, ...snapshot.val()[key] }));
-        setAvailableProducts(productsArray);
-      }
-    }).catch(err => {
-      toast.error("Could not fetch products.");
-    });
-
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        const userRef = ref(db, `users/${user.uid}`);
-        const dbListener = onValue(userRef, async (snapshot) => {
-          if (snapshot.exists()) {
-            const userData = snapshot.val();
-            setUserStatus(userData.Status || 'Active');
-            if (userData.location) {
-              setLocation(userData.location);
-            }
-          } else {
-            await set(userRef, {
-              phone: user.phoneNumber,
-              mobile: user.phoneNumber,
-              location: location || 'Unknown',
-              Status: 'Active',
-              createdAt: new Date().toISOString()
-            });
-            setUserStatus('Active');
-          }
-          setLoading(false);
-        });
-        return dbListener;
-      } else {
-        setUserStatus('Active');
-        setLoading(false);
-      }
-    });
-    return () => unsubscribeAuth();
-  }, [auth, location, setLocation]);
-
-  const categories = useMemo(() => {
-    if (loading) return [];
-    const productsInLocation = availableProducts.filter(p => p.location?.toLowerCase() === location.toLowerCase());
-    const allCategories = productsInLocation.map(p => p.category);
-    return ['All', ...new Set(allCategories)];
-  }, [availableProducts, location, loading]);
-
-  const filteredProducts = useMemo(() => {
-    return availableProducts.filter(p => {
-      const inLocation = p.location?.toLowerCase() === location.toLowerCase();
-      if (selectedCategory === 'All') return inLocation;
-      return inLocation && p.category === selectedCategory;
-    });
-  }, [availableProducts, location, selectedCategory]);
-
-  const handleRemoveItem = (itemId) => {
-    setSavedData(prev => prev.filter(item => item.id !== itemId));
-    toast.error("Item removed from cart.");
-  };
-
-  const handleUpdateQuantity = (itemId, newQuantity) => {
-    if (newQuantity < 1) {
-      handleRemoveItem(itemId);
-      return;
-    }
-    setSavedData(prev =>
-      prev.map(item => {
-        if (item.id === itemId) {
-          return {
-            ...item,
-            quantity: newQuantity,
-            total: parseFloat(item.rate || 0) * newQuantity,
-          };
+    const savedCart = localStorage.getItem('wasteEntries');
+    if (savedCart) {
+      const parsedCart = JSON.parse(savedCart);
+      const initialCart = {};
+      parsedCart.forEach(item => {
+        const originalItem = items.find(i => i.name === (item.text || item.name));
+        if (originalItem) {
+          initialCart[originalItem.id] = parseFloat(item.quantity);
         }
-        return item;
-      })
-    );
+      });
+      setCart(initialCart);
+    }
+  }, [items]);
+
+  const updateCart = (id, delta) => {
+    if (navigator.vibrate) navigator.vibrate(20);
+    setCart(prev => {
+      const current = prev[id] || 0;
+      const next = Math.max(0, current + delta);
+      const updated = { ...prev };
+      if (next === 0) delete updated[id];
+      else updated[id] = next;
+      return updated;
+    });
   };
 
   const handleCheckout = () => {
-    if (isSchedulingDisabled) {
-      toast.error("You already have an active pickup scheduled.");
-      return;
-    }
-    if (savedData.length === 0) {
-      toast.error("Your cart is empty. Please add items first.");
-      return;
-    }
-    navigate("/trade");
+    const entriesToSave = Object.keys(cart).map(id => {
+      const item = items.find(i => i.id === parseInt(id));
+      return {
+        name: item.name,
+        quantity: cart[id],
+        unit: item.unit,
+        rate: item.rate,
+        category: item.category,
+        total: cart[id] * item.rate,
+        location: location || 'Unknown',
+      };
+    });
+    localStorage.setItem('wasteEntries', JSON.stringify(entriesToSave));
+    navigate('/trade');
   };
 
-  // --- 3. ADD THIS INSTALL HANDLER ---
-  const handleInstallClick = async () => {
-    if (!installPrompt) {
-      // If the prompt isn't available, do nothing
-      return;
-    }
-    // Show the browser's install prompt
-    installPrompt.prompt();
+  const totalCartItems = Object.keys(cart).length;
+  const grandTotal = Object.keys(cart).reduce((total, id) => {
+    const item = items.find(i => i.id === parseInt(id));
+    return total + (cart[id] * item.rate);
+  }, 0);
 
-    // Log the result (optional)
-    const { outcome } = await installPrompt.userChoice;
-    console.log(`User response to the install prompt: ${outcome}`);
-  };
-
-  const ProductCard = React.memo(({ product, isDisabled }) => {
-    const [quantity, setQuantity] = useState(1);
-    const { userMobile } = useSettings();
-
-    const handleAdd = () => {
-      if (isDisabled) {
-        toast.error("You can't add items while a pickup is already scheduled.");
-        return;
-      }
-
-      setSavedData((prev) => {
-        // Check if same product already exists
-        const existingItem = prev.find((item) => item.productId === product.id);
-
-        if (existingItem) {
-          // Merge quantities instead of creating new row
-          return prev.map((item) =>
-            item.productId === product.id
-              ? {
-                ...item,
-                quantity: item.quantity + quantity,
-                total: (item.quantity + quantity) * parseFloat(product.rate),
-              }
-              : item
-          );
-        }
-
-        // If product not in cart → add fresh
-        const newEntry = {
-          id: product.id,            // stable id for cart item
-          productId: product.id,     // used for matching
-          name: product.name,
-          rate: product.rate,
-          unit: product.unit,
-          category: product.category,
-          location: product.location,
-          quantity,
-          total: parseFloat(product.rate) * quantity,
-          mobile: userMobile || "unknown",
-        };
-
-        return [...prev, newEntry];
-      });
-
-      toast.success(`${product.name} added to cart!`);
-    };
-
-    return (
-      <article className={`bg-white rounded-xl shadow-md overflow-hidden flex flex-col ${isDisabled ? 'opacity-60' : ''}`}>
-        <img src={product.imageUrl || 'https://placehold.co/200x150'} alt={product.name} className="w-full h-28 object-cover" />
-
-        <div className="p-3 flex-grow flex flex-col">
-          <div className="flex-grow">
-            <h3 className="text-sm font-bold text-gray-800 capitalize">{product.name}</h3>
-            <p className="text-xs text-gray-600 mt-1">₹{product.rate} per {product.unit}</p>
-          </div>
-
-          <div className="flex items-center justify-between mt-3">
-            <div className="flex items-center">
-              <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="px-2 text-lg text-gray-600" disabled={isDisabled}>-</button>
-              <span className="px-2 text-sm">{quantity}</span>
-              <button onClick={() => setQuantity(q => q + 1)} className="px-2 text-lg text-gray-600" disabled={isDisabled}>+</button>
-            </div>
-
-            <button
-              className="bg-orange-500 text-white font-semibold py-1.5 px-4 rounded-lg text-sm hover:bg-orange-600 disabled:bg-gray-400"
-              onClick={handleAdd}
-              disabled={isDisabled}
-            >
-              Add
-            </button>
-          </div>
-        </div>
-      </article>
-    );
-  });
-
+  const categories = ['All', 'paper', 'metal', 'plastic', 'e-waste', 'others'];
+  const filteredItems = activeCategory === 'All' ? items : items.filter(i => i.category === activeCategory);
 
   return (
     <>
-      <SEO title={`Sell Scrap in ${location} - Trade2Cart`} description={`Find the best rates for scrap in ${location}. Schedule a pickup with Trade2Cart.`} />
-      <div className="min-h-screen bg-gray-100 flex flex-col font-sans">
+      <SEO title="Home - Trade2Cart" description="Sell scrap online instantly." />
+      <div className="min-h-screen bg-gray-50 pb-32 font-sans">
 
-        {/* --- 4. MODIFIED HEADER --- */}
-        <header className="sticky top-0 p-4 bg-white shadow-sm z-40 flex justify-between items-center">
-          <img src={assetlogo} alt="Trade2Cart Logo" className="h-10 w-auto" />
+        {/* Modern App Header */}
+        <header className="bg-white shadow-sm sticky top-0 z-40 px-5 pt-6 pb-4 rounded-b-3xl">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Location</p>
+              <h2 className="text-xl font-extrabold text-gray-800 flex items-center gap-1">
+                {location || 'Set Location'} <span className="text-green-500 text-2xl mb-1">▾</span>
+              </h2>
+            </div>
+            <div className="w-12 h-12 bg-green-100 rounded-full flex justify-center items-center text-green-700 font-bold text-xl shadow-inner">
+              {userName.charAt(0).toUpperCase()}
+            </div>
+          </div>
 
-          {/* Container for the right-side icons */}
-          <div className="flex items-center gap-4">
-
-            {/* The new Install Button (it only shows if 'installPrompt' exists) */}
-            {installPrompt && (
-              <button
-                onClick={handleInstallClick}
-                className="flex items-center gap-2 bg-green-600 text-white px-3 py-2 rounded-lg font-semibold hover:bg-green-700"
-                title="Install Trade2Cart App"
-              >
-                <FaDownload />
-                <span className="hidden sm:block">Install</span>
-              </button>
-            )}
-
-            {/* Your existing Cart Button */}
-            <div className="relative cursor-pointer" onClick={() => setIsCartOpen(true)}>
-              <FaShoppingCart className="text-gray-700 text-2xl" />
-              {savedData.length > 0 && (<span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{savedData.length}</span>)}
+          <div className="bg-gray-100 rounded-2xl p-4 flex items-center justify-between shadow-inner">
+            <div>
+              <h1 className="text-xl font-bold text-gray-800">Hello, {userName}! 👋</h1>
+              <p className="text-gray-500 text-sm mt-1">What are we recycling today?</p>
             </div>
           </div>
         </header>
 
-        <nav className="sticky top-[72px] bg-white z-20 py-3 shadow-sm">
-          <div className="flex space-x-3 px-4 overflow-x-auto">
-            {categories.map(category => (
-              <button key={category} onClick={() => setSelectedCategory(category)} className={`whitespace-nowrap px-4 py-2 text-sm font-medium rounded-full transition-colors ${selectedCategory === category ? 'bg-green-600 text-white shadow' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
-                {category}
-              </button>
-            ))}
-          </div>
-        </nav>
+        {/* Categories Pill Menu */}
+        <div className="flex overflow-x-auto hide-scrollbar gap-3 px-5 py-4 mt-2">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-5 py-2 rounded-full whitespace-nowrap font-bold text-sm transition-all shadow-sm ${activeCategory === cat ? 'bg-gray-900 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                }`}
+            >
+              {cat.charAt(0).toUpperCase() + cat.slice(1)}
+            </button>
+          ))}
+        </div>
 
-        {/* --- MAIN CONTENT (Now with responsive container) --- */}
-        <main className="flex-grow w-full max-w-7xl mx-auto p-4">
-          {loading ? <Loader fullscreen /> : (
-            <>
-              {isSchedulingDisabled && (
-                <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-lg mb-4 flex items-center shadow-md">
-                  <FaInfoCircle className="text-2xl mr-4" />
-                  <div>
-                    <p className="font-bold">You have an active pickup scheduled!</p>
-                    <p className="text-sm">You can schedule a new pickup after this one is completed. <Link to="/task" className="font-semibold underline hover:text-yellow-800">View Status</Link></p>
-                  </div>
+        {/* Item Grid */}
+        <main className="px-5 mt-2 grid grid-cols-2 gap-4">
+          {filteredItems.map(item => {
+            const qty = cart[item.id] || 0;
+            const colorClass = categoryColors[item.category] || categoryColors['others'];
+
+            return (
+              <div key={item.id} className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden">
+                {/* Category Badge */}
+                <span className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-bold uppercase tracking-wider border-b border-l ${colorClass}`}>
+                  {item.category}
+                </span>
+
+                <div className="mt-4">
+                  <h3 className="text-lg font-bold text-gray-800 leading-tight">{item.name}</h3>
+                  <p className="text-green-600 font-extrabold mt-1">₹{item.rate} <span className="text-gray-400 font-medium text-xs">/ {item.unit}</span></p>
                 </div>
-              )}
-              {/* --- PRODUCT GRID (Now with responsive columns) --- */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {filteredProducts.length > 0 ? filteredProducts.map((product) => (<ProductCard key={product.id} product={product} isDisabled={isSchedulingDisabled} />)) : <p className="col-span-full text-center text-gray-500 mt-8">No products available in {location}.</p>}
+
+                <div className="mt-5 h-10">
+                  {qty === 0 ? (
+                    <button onClick={() => updateCart(item.id, 1)} className="w-full h-full bg-white border-2 border-green-500 text-green-600 font-bold rounded-xl hover:bg-green-50 transition-colors flex items-center justify-center gap-1 shadow-sm">
+                      <FaPlus size={12} /> ADD
+                    </button>
+                  ) : (
+                    <div className="flex items-center justify-between w-full h-full bg-green-500 text-white rounded-xl shadow-md overflow-hidden">
+                      <button onClick={() => updateCart(item.id, -1)} className="w-1/3 h-full flex items-center justify-center hover:bg-green-600 active:bg-green-700 transition"><FaMinus size={12} /></button>
+                      <span className="w-1/3 text-center font-bold text-lg">{qty}</span>
+                      <button onClick={() => updateCart(item.id, 1)} className="w-1/3 h-full flex items-center justify-center hover:bg-green-600 active:bg-green-700 transition"><FaPlus size={12} /></button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </>
-          )}
+            );
+          })}
         </main>
 
-        <footer className="sticky bottom-0 flex-shrink-0 z-30">
-          <nav className="flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
-            <Link to="/hello" className="flex flex-col items-center text-green-600 p-2"><FaHome className="text-2xl" /><span className="text-xs font-medium">Home</span></Link>
-            <Link to="/task" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaTasks className="text-2xl" /><span className="text-xs font-medium">Tasks</span></Link>
-            <Link to="/account" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaUserAlt className="text-2xl" /><span className="text-xs font-medium">Account</span></Link>
-          </nav>
-        </footer>
+        {/* Floating Cart Footer */}
+        {totalCartItems > 0 && (
+          <div className="fixed bottom-20 left-0 right-0 px-5 z-40 animate-fade-in-up">
+            <div onClick={handleCheckout} className="bg-green-600 text-white p-4 rounded-2xl shadow-2xl flex justify-between items-center cursor-pointer hover:bg-green-700 transition-colors active:scale-95">
+              <div className="flex flex-col">
+                <span className="text-xs text-green-200 font-bold uppercase tracking-wider">{totalCartItems} Items Added</span>
+                <span className="text-xl font-extrabold">₹{grandTotal.toFixed(2)} Est. Total</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white text-green-700 px-4 py-2 rounded-xl font-bold shadow-sm">
+                View Cart <FaShoppingCart />
+              </div>
+            </div>
+          </div>
+        )}
 
-        <CartModal
-          isOpen={isCartOpen}
-          onClose={() => setIsCartOpen(false)}
-          cartItems={savedData}
-          onRemoveItem={handleRemoveItem}
-          onCheckout={handleCheckout}
-          isSchedulingDisabled={isSchedulingDisabled}
-          onUpdateQuantity={handleUpdateQuantity}
-        />
+        {/* Bottom Nav */}
+        <footer className="fixed bottom-0 w-full flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
+          <Link to="/hello" className="flex flex-col items-center text-green-600 p-2"><FaHome className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Home</span></Link>
+          <Link to="/task" className="flex flex-col items-center text-gray-400 p-2 hover:text-green-600 transition-colors"><FaTasks className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Orders</span></Link>
+          <Link to="/account" className="flex flex-col items-center text-gray-400 p-2 hover:text-green-600 transition-colors"><FaUserAlt className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Profile</span></Link>
+        </footer>
       </div>
+      <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
     </>
   );
 };

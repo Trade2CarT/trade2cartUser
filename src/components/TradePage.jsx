@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { FaHome, FaTasks, FaUserAlt, FaEnvelope, FaMapMarkerAlt, FaCamera } from 'react-icons/fa';
+import { FaHome, FaTasks, FaUserAlt, FaEnvelope, FaMapMarkerAlt, FaCamera, FaCrosshairs, FaCheckCircle } from 'react-icons/fa';
 import { db } from '../firebase';
 import { ref, update, push, onValue, get } from 'firebase/database';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
@@ -14,6 +14,11 @@ const TradePage = () => {
   const [userName, setUserName] = useState('');
   const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
+
+  // ✅ NEW: State to hold exact GPS coordinates
+  const [exactCoords, setExactCoords] = useState(null);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+
   const [userId, setUserId] = useState(null);
   const [tradeImage, setTradeImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -25,7 +30,6 @@ const TradePage = () => {
   const auth = getAuth();
 
   const initialCheckRef = useRef(true);
-
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
 
   useEffect(() => {
@@ -40,11 +44,9 @@ const TradePage = () => {
         }
         setEntries(parsedEntries);
       } catch {
-        toast.error("Your cart is empty. Add items first.");
         navigate('/hello');
       }
     } else {
-      toast.error("Your cart is empty. Add items first.");
       navigate('/hello');
     }
 
@@ -52,8 +54,7 @@ const TradePage = () => {
       if (user) {
         setUserId(user.uid);
         const userRef = ref(db, `users/${user.uid}`);
-
-        const dbUnsubscribe = onValue(userRef, (snapshot) => {
+        return onValue(userRef, (snapshot) => {
           if (snapshot.exists()) {
             const userData = snapshot.val();
             if (userData.name) setUserName(userData.name);
@@ -68,25 +69,51 @@ const TradePage = () => {
               }
               initialCheckRef.current = false;
             }
-
-          } else {
-            toast.error("Could not find your user profile. Please log in again.");
-            navigate('/login');
           }
           setIsLoading(false);
         });
-
-        return dbUnsubscribe;
       } else {
-        toast.error("Login required to schedule a pickup.");
         navigate('/login');
       }
     });
-
     return () => unsubscribe();
   }, [auth, navigate]);
 
   const grandTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.total) || 0), 0);
+
+  // ✅ NEW: Get Exact GPS Location for Vendors
+  const handleDetectLocation = () => {
+    if (navigator.vibrate) navigator.vibrate(50);
+    if (!navigator.geolocation) return toast.error("GPS not supported by your device.");
+
+    setIsDetectingLocation(true);
+    toast.loading("Finding exact location...", { id: 'gps' });
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setExactCoords({ lat: latitude, lng: longitude });
+        toast.success("Exact location captured!", { id: 'gps' });
+
+        // Optional: Free Reverse Geocoding to auto-fill the text box
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`);
+          const data = await res.json();
+          if (data && data.display_name) {
+            setAddress(data.display_name); // Auto-fill address text
+          }
+        } catch (err) {
+          // Silently fail reverse geocoding, we still have the coordinates
+        }
+        setIsDetectingLocation(false);
+      },
+      (error) => {
+        toast.error("Please enable GPS permissions.", { id: 'gps' });
+        setIsDetectingLocation(false);
+      },
+      { enableHighAccuracy: true }
+    );
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -99,21 +126,15 @@ const TradePage = () => {
   };
 
   const handleConfirmTrade = async () => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!userName.trim() || !address.trim() || !email.trim()) {
       return toast.error("Please fill in your name, email, and address.");
     }
-    if (!emailRegex.test(email)) {
-      return toast.error("Please enter a valid email address.");
+    if (!exactCoords) {
+      return toast.error("Please click 'Detect Exact Location' so our driver can find you.");
     }
-    if (!userId) {
-      return toast.error("User ID not found. Please wait a moment and try again.");
-    }
-
     if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
 
     setIsSubmitting(true);
-
     const imageBase64 = await new Promise((resolve) => {
       if (!tradeImage) return resolve(null);
       const reader = new FileReader();
@@ -125,23 +146,27 @@ const TradePage = () => {
     const updates = {};
     const wasteEntriesRef = ref(db, 'wasteEntries');
 
+    // Create a Google Maps link for the vendor
+    const mapLink = `https://www.google.com/maps/search/?api=1&query=${exactCoords.lat},${exactCoords.lng}`;
+
     entries.forEach(entry => {
       const newWasteEntryKey = push(wasteEntriesRef).key;
       updates[`/wasteEntries/${newWasteEntryKey}`] = {
         name: entry.text || entry.name,
         address: address,
+        exactLat: exactCoords.lat,   // Saved for Map integration
+        exactLng: exactCoords.lng,   // Saved for Map integration
+        mapUrl: mapLink,             // Direct link for vendor app
         mobile: userMobile,
         total: entry.total.toFixed(2),
         quantity: entry.quantity,
         unit: entry.unit,
         rate: entry.rate,
         category: entry.category,
-        location: entry.location,
         isAssigned: false,
         userID: userId,
         image: imageBase64,
         timestamp: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
       };
     });
 
@@ -152,16 +177,17 @@ const TradePage = () => {
       name: userName,
       address: address,
       email: email,
+      lastLat: exactCoords.lat,
+      lastLng: exactCoords.lng,
       Status: "Pending"
     };
 
     try {
       await update(ref(db), updates);
-      toast.success('✅ Trade Confirmed! Your pickup is scheduled.');
+      toast.success('✅ Pickup Scheduled Successfully!');
       localStorage.removeItem('wasteEntries');
       navigate('/task');
     } catch (error) {
-      console.error("Error creating waste entries:", error);
       toast.error("Scheduling failed. Please check your connection.");
     } finally {
       setIsSubmitting(false);
@@ -170,91 +196,113 @@ const TradePage = () => {
 
   return (
     <>
-      <SEO
-        title="Confirm Trade - Trade2Cart"
-        description="Review your items and confirm your address to schedule a scrap pickup."
-      />
-      <div className="min-h-screen bg-gray-100 font-sans">
-        <main className="p-4 pb-24">
-          {isLoading ? <Loader fullscreen /> : (
-            <div className="max-w-lg mx-auto space-y-6">
-              <h1 className="text-3xl font-bold text-gray-900 text-center">Confirm Your Pickup</h1>
+      <SEO title="Confirm Trade - Trade2Cart" description="Review items and confirm your address." />
+      <div className="min-h-screen bg-gray-50 font-sans pb-24">
 
-              <div className="bg-white p-5 rounded-xl shadow-lg">
-                <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center"><FaUserAlt className="mr-3 text-green-500" />Your Information</h2>
+        {/* Modern Header */}
+        <div className="bg-green-600 text-white pt-8 pb-12 px-6 rounded-b-[40px] shadow-md">
+          <h1 className="text-3xl font-extrabold text-center">Confirm Pickup</h1>
+          <p className="text-green-100 text-center mt-2 text-sm">Review details to schedule an agent</p>
+        </div>
+
+        <main className="p-4 -mt-8">
+          {isLoading ? <Loader fullscreen /> : (
+            <div className="max-w-lg mx-auto space-y-5">
+
+              {/* Profile Card */}
+              <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
+                <h2 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center"><FaUserAlt size={14} /></span>
+                  Contact Details
+                </h2>
                 <div className="space-y-4">
                   <div className="relative">
-                    <FaUserAlt className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
-                    <input type="text" placeholder="Full Name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" />
+                    <input type="text" placeholder="Full Name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-medium text-gray-700" />
                   </div>
                   <div className="relative">
-                    <FaEnvelope className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
-                    <input type="email" placeholder="Email for Bill" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" required />
-                  </div>
-                  <div className="relative">
-                    <FaMapMarkerAlt className="absolute top-4 left-3 text-gray-400" />
-                    <textarea placeholder="Full Address for Pickup" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"></textarea>
+                    <input type="email" placeholder="Email Address (For Bill)" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-medium text-gray-700" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white p-5 rounded-xl shadow-lg">
-                <h2 className="text-xl font-semibold mb-4 text-gray-800">Item Summary</h2>
+              {/* Exact Location Card (CRITICAL UPDATE) */}
+              <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
+                <h2 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center"><FaMapMarkerAlt size={14} /></span>
+                  Pickup Location
+                </h2>
+
+                {exactCoords ? (
+                  <div className="bg-green-50 border border-green-200 p-4 rounded-xl mb-4 flex items-center gap-3">
+                    <FaCheckCircle className="text-green-600 text-2xl flex-shrink-0" />
+                    <div>
+                      <p className="font-bold text-green-800">Exact GPS Captured</p>
+                      <p className="text-xs text-green-600">The agent will navigate directly here.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleDetectLocation}
+                    disabled={isDetectingLocation}
+                    className="w-full mb-4 py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 active:scale-95 transition-all shadow-md"
+                  >
+                    {isDetectingLocation ? <Loader /> : <><FaCrosshairs /> Detect Exact Location (Required)</>}
+                  </button>
+                )}
+
+                <textarea placeholder="Door No, Landmark, Full Address" value={address} onChange={(e) => setAddress(e.target.value)} rows={3} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none font-medium text-gray-700"></textarea>
+              </div>
+
+              {/* Items Card */}
+              <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
+                <h2 className="text-lg font-bold mb-4 text-gray-800">Your Scrap Items</h2>
                 <div className="space-y-3">
                   {entries.map((entry, idx) => (
-                    <div key={idx} className="flex justify-between items-center border-b pb-2">
+                    <div key={idx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
                       <div>
                         <p className="font-bold text-gray-800 capitalize">{entry.text || entry.name}</p>
                         <p className="text-sm text-gray-500">{entry.quantity} {entry.unit} &times; ₹{entry.rate}</p>
                       </div>
-                      <p className="font-semibold text-gray-800 text-lg">₹{parseFloat(entry.total).toFixed(2)}</p>
+                      <p className="font-extrabold text-gray-800">₹{parseFloat(entry.total).toFixed(2)}</p>
                     </div>
                   ))}
-                  <div className="flex justify-between items-center pt-3 font-bold text-xl">
-                    <p>Grand Total</p>
+                  <div className="flex justify-between items-center pt-4 border-t border-gray-200 font-extrabold text-xl">
+                    <p>Estimated Total</p>
                     <p className="text-green-600">₹{grandTotal.toFixed(2)}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white p-5 rounded-xl shadow-lg">
-                <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center">
-                  <FaCamera className="mr-3 text-green-500" /> Take Photo of Scrap
-                </h2>
-                <p className="text-sm text-gray-500 mb-3">A quick photo speeds up the vendor's pickup.</p>
-
+              {/* Camera Card */}
+              <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
+                <h2 className="text-lg font-bold mb-2 text-gray-800">Take a Photo (Optional)</h2>
+                <p className="text-sm text-gray-500 mb-4">Helps the agent bring the right vehicle.</p>
                 <div className="flex items-center gap-4">
-                  <label className="flex-1 cursor-pointer bg-green-50 border-2 border-dashed border-green-300 text-green-700 font-semibold text-center py-4 rounded-xl hover:bg-green-100 transition-colors">
-                    <FaCamera className="mx-auto text-2xl mb-1" />
-                    <span>Tap to Camera / Upload</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={handleImageChange}
-                      className="hidden"
-                    />
+                  <label className="flex-1 cursor-pointer bg-green-50 border-2 border-dashed border-green-300 text-green-700 font-semibold text-center py-6 rounded-xl hover:bg-green-100 transition-colors">
+                    <FaCamera className="mx-auto text-3xl mb-2 opacity-80" />
+                    <span>Tap to Open Camera</span>
+                    <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} className="hidden" />
                   </label>
-
                   {imagePreview && (
-                    <div className="w-24 h-24 rounded-xl overflow-hidden border-2 border-green-500 shadow-sm relative">
+                    <div className="w-28 h-28 rounded-xl overflow-hidden shadow-md">
                       <img src={imagePreview} alt="Scrap preview" className="w-full h-full object-cover" />
                     </div>
                   )}
                 </div>
               </div>
 
-              <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled} className="w-full mt-6 py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 transition-transform active:scale-95 disabled:bg-gray-400 disabled:cursor-not-allowed">
-                {isSubmitting ? 'Scheduling...' : 'Confirm & Schedule Pickup'}
+              <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled} className="w-full py-4 mt-4 bg-gray-900 text-white rounded-xl font-bold text-lg shadow-xl hover:bg-gray-800 active:scale-95 transition-transform disabled:bg-gray-400">
+                {isSubmitting ? 'Scheduling Pickup...' : 'Confirm & Schedule Pickup'}
               </button>
             </div>
           )}
         </main>
 
-        <footer className="sticky bottom-0 flex justify-around items-center p-2 bg-white rounded-t-2xl shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
-          <Link to="/hello" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaHome className="text-2xl" /><span className="text-xs font-medium">Home</span></Link>
-          <Link to="/task" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaTasks className="text-2xl" /><span className="text-xs font-medium">Tasks</span></Link>
-          <Link to="/account" className="flex flex-col items-center text-gray-500 p-2 no-underline hover:text-green-600"><FaUserAlt className="text-2xl" /><span className="text-xs font-medium">Account</span></Link>
+        {/* Bottom Nav */}
+        <footer className="fixed bottom-0 w-full flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
+          <Link to="/hello" className="flex flex-col items-center text-gray-400 p-2 hover:text-green-600 transition-colors"><FaHome className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Home</span></Link>
+          <Link to="/task" className="flex flex-col items-center text-gray-400 p-2 hover:text-green-600 transition-colors"><FaTasks className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Orders</span></Link>
+          <Link to="/account" className="flex flex-col items-center text-gray-400 p-2 hover:text-green-600 transition-colors"><FaUserAlt className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Profile</span></Link>
         </footer>
       </div>
     </>
