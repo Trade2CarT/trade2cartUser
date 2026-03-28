@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { FaHome, FaTasks, FaUserAlt, FaPlus, FaMinus, FaTrash, FaShoppingCart } from 'react-icons/fa';
+import { FaHome, FaTasks, FaUserAlt, FaPlus, FaMinus, FaShoppingCart } from 'react-icons/fa';
 import { useSettings } from '../context/SettingsContext';
 import { getAuth } from 'firebase/auth';
 import { db } from '../firebase';
 import { ref, onValue } from 'firebase/database';
 import SEO from './SEO';
-import logo from '../assets/images/logo.PNG'; // ✅ Added Logo back
+import logo from '../assets/images/logo.PNG';
 
 const categoryColors = {
   'paper': 'bg-blue-50 border-blue-200 text-blue-700',
@@ -16,7 +16,6 @@ const categoryColors = {
   'others': 'bg-green-50 border-green-200 text-green-700'
 };
 
-// ✅ NEW: Reusable Ghost/Skeleton Loader
 const SkeletonCard = () => (
   <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col justify-between h-36 animate-pulse">
     <div className="w-16 h-4 bg-gray-200 rounded-full mb-3 self-end"></div>
@@ -32,13 +31,12 @@ const HelloUser = () => {
   const [userName, setUserName] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [items, setItems] = useState([]);
-  const [isLoading, setIsLoading] = useState(true); // ✅ Loading state for ghost animation
+  const [isLoading, setIsLoading] = useState(true);
   const [cart, setCart] = useState({});
   const navigate = useNavigate();
   const { location } = useSettings();
 
   useEffect(() => {
-    // 1. Fetch User Name (Preserved Logic)
     const auth = getAuth();
     if (auth.currentUser?.displayName) {
       setUserName(auth.currentUser.displayName.split(' ')[0]);
@@ -46,7 +44,6 @@ const HelloUser = () => {
       setUserName('User');
     }
 
-    // 2. Fetch Items from Firebase (Preserved Logic)
     const itemsRef = ref(db, 'items');
     const unsubscribe = onValue(itemsRef, (snapshot) => {
       const data = snapshot.val();
@@ -56,22 +53,21 @@ const HelloUser = () => {
           ...data[key]
         }));
 
-        // Filter by location if your logic requires it, or just set all
+        // ✅ STRICT FILTERING FIX: Only show items matching the exact location
         const locationItems = fetchedItems.filter(item =>
-          !item.location || item.location.toLowerCase() === (location?.toLowerCase() || '')
+          item.location && item.location.toLowerCase() === (location?.toLowerCase() || '')
         );
 
-        setItems(locationItems.length > 0 ? locationItems : fetchedItems);
+        setItems(locationItems);
       } else {
         setItems([]);
       }
-      setIsLoading(false); // Turn off ghost loaders
+      setIsLoading(false);
     });
 
     return () => unsubscribe();
   }, [location]);
 
-  // 3. Sync Cart with LocalStorage (Preserved Logic)
   useEffect(() => {
     if (items.length > 0) {
       const savedCart = localStorage.getItem('wasteEntries');
@@ -104,17 +100,15 @@ const HelloUser = () => {
   const handleCheckout = () => {
     const entriesToSave = Object.keys(cart).map(id => {
       const item = items.find(i => i.id === id);
-      const rateUsed = item.minRate ? `${item.minRate}-${item.maxRate}` : item.rate; // Save range info
-
       return {
         id: item.id,
         name: item.name,
         quantity: cart[id],
         unit: item.unit,
-        rate: item.rate || item.minRate, // Default rate for fallback
+        rate: item.rate || item.minRate,
         minRate: item.minRate || null,
         maxRate: item.maxRate || null,
-        total: cart[id] * (item.rate || item.minRate || 0), // Fallback total
+        total: cart[id] * (item.rate || item.minRate || 0),
         category: item.category || 'others',
         location: location || 'Unknown',
       };
@@ -124,8 +118,6 @@ const HelloUser = () => {
   };
 
   const totalCartItems = Object.keys(cart).length;
-
-  // ✅ NEW: Calculate Min and Max Grand Totals
   const minTotal = Object.keys(cart).reduce((total, id) => {
     const item = items.find(i => i.id === id);
     const rate = parseFloat(item?.minRate) || parseFloat(item?.rate) || 0;
@@ -146,15 +138,14 @@ const HelloUser = () => {
       <SEO title="Home - Trade2Cart" description="Sell scrap online instantly." />
       <div className="min-h-screen bg-gray-50 pb-32 font-sans">
 
-        {/* ✅ Header with Logo preserved */}
         <header className="bg-white shadow-sm sticky top-0 z-40 px-5 pt-4 pb-4 rounded-b-3xl">
           <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-              <img src={logo} alt="Trade2Cart Logo" className="w-10 h-10 rounded-full shadow-sm" />
-              <div>
+            <div className="flex items-center gap-3">
+              <img src={logo} alt="Trade2Cart Logo" className="w-10 h-10 rounded-full shadow-sm border border-gray-100" />
+              <div onClick={() => navigate('/location')} className="cursor-pointer">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-tight">Location</p>
-                <h2 className="text-sm font-extrabold text-gray-800 flex items-center gap-1 leading-tight">
-                  {location || 'Set Location'} <span className="text-green-500 text-lg">▾</span>
+                <h2 className="text-sm font-extrabold text-gray-800 flex items-center gap-1 leading-tight hover:text-green-600 transition-colors">
+                  {location || 'Select'} <span className="text-green-500 text-lg">▾</span>
                 </h2>
               </div>
             </div>
@@ -163,13 +154,12 @@ const HelloUser = () => {
             </div>
           </div>
 
-          <div className="bg-gray-100 rounded-2xl p-4 shadow-inner">
+          <div className="bg-gray-100 rounded-2xl p-4 shadow-inner border border-gray-200">
             <h1 className="text-xl font-bold text-gray-800">Hello, {userName}! 👋</h1>
             <p className="text-gray-500 text-sm mt-1">Select scrap items to add to your cart.</p>
           </div>
         </header>
 
-        {/* Category Pills */}
         <div className="flex overflow-x-auto hide-scrollbar gap-3 px-5 py-4 mt-2">
           {categories.map(cat => (
             <button
@@ -183,20 +173,14 @@ const HelloUser = () => {
           ))}
         </div>
 
-        {/* Item Grid & Ghost Loaders */}
         <main className="px-5 mt-2 grid grid-cols-2 gap-4">
           {isLoading ? (
-            // ✅ Show Ghost Loaders while fetching from Firebase
-            <>
-              <SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard />
-            </>
+            <><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
           ) : filteredItems.length > 0 ? (
             filteredItems.map(item => {
               const qty = cart[item.id] || 0;
               const catName = item.category ? item.category.toLowerCase() : 'others';
               const colorClass = categoryColors[catName] || categoryColors['others'];
-
-              // ✅ NEW: Price Range Rendering Logic
               const showRange = item.minRate && item.maxRate && item.minRate !== item.maxRate;
 
               return (
@@ -207,8 +191,6 @@ const HelloUser = () => {
 
                   <div className="mt-4">
                     <h3 className="text-lg font-bold text-gray-800 leading-tight">{item.name}</h3>
-
-                    {/* Display Range or Single Rate */}
                     <p className="text-green-600 font-extrabold mt-1 text-sm md:text-base">
                       {showRange ? `₹${item.minRate}-₹${item.maxRate}` : `₹${item.rate || item.minRate || 0}`}
                       <span className="text-gray-400 font-medium text-xs"> / {item.unit || 'kg'}</span>
@@ -232,17 +214,18 @@ const HelloUser = () => {
               );
             })
           ) : (
-            <p className="col-span-2 text-center text-gray-500 mt-10 font-medium">No items available for this category.</p>
+            <div className="col-span-2 text-center mt-10 p-8 bg-white rounded-3xl shadow-sm border border-gray-100">
+              <p className="text-gray-500 font-bold text-lg">No items available yet.</p>
+              <p className="text-gray-400 text-sm mt-2">We are currently updating prices for {location}. Check back soon!</p>
+            </div>
           )}
         </main>
 
-        {/* Floating Cart Footer */}
         {totalCartItems > 0 && (
           <div className="fixed bottom-20 left-0 right-0 px-5 z-40 animate-fade-in-up">
             <div onClick={handleCheckout} className="bg-green-600 text-white p-4 rounded-2xl shadow-2xl flex justify-between items-center cursor-pointer hover:bg-green-700 transition-colors active:scale-95 border border-green-500">
               <div className="flex flex-col">
                 <span className="text-xs text-green-200 font-bold uppercase tracking-wider">{totalCartItems} Items in Bin</span>
-                {/* ✅ Range Display in Cart */}
                 <span className="text-lg font-extrabold tracking-tight">
                   {minTotal === maxTotal ? `Est. ₹${minTotal.toFixed(2)}` : `Est. ₹${minTotal.toFixed(0)} - ₹${maxTotal.toFixed(0)}`}
                 </span>
@@ -254,7 +237,6 @@ const HelloUser = () => {
           </div>
         )}
 
-        {/* Bottom Nav */}
         <footer className="fixed bottom-0 w-full flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
           <Link to="/hello" className="flex flex-col items-center text-green-600 p-2"><FaHome className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Home</span></Link>
           <Link to="/task" className="flex flex-col items-center text-gray-400 p-2 hover:text-green-600 transition-colors"><FaTasks className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Orders</span></Link>
