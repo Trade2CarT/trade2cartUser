@@ -2,27 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { db } from '../../firebase';
 import { ref, update } from 'firebase/database';
+import { getAuth } from 'firebase/auth';
 import { FaUserAlt, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaSave } from 'react-icons/fa';
 import { useSettings } from '../../context/SettingsContext';
 
 const ProfileSection = ({ user }) => {
-    const { userMobile } = useSettings(); // ✅ Fallback to context to guarantee the number loads
+    const { userMobile } = useSettings();
+    const auth = getAuth();
 
     const [name, setName] = useState('');
-    const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
     const [address, setAddress] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
+    // ✅ Computed directly exactly like AccountPage.jsx (No useState delay!)
+    const displayPhone = user?.phoneNumber || user?.phone || user?.mobile || auth.currentUser?.phoneNumber || userMobile || '';
+
     useEffect(() => {
         if (user) {
             setName(user.name || '');
-            // ✅ BUG FIX: Checks all possible database keys, then falls back to live session mobile
-            setPhone(user.phoneNumber || user.phone || user.mobile || userMobile || '');
             setEmail(user.email || '');
             setAddress(user.address || '');
         }
-    }, [user, userMobile]);
+    }, [user]);
 
     const handleSave = async (e) => {
         e.preventDefault();
@@ -35,7 +37,7 @@ const ProfileSection = ({ user }) => {
                 name,
                 email,
                 address,
-                phoneNumber: phone // Saves correctly back to DB
+                phoneNumber: displayPhone // Saves the directly computed phone number back safely
             });
             toast.success("Profile updated successfully!");
         } catch (error) {
@@ -70,8 +72,8 @@ const ProfileSection = ({ user }) => {
                     <FaPhoneAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input
                         type="tel"
-                        value={phone}
-                        disabled // Phone shouldn't be edited freely without OTP
+                        value={displayPhone} // ✅ Uses direct derived logic now
+                        disabled
                         className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl outline-none font-bold text-gray-500 cursor-not-allowed shadow-inner"
                     />
                 </div>
