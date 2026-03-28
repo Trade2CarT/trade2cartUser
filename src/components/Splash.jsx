@@ -5,43 +5,62 @@ const Splash = () => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    // Slight delay to trigger the smooth CSS transitions after component mounts
+    const timer = setTimeout(() => setMounted(true), 100);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
-    <div className="h-screen w-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-green-900 to-gray-900 overflow-hidden relative">
+    <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#0a0f16] overflow-hidden relative">
 
-      {/* Subtle Background Glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-green-500/20 rounded-full blur-[100px] pointer-events-none"></div>
+      {/* 1. Subtle Premium Background Glow (Not overpowering) */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-green-500/10 blur-[120px] rounded-full"></div>
+        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-500/10 blur-[120px] rounded-full"></div>
+      </div>
 
-      <div className={`flex flex-col items-center space-y-6 z-10 transition-all duration-1000 ease-out ${mounted ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-10'}`}>
+      {/* 2. Main Logo & Typography Centerpiece */}
+      <div className={`z-10 flex flex-col items-center transition-all duration-1000 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
 
-        {/* Premium Logo Container */}
-        <div className="relative group">
-          <div className="absolute inset-0 bg-green-400 rounded-full blur-2xl opacity-40 animate-pulse mix-blend-screen"></div>
-          <div className="w-32 h-32 md:w-40 md:h-40 bg-white rounded-[40px] shadow-2xl flex items-center justify-center p-2 relative transform transition-transform duration-700 hover:scale-105 rotate-3 hover:rotate-0">
+        {/* Sleek Logo Container */}
+        <div className="relative p-[2px] rounded-3xl bg-gradient-to-br from-gray-700 via-gray-800 to-black shadow-2xl mb-8">
+          <div className="bg-white p-2 rounded-[22px]">
             <img
               src={logo}
               alt="Trade2Cart Logo"
-              className="w-full h-full object-contain rounded-[32px]"
+              className="w-24 h-24 md:w-32 md:h-32 object-contain rounded-[16px]"
             />
           </div>
         </div>
 
-        {/* Typography */}
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight drop-shadow-lg">
-            Trade<span className="text-green-400">2</span>Cart
-          </h1>
-          <div className="flex items-center justify-center gap-2 opacity-80">
-            <div className="w-8 h-[1px] bg-green-400/50"></div>
-            <p className="text-xs md:text-sm uppercase tracking-[0.4em] font-bold text-green-300">
-              The Smartest Choice
-            </p>
-            <div className="w-8 h-[1px] bg-green-400/50"></div>
-          </div>
+        {/* Crisp Brand Typography */}
+        <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight mb-2">
+          Trade<span className="text-green-500">2</span>Cart
+        </h1>
+
+        {/* Elegant Tagline */}
+        <p className="text-xs md:text-sm font-bold text-gray-400 tracking-[0.3em] uppercase">
+          Recycle Smart
+        </p>
+      </div>
+
+      {/* 3. High-End Shimmer Loading Line (Bottom) */}
+      <div className={`absolute bottom-16 left-1/2 -translate-x-1/2 transition-opacity duration-1000 delay-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+        <div className="w-32 h-1 bg-gray-800 rounded-full overflow-hidden relative">
+          <div className="absolute top-0 left-0 h-full w-1/2 bg-gradient-to-r from-transparent via-green-500 to-transparent rounded-full animate-shimmer-sweep"></div>
         </div>
       </div>
+
+      {/* Custom CSS for the premium shimmer effect */}
+      <style>{`
+        .animate-shimmer-sweep {
+          animation: sweep 1.5s ease-in-out infinite;
+        }
+        @keyframes sweep {
+          0% { transform: translateX(-150%); }
+          100% { transform: translateX(250%); }
+        }
+      `}</style>
     </div>
   );
 };
