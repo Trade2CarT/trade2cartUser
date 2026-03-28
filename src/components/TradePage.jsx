@@ -8,7 +8,6 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { useSettings } from '../context/SettingsContext';
 import SEO from './SEO';
 
-// ✅ NEW: Ghost Loader for Checkout
 const CheckoutSkeleton = () => (
   <div className="space-y-5 animate-pulse">
     <div className="h-32 bg-gray-200 rounded-2xl w-full"></div>
@@ -20,6 +19,7 @@ const CheckoutSkeleton = () => (
 const TradePage = () => {
   const [entries, setEntries] = useState([]);
   const [userName, setUserName] = useState('');
+  const [email, setEmail] = useState(''); // ✅ Restored email state
   const [address, setAddress] = useState('');
   const [exactCoords, setExactCoords] = useState(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
@@ -27,18 +27,17 @@ const TradePage = () => {
   const [tradeImage, setTradeImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // ✅ Controls Ghost Loaders
+  const [isLoading, setIsLoading] = useState(true);
   const [userStatus, setUserStatus] = useState(null);
 
   const navigate = useNavigate();
-  const { userMobile } = useSettings();
+  const { userMobile } = useSettings(); // ✅ Pulls the mobile number securely
   const auth = getAuth();
   const initialCheckRef = useRef(true);
 
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
 
   useEffect(() => {
-    // 1. Load Cart (Preserved Logic)
     const localEntries = localStorage.getItem('wasteEntries');
     if (localEntries) {
       try {
@@ -56,7 +55,6 @@ const TradePage = () => {
       navigate('/hello');
     }
 
-    // 2. Auth & User Status (Preserved Logic)
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUserId(user.uid);
@@ -65,6 +63,7 @@ const TradePage = () => {
           if (snapshot.exists()) {
             const userData = snapshot.val();
             if (userData.name) setUserName(userData.name);
+            if (userData.email) setEmail(userData.email); // ✅ Loads existing email
             if (userData.address) setAddress(userData.address);
             setUserStatus(userData.Status || 'Active');
 
@@ -76,7 +75,7 @@ const TradePage = () => {
               initialCheckRef.current = false;
             }
           }
-          setIsLoading(false); // ✅ Turn off ghost loaders
+          setIsLoading(false);
         });
       } else {
         navigate('/login');
@@ -85,7 +84,6 @@ const TradePage = () => {
     return () => unsubscribe();
   }, [auth, navigate]);
 
-  // ✅ NEW: Calculate Min/Max Totals for the Summary
   const minTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.minRate || entry.rate || 0) * entry.quantity), 0);
   const maxTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.maxRate || entry.rate || 0) * entry.quantity), 0);
 
@@ -135,8 +133,8 @@ const TradePage = () => {
   };
 
   const handleConfirmTrade = async () => {
-    if (!userName.trim() || !address.trim()) {
-      return toast.error("Please fill in your name and address.");
+    if (!userName.trim() || !email.trim() || !address.trim()) {
+      return toast.error("Please fill in your name, email, and address.");
     }
     if (!exactCoords) {
       return toast.error("Please click 'Detect Exact Location' so our driver can find you.");
@@ -156,7 +154,6 @@ const TradePage = () => {
     const wasteEntriesRef = ref(db, 'wasteEntries');
     const mapLink = `https://www.google.com/maps/search/?api=1&query=${exactCoords.lat},${exactCoords.lng}`;
 
-    // Preserved exact DB schema insertion
     entries.forEach(entry => {
       const newWasteEntryKey = push(wasteEntriesRef).key;
       updates[`/wasteEntries/${newWasteEntryKey}`] = {
@@ -183,6 +180,7 @@ const TradePage = () => {
     updates[`/users/${userId}`] = {
       ...userSnapshot.val(),
       name: userName,
+      email: email, // ✅ Saving email to DB
       address: address,
       lastLat: exactCoords.lat,
       lastLng: exactCoords.lng,
@@ -215,12 +213,21 @@ const TradePage = () => {
           {isLoading ? <CheckoutSkeleton /> : (
             <div className="max-w-lg mx-auto space-y-5">
 
+              {/* ✅ RESTORED CONTACT DETAILS CARD */}
               <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
                 <h2 className="text-lg font-bold mb-4 text-gray-800 flex items-center gap-2">
                   <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center"><FaUserAlt size={14} /></span>
-                  Your Info
+                  Contact Details
                 </h2>
-                <input type="text" placeholder="Full Name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-700" />
+                <div className="space-y-4">
+                  <input type="text" placeholder="Full Name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-700" />
+                  <input type="email" placeholder="Email Address (For Bill)" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-700" />
+
+                  {/* Read-Only Mobile Number */}
+                  <div className="w-full p-3.5 bg-gray-100 border border-gray-200 rounded-xl font-bold text-gray-500 flex items-center gap-3 cursor-not-allowed">
+                    <span className="text-gray-400 text-lg">📱</span> {userMobile || 'No number linked'}
+                  </div>
+                </div>
               </div>
 
               <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
@@ -270,7 +277,6 @@ const TradePage = () => {
                     </div>
                   ))}
 
-                  {/* Estimated Final Value with Disclaimer */}
                   <div className="pt-4 border-t border-gray-200">
                     <div className="flex justify-between items-center font-extrabold text-xl mb-1">
                       <p>Estimated Value</p>
