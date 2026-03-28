@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { FaHome, FaTasks, FaUserAlt, FaPlus, FaMinus, FaShoppingCart, FaDownload } from 'react-icons/fa';
+// ✅ Added FaImage for the beautiful placeholder
+import { FaHome, FaTasks, FaUserAlt, FaPlus, FaMinus, FaShoppingCart, FaDownload, FaImage } from 'react-icons/fa';
 import { useSettings } from '../context/SettingsContext';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { db } from '../firebase';
@@ -17,13 +18,12 @@ const categoryColors = {
 };
 
 const SkeletonCard = () => (
-  <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col justify-between h-36 animate-pulse">
-    <div className="w-16 h-4 bg-gray-200 rounded-full mb-3 self-end"></div>
+  <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col justify-between h-48 animate-pulse">
+    <div className="w-full h-24 bg-gray-100 rounded-2xl mb-3"></div>
     <div className="space-y-2">
       <div className="w-3/4 h-5 bg-gray-200 rounded-md"></div>
       <div className="w-1/2 h-4 bg-gray-200 rounded-md"></div>
     </div>
-    <div className="w-full h-10 bg-gray-200 rounded-xl mt-4"></div>
   </div>
 );
 
@@ -38,8 +38,17 @@ const HelloUser = () => {
   const [isInstallable, setIsInstallable] = useState(false);
 
   const navigate = useNavigate();
+
+  // Now relies on the persistent LocalStorage from SettingsContext
   const { location } = useSettings();
   const auth = getAuth();
+
+  useEffect(() => {
+    // Safety check: if no location is set at all, send them to pick one
+    if (!location) {
+      navigate('/location');
+    }
+  }, [location, navigate]);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -55,7 +64,6 @@ const HelloUser = () => {
         setUserName('User');
       }
     });
-
     return () => unsubscribeAuth();
   }, [auth]);
 
@@ -81,6 +89,8 @@ const HelloUser = () => {
   };
 
   useEffect(() => {
+    if (!location) return; // Don't fetch if location isn't set yet
+
     const itemsRef = ref(db, 'items');
     const unsubscribe = onValue(itemsRef, (snapshot) => {
       const data = snapshot.val();
@@ -91,7 +101,7 @@ const HelloUser = () => {
         }));
 
         const locationItems = fetchedItems.filter(item =>
-          item.location && item.location.toLowerCase() === (location?.toLowerCase() || '')
+          item.location && item.location.toLowerCase() === location.toLowerCase()
         );
 
         setItems(locationItems);
@@ -134,7 +144,6 @@ const HelloUser = () => {
   };
 
   const handleCheckout = () => {
-    // ✅ FIX 2: Added imageUrl to the data saved in the cart so TradePage can use it
     const entriesToSave = Object.keys(cart).map(id => {
       const item = items.find(i => i.id === id);
       return {
@@ -181,10 +190,10 @@ const HelloUser = () => {
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
               <img src={logo} alt="Trade2Cart Logo" className="w-10 h-10 rounded-full shadow-sm border border-gray-100" />
-              <div onClick={() => navigate('/location')} className="cursor-pointer">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-tight">Location</p>
-                <h2 className="text-sm font-extrabold text-gray-800 flex items-center gap-1 leading-tight hover:text-green-600 transition-colors">
-                  {location || 'Select'} <span className="text-green-500 text-lg">▾</span>
+              <div onClick={() => navigate('/location')} className="cursor-pointer bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
+                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-0.5">Location</p>
+                <h2 className="text-sm font-black text-gray-900 flex items-center gap-1 leading-none">
+                  {location || 'Select'} <span className="text-green-500 text-lg leading-none">▾</span>
                 </h2>
               </div>
             </div>
@@ -233,8 +242,8 @@ const HelloUser = () => {
         </div>
 
         {/* MIDDLE CONTENT GRID */}
-        <main className="flex-1 overflow-y-auto px-5 pb-24">
-          <div className="grid grid-cols-2 gap-4">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-5 pb-24">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             {isLoading ? (
               <><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
             ) : filteredItems.length > 0 ? (
@@ -244,41 +253,46 @@ const HelloUser = () => {
                 const colorClass = categoryColors[catName] || categoryColors['others'];
                 const showRange = item.minRate && item.maxRate && item.minRate !== item.maxRate;
 
-                // Derive the best image link securely
                 const itemImage = item.imageUrl || item.image || item.icon || item.imgUrl;
 
                 return (
-                  <div key={item.id} className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden">
-                    <span className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-bold uppercase tracking-wider border-b border-l ${colorClass}`}>
+                  <div key={item.id} className="bg-white rounded-3xl p-3 shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden group">
+
+                    {/* Category Badge */}
+                    <span className={`absolute top-0 right-0 px-3 py-1.5 rounded-bl-2xl z-10 text-[9px] font-black uppercase tracking-wider border-b border-l shadow-sm ${colorClass}`}>
                       {catName}
                     </span>
 
-                    {/* ✅ FIX 1: Display the Scrap Image directly on the Card */}
-                    <div className="mt-5 flex flex-col items-center text-center">
-                      <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-gray-100 shadow-inner flex items-center justify-center overflow-hidden mb-3">
-                        {itemImage ? (
-                          <img src={itemImage} alt={item.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-xs font-bold text-gray-300">N/A</span>
-                        )}
-                      </div>
+                    {/* ✅ THE NEW UI: Massive Full-Width Image Container */}
+                    <div className="w-full h-28 sm:h-32 rounded-2xl bg-gray-50 border border-gray-100 shadow-inner flex items-center justify-center overflow-hidden mb-3 relative group-hover:shadow-md transition-shadow">
+                      {itemImage ? (
+                        <img src={itemImage} alt={item.name} className="w-full h-full object-cover mix-blend-multiply hover:scale-105 transition-transform duration-300" />
+                      ) : (
+                        <span className="text-xs font-bold text-gray-300 flex flex-col items-center gap-2">
+                          <FaImage size={28} className="text-gray-200" />
+                        </span>
+                      )}
+                    </div>
 
-                      <h3 className="text-lg font-bold text-gray-800 leading-tight">{item.name}</h3>
+                    {/* Text Details */}
+                    <div className="flex flex-col flex-1 px-1">
+                      <h3 className="text-sm sm:text-base font-black text-gray-800 leading-tight line-clamp-2">{item.name}</h3>
                       <p className="text-green-600 font-extrabold mt-1 text-sm md:text-base">
                         {showRange ? `₹${item.minRate}-₹${item.maxRate}` : `₹${item.rate || item.minRate || 0}`}
-                        <span className="text-gray-400 font-medium text-xs"> / {item.unit || 'kg'}</span>
+                        <span className="text-gray-400 font-bold text-[10px] uppercase tracking-widest"> / {item.unit || 'kg'}</span>
                       </p>
                     </div>
 
-                    <div className="mt-4 h-10 w-full">
+                    {/* Add/Remove Buttons */}
+                    <div className="mt-3 h-10 sm:h-11 w-full">
                       {qty === 0 ? (
-                        <button onClick={() => updateCart(item.id, 1)} className="w-full h-full bg-white border-2 border-green-500 text-green-600 font-bold rounded-xl hover:bg-green-50 transition-colors flex items-center justify-center gap-1 shadow-sm">
-                          <FaPlus size={12} /> ADD
+                        <button onClick={() => updateCart(item.id, 1)} className="w-full h-full bg-white border-2 border-green-500 text-green-600 font-black text-sm rounded-xl hover:bg-green-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm active:scale-95">
+                          <FaPlus size={10} /> ADD
                         </button>
                       ) : (
                         <div className="flex items-center justify-between w-full h-full bg-green-500 text-white rounded-xl shadow-md overflow-hidden">
                           <button onClick={() => updateCart(item.id, -1)} className="w-1/3 h-full flex items-center justify-center hover:bg-green-600 active:bg-green-700 transition"><FaMinus size={12} /></button>
-                          <span className="w-1/3 text-center font-bold text-lg">{qty}</span>
+                          <span className="w-1/3 text-center font-black text-lg">{qty}</span>
                           <button onClick={() => updateCart(item.id, 1)} className="w-1/3 h-full flex items-center justify-center hover:bg-green-600 active:bg-green-700 transition"><FaPlus size={12} /></button>
                         </div>
                       )}
