@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSettings } from '../context/SettingsContext';
 import SEO from './SEO';
-import logo from '../assets/images/logo.PNG'; // ✅ Added Logo
+import logo from '../assets/images/logo.PNG';
 
 const LanguageSelection = () => {
   const { setLanguage } = useSettings();
@@ -18,7 +18,6 @@ const LanguageSelection = () => {
     <>
       <SEO title="Choose Language – Trade2Cart" description="Select your preferred language." />
 
-      {/* ✅ Premium Onboarding Gradient */}
       <main className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-green-50 via-white to-blue-50 p-6 font-sans">
         <div className="w-full max-w-sm text-center flex flex-col items-center">
 
@@ -35,10 +34,14 @@ const LanguageSelection = () => {
           <div className="space-y-4 w-full">
             {[
               { label: 'English', sub: '🇬🇧', value: 'English' },
+              { label: 'ಕನ್ನಡ', sub: '🇮🇳', value: 'Kannada' }, // ✅ Added Kannada for Bengaluru launch
               { label: 'தமிழ்', sub: '🇮🇳', value: 'Tamil' },
               { label: 'हिन्दी', sub: '🇮🇳', value: 'Hindi' },
             ].map(({ label, sub, value }) => {
-              const isDisabled = value === 'Tamil' || value === 'Hindi';
+
+              // 💡 Note for you: To make a language clickable, just remove it from this list!
+              // For example, when Kannada is ready, change it to: value === 'Tamil' || value === 'Hindi'
+              const isDisabled = value === 'Kannada' || value === 'Tamil' || value === 'Hindi';
 
               return (
                 <button
