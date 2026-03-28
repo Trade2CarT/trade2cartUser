@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'; // Import useRef
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { FaHome, FaTasks, FaUserAlt, FaEnvelope, FaMapMarkerAlt, FaCamera } from 'react-icons/fa';
@@ -16,6 +16,7 @@ const TradePage = () => {
   const [email, setEmail] = useState('');
   const [userId, setUserId] = useState(null);
   const [tradeImage, setTradeImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [userStatus, setUserStatus] = useState(null);
@@ -23,7 +24,6 @@ const TradePage = () => {
   const { userMobile } = useSettings();
   const auth = getAuth();
 
-  // --- BUG FIX: Ref to track if the initial check has been performed ---
   const initialCheckRef = useRef(true);
 
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
@@ -61,13 +61,11 @@ const TradePage = () => {
             if (userData.email) setEmail(userData.email);
             setUserStatus(userData.Status || 'Active');
 
-            // --- BUG FIX: Only run the "already scheduled" check on the initial load ---
             if (initialCheckRef.current) {
               if (userData.Status === 'Pending' || userData.Status === 'On-Schedule') {
                 toast.error("You already have an active pickup.");
                 navigate('/task');
               }
-              // Prevent this block from running again for this component instance
               initialCheckRef.current = false;
             }
 
@@ -88,8 +86,17 @@ const TradePage = () => {
     return () => unsubscribe();
   }, [auth, navigate]);
 
-
   const grandTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.total) || 0), 0);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setTradeImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setImagePreview(reader.result);
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleConfirmTrade = async () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -102,6 +109,8 @@ const TradePage = () => {
     if (!userId) {
       return toast.error("User ID not found. Please wait a moment and try again.");
     }
+
+    if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
 
     setIsSubmitting(true);
 
@@ -209,12 +218,33 @@ const TradePage = () => {
               </div>
 
               <div className="bg-white p-5 rounded-xl shadow-lg">
-                <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center"><FaCamera className="mr-3 text-green-500" />Upload Photo (Optional)</h2>
-                <p className="text-sm text-gray-500 mb-3">A photo helps the vendor estimate the load.</p>
-                <input type="file" accept="image/*" onChange={(e) => setTradeImage(e.target.files[0])} className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-100 file:text-green-700 hover:file:bg-green-200" />
+                <h2 className="text-xl font-semibold mb-4 text-gray-800 flex items-center">
+                  <FaCamera className="mr-3 text-green-500" /> Take Photo of Scrap
+                </h2>
+                <p className="text-sm text-gray-500 mb-3">A quick photo speeds up the vendor's pickup.</p>
+
+                <div className="flex items-center gap-4">
+                  <label className="flex-1 cursor-pointer bg-green-50 border-2 border-dashed border-green-300 text-green-700 font-semibold text-center py-4 rounded-xl hover:bg-green-100 transition-colors">
+                    <FaCamera className="mx-auto text-2xl mb-1" />
+                    <span>Tap to Camera / Upload</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {imagePreview && (
+                    <div className="w-24 h-24 rounded-xl overflow-hidden border-2 border-green-500 shadow-sm relative">
+                      <img src={imagePreview} alt="Scrap preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled} className="w-full mt-6 py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+              <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled} className="w-full mt-6 py-4 bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-green-700 transition-transform active:scale-95 disabled:bg-gray-400 disabled:cursor-not-allowed">
                 {isSubmitting ? 'Scheduling...' : 'Confirm & Schedule Pickup'}
               </button>
             </div>

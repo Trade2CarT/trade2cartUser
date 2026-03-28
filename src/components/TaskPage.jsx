@@ -3,7 +3,7 @@ import { FaHome, FaTasks, FaUserAlt, FaMapMarkerAlt, FaTruck, FaPhoneAlt, FaClip
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { ref, get, onValue } from 'firebase/database';
-import { getAuth, onAuthStateChanged } from "firebase/auth"; // Added auth import
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import assetlogo from '../assets/images/logo.PNG';
 import { useSettings } from '../context/SettingsContext';
 import { toast } from 'react-hot-toast';
@@ -22,26 +22,21 @@ const TaskPage = () => {
   useEffect(() => {
     setLoading(true);
 
-    // This auth listener is the single source of truth for the user's login state.
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // User is signed in. Now we can safely get their data using their unique ID.
         const userRef = ref(db, `users/${user.uid}`);
 
-        // Set up a real-time listener on that specific user's data.
         const unsubscribeDb = onValue(userRef, async (snapshot) => {
           if (snapshot.exists()) {
             const userData = snapshot.val();
-            const currentStatus = userData.Status || 'Active'; // Default to Active if no status
+            const currentStatus = userData.Status || 'Active';
             setStatus(currentStatus);
 
-            // Reset details if the status is not 'On-Schedule'
             if (currentStatus.toLowerCase() !== 'on-schedule') {
               setVendorDetails(null);
               setOtp('');
             }
 
-            // If the user is on-schedule, fetch the details for their assigned vendor and OTP.
             if (currentStatus.toLowerCase() === 'on-schedule' && userData.currentAssignmentId) {
               try {
                 const assignmentRef = ref(db, `assignments/${userData.currentAssignmentId}`);
@@ -57,25 +52,29 @@ const TaskPage = () => {
               }
             }
           } else {
-            // This handles if the user is authenticated but their DB record is missing.
             setStatus('');
             toast.error("Could not find your user profile.");
           }
           setLoading(false);
         });
 
-        // The cleanup function for the database listener will be returned by onAuthStateChanged's callback
         return unsubscribeDb;
       } else {
-        // User is signed out or the auth state is not yet determined.
         setStatus('');
         setLoading(false);
       }
     });
 
-    // This is the main cleanup function that detaches the auth listener when the component unmounts.
     return () => unsubscribeAuth();
-  }, [auth, navigate]); // Effect depends on auth and navigate
+  }, [auth, navigate]);
+
+  const handleCopyOtp = () => {
+    if (otp) {
+      navigator.clipboard.writeText(otp);
+      toast.success("OTP Copied to clipboard!");
+      if (navigator.vibrate) navigator.vibrate(50);
+    }
+  };
 
   const statusSteps = [
     { title: 'Ordered', icon: FaClipboardList },
@@ -88,7 +87,7 @@ const TaskPage = () => {
     if (lowerCaseStatus === 'pending') return 0;
     if (lowerCaseStatus === 'on-schedule') return 1;
     if (lowerCaseStatus === 'completed') return 2;
-    return -1; // No active task or status is 'Active'
+    return -1;
   };
 
   const statusIndex = getStatusIndex();
@@ -157,21 +156,37 @@ const TaskPage = () => {
                 {status.toLowerCase() === 'on-schedule' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {vendorDetails ? (
-                      <div className="p-5 bg-white rounded-xl shadow-md text-center">
-                        <p className="text-sm font-medium text-gray-500 mb-2">Assigned Agent</p>
-                        <FaTruck className="text-3xl text-yellow-500 mx-auto mb-2" />
+                      <div className="p-5 bg-white rounded-xl shadow-md flex flex-col items-center border border-gray-100">
+                        <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Assigned Agent</p>
+                        <img
+                          src={`https://ui-avatars.com/api/?name=${vendorDetails.name}&background=16a34a&color=fff&size=64`}
+                          alt="Agent"
+                          className="w-16 h-16 rounded-full shadow-sm mb-2 border-2 border-green-100"
+                        />
                         <p className="text-xl font-bold text-gray-800">{vendorDetails.name}</p>
-                        <a href={`tel:${vendorDetails.phone}`} className="text-blue-600 inline-flex items-center gap-2 mt-1 hover:underline">
-                          <FaPhoneAlt size={12} /> {vendorDetails.phone}
+                        <a href={`tel:${vendorDetails.phone}`} className="mt-3 bg-blue-50 text-blue-600 font-bold py-2 px-6 rounded-full inline-flex items-center gap-2 hover:bg-blue-100 transition">
+                          <FaPhoneAlt size={14} /> Call Agent
                         </a>
                       </div>
                     ) : <p className="text-center text-gray-500">Fetching agent details...</p>}
 
                     {otp ? (
-                      <div className="p-5 bg-white rounded-xl shadow-md text-center">
-                        <p className="text-sm font-medium text-gray-500 mb-2">Your Secure OTP</p>
-                        <p className="text-4xl font-extrabold tracking-[0.2em] text-green-700 p-3 bg-green-50 rounded-lg">{otp}</p>
-                        <p className="text-xs text-gray-500 mt-2">Share this only with the agent upon arrival.</p>
+                      <div className="p-5 bg-white rounded-xl shadow-md text-center border border-gray-100 flex flex-col justify-center relative overflow-hidden">
+                        <div className="absolute inset-0 bg-green-50 opacity-50 animate-pulse"></div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 relative z-10">Your Secure OTP</p>
+
+                        <div
+                          onClick={handleCopyOtp}
+                          className="relative z-10 cursor-pointer group"
+                        >
+                          <p className="text-4xl md:text-5xl font-extrabold tracking-[0.2em] text-green-700 py-4 drop-shadow-sm group-hover:scale-105 transition-transform">
+                            {otp}
+                          </p>
+                          <p className="text-xs font-semibold text-blue-500 bg-blue-50 py-1 px-3 rounded-full inline-block group-hover:bg-blue-100">
+                            Tap to Copy
+                          </p>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-4 relative z-10">Share this only upon arrival.</p>
                       </div>
                     ) : <p className="text-center text-gray-500">Generating OTP...</p>}
                   </div>
