@@ -23,6 +23,9 @@ const TradePage = () => {
   const [address, setAddress] = useState('');
   const [exactCoords, setExactCoords] = useState(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+
+  const [manualMode, setManualMode] = useState(false);
+
   const [userId, setUserId] = useState(null);
   const [tradeImage, setTradeImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -87,18 +90,23 @@ const TradePage = () => {
   const minTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.minRate || entry.rate || 0) * entry.quantity), 0);
   const maxTotal = entries.reduce((acc, entry) => acc + (parseFloat(entry.maxRate || entry.rate || 0) * entry.quantity), 0);
 
-  // ✅ THE FIX: Smarter GPS Detection with Auto-Fallback
+  // ✅ THE FIX: The 3-Strike Auto-Retry System
   const handleDetectLocation = () => {
     if (navigator.vibrate) navigator.vibrate(50);
-    if (!navigator.geolocation) return toast.error("GPS not supported by your browser.");
+    if (!navigator.geolocation) {
+      toast.error("GPS not supported by your browser.");
+      return setManualMode(true);
+    }
 
     setIsDetectingLocation(true);
     toast.loading("Finding exact location...", { id: 'gps' });
 
-    // Success behavior extracted into a variable so we can reuse it
+    let attempts = 0;
+
     const handleSuccess = async (position) => {
       const { latitude, longitude } = position.coords;
       setExactCoords({ lat: latitude, lng: longitude });
+      setManualMode(false);
 
       const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
       if (GOOGLE_API_KEY) {
@@ -116,33 +124,38 @@ const TradePage = () => {
       setIsDetectingLocation(false);
     };
 
-    // Error behavior with smart fallbacks
     const handleError = (error) => {
       console.warn("GPS Error:", error);
 
-      // ERROR 1: User clicked "Block" or browser permissions disabled
+      // If the user explicitly clicks "Block" on the permission prompt, don't retry.
       if (error.code === 1) {
-        toast.error("Permission Denied. Please allow location access in your browser settings.", { id: 'gps', duration: 4000 });
+        toast.error("GPS Denied. Please type your address manually.", { id: 'gps', duration: 4000 });
+        setManualMode(true);
         setIsDetectingLocation(false);
+        return;
       }
-      // ERROR 2 or 3: GPS is ON, but signal is too weak (indoors/bad device)
-      else if (error.code === 2 || error.code === 3) {
-        toast.loading("Weak GPS signal. Trying alternative method...", { id: 'gps' });
 
-        // 🔄 FALLBACK: Ask again, but allow low-accuracy network/wifi location!
+      // If it's a timeout or weak signal (code 2 or 3), try again up to 3 times
+      if (attempts < 3) {
+        attempts++;
+        toast.loading(`Weak signal. Retrying GPS (Attempt ${attempts}/3)...`, { id: 'gps' });
+
+        // Retry with lower accuracy settings to force a lock
         navigator.geolocation.getCurrentPosition(
           handleSuccess,
-          (fallbackError) => {
-            // If it STILL fails, it means GPS is physically turned off on the device level
-            toast.error("Could not find location. Please ensure your device Location/GPS is turned ON.", { id: 'gps', duration: 4000 });
-            setIsDetectingLocation(false);
-          },
-          { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 } // Low accuracy settings
+          handleError,
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
         );
+      } else {
+        // After 3 failed attempts, switch to manual mode
+        toast.error("Could not auto-detect after 3 attempts. Please type your address manually.", { id: 'gps', duration: 5000 });
+        setManualMode(true);
+        setIsDetectingLocation(false);
       }
     };
 
-    // Try High Accuracy GPS first
+    // Attempt 1: Start with High Accuracy
+    attempts++;
     navigator.geolocation.getCurrentPosition(
       handleSuccess,
       handleError,
@@ -164,9 +177,14 @@ const TradePage = () => {
     if (!userName.trim() || !email.trim() || !address.trim()) {
       return toast.error("Please fill in your name, email, and address.");
     }
-    if (!exactCoords) {
-      return toast.error("Please click 'Detect Exact Location' so our driver can find you.");
+
+    if (!exactCoords && !manualMode) {
+      return toast.error("Please click 'Detect Exact Location' or choose manual entry.");
     }
+    if (manualMode && address.trim().length < 15) {
+      return toast.error("Please provide a detailed address including Door No, Street, and Landmark.");
+    }
+
     if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
 
     setIsSubmitting(true);
@@ -180,15 +198,18 @@ const TradePage = () => {
 
     const updates = {};
     const wasteEntriesRef = ref(db, 'wasteEntries');
-    const mapLink = `https://maps.google.com/maps?q=${exactCoords.lat},${exactCoords.lng}`;
+
+    const mapLink = exactCoords
+      ? `https://maps.google.com/maps?q=$${exactCoords.lat},${exactCoords.lng}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 
     entries.forEach(entry => {
       const newWasteEntryKey = push(wasteEntriesRef).key;
       updates[`/wasteEntries/${newWasteEntryKey}`] = {
         name: entry.name || entry.text,
         address: address,
-        exactLat: exactCoords.lat,
-        exactLng: exactCoords.lng,
+        exactLat: exactCoords?.lat || null,
+        exactLng: exactCoords?.lng || null,
         mapUrl: mapLink,
         mobile: userMobile,
         total: (entry.quantity * parseFloat(entry.rate || entry.minRate || 0)).toFixed(2),
@@ -210,8 +231,8 @@ const TradePage = () => {
       name: userName,
       email: email,
       address: address,
-      lastLat: exactCoords.lat,
-      lastLng: exactCoords.lng,
+      lastLat: exactCoords?.lat || null,
+      lastLng: exactCoords?.lng || null,
       Status: "Pending"
     };
 
@@ -247,6 +268,7 @@ const TradePage = () => {
           {isLoading ? <CheckoutSkeleton /> : (
             <div className="max-w-lg mx-auto space-y-4 -mt-6">
 
+              {/* CONTACT DETAILS CARD */}
               <div className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-gray-100 relative">
                 <h2 className="text-[14px] font-black uppercase tracking-widest mb-4 text-gray-800 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-green-50 text-green-600 flex items-center justify-center"><FaUserAlt size={12} /></div>
@@ -267,18 +289,26 @@ const TradePage = () => {
                 </div>
               </div>
 
+              {/* LOCATION CARD */}
               <div className="bg-white p-5 md:p-6 rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-                <h2 className="text-[14px] font-black uppercase tracking-widest mb-4 text-gray-800 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center"><FaMapMarkerAlt size={12} /></div>
-                  Pickup Location
-                </h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-[14px] font-black uppercase tracking-widest text-gray-800 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center"><FaMapMarkerAlt size={12} /></div>
+                    Pickup Location
+                  </h2>
+                  {manualMode && !exactCoords && (
+                    <button onClick={() => { setManualMode(false); handleDetectLocation(); }} className="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline">
+                      Try GPS Again
+                    </button>
+                  )}
+                </div>
 
                 {exactCoords ? (
                   <div className="mb-4 animate-fade-in-up">
                     <div className="w-full h-40 rounded-2xl overflow-hidden shadow-inner border border-gray-200 mb-3 relative">
                       <iframe
                         width="100%" height="100%" style={{ border: 0 }} loading="lazy" allowFullScreen
-                        src={`https://maps.google.com/maps?q=${exactCoords.lat},${exactCoords.lng}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
+                        src={`https://maps.google.com/maps?q=$${exactCoords.lat},${exactCoords.lng}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
                       ></iframe>
                     </div>
                     <div className="bg-green-50 border border-green-100 p-3 rounded-xl flex items-center gap-3">
@@ -289,17 +319,38 @@ const TradePage = () => {
                       </div>
                     </div>
                   </div>
+                ) : !manualMode ? (
+                  <div className="mb-4">
+                    <button
+                      onClick={handleDetectLocation}
+                      disabled={isDetectingLocation}
+                      className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold text-[15px] flex items-center justify-center gap-2 hover:bg-blue-700 active:scale-95 transition-all shadow-md"
+                    >
+                      {isDetectingLocation ? <div className="w-5 h-5 border-4 border-white border-t-transparent rounded-full animate-spin"></div> : <><FaCrosshairs /> Detect Exact Location</>}
+                    </button>
+                    <p className="text-center mt-3">
+                      <button onClick={() => setManualMode(true)} className="text-xs font-bold text-gray-500 uppercase tracking-widest hover:text-gray-800 transition-colors underline decoration-gray-300 underline-offset-4">
+                        Or enter address manually
+                      </button>
+                    </p>
+                  </div>
                 ) : (
-                  <button
-                    onClick={handleDetectLocation}
-                    disabled={isDetectingLocation}
-                    className="w-full mb-4 py-4 bg-blue-600 text-white rounded-2xl font-bold text-[15px] flex items-center justify-center gap-2 hover:bg-blue-700 active:scale-95 transition-all shadow-md"
-                  >
-                    {isDetectingLocation ? <div className="w-5 h-5 border-4 border-white border-t-transparent rounded-full animate-spin"></div> : <><FaCrosshairs /> Detect Exact Location</>}
-                  </button>
+                  <div className="mb-4 bg-orange-50 border border-orange-100 p-3 rounded-xl flex items-center gap-3 animate-fade-in-down">
+                    <FaInfoCircle className="text-orange-500 text-xl flex-shrink-0" />
+                    <div>
+                      <p className="font-bold text-orange-900 text-sm leading-tight">Manual Mode</p>
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-orange-600 mt-0.5">Please provide a detailed address</p>
+                    </div>
+                  </div>
                 )}
 
-                <textarea placeholder="Add Door No, Floor, or Landmark..." value={address} onChange={(e) => setAddress(e.target.value)} rows={2} className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-700 transition-all resize-none"></textarea>
+                <textarea
+                  placeholder={manualMode ? "Enter full House No, Street, Landmark, and Pincode..." : "Add Door No, Floor, or Landmark..."}
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  rows={manualMode ? 3 : 2}
+                  className={`w-full p-4 bg-gray-50 border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-700 transition-all resize-none ${manualMode ? 'border-blue-300 bg-blue-50/30' : 'border-gray-200'}`}
+                ></textarea>
               </div>
 
               {/* SUMMARY CARD */}
