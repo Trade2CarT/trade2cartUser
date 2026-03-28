@@ -135,10 +135,12 @@ const HelloUser = () => {
   return (
     <>
       <SEO title="Home - Trade2Cart" description="Sell scrap online instantly." />
-      {/* Changed pb-32 to pb-10 since the spacer div handles the scroll room now */}
-      <div className="min-h-screen bg-gray-50 pb-10 font-sans">
 
-        <header className="bg-white shadow-sm sticky top-0 z-40 px-5 pt-4 pb-4 rounded-b-3xl">
+      {/* ✅ NEW: Strict flexbox layout locks the height to the device viewport so the footer never covers content */}
+      <div className="h-[100dvh] bg-gray-50 flex flex-col font-sans overflow-hidden relative">
+
+        {/* HEADER: Flex-none prevents it from shrinking */}
+        <header className="flex-none bg-white shadow-sm z-30 px-5 pt-4 pb-4 rounded-b-3xl">
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
               <img src={logo} alt="Trade2Cart Logo" className="w-10 h-10 rounded-full shadow-sm border border-gray-100" />
@@ -160,7 +162,8 @@ const HelloUser = () => {
           </div>
         </header>
 
-        <div className="flex overflow-x-auto hide-scrollbar gap-3 px-5 py-4 mt-2">
+        {/* CATEGORY PILLS: Flex-none */}
+        <div className="flex-none flex overflow-x-auto hide-scrollbar gap-3 px-5 py-4">
           {categories.map(cat => (
             <button
               key={cat}
@@ -173,59 +176,60 @@ const HelloUser = () => {
           ))}
         </div>
 
-        <main className="px-5 mt-2 grid grid-cols-2 gap-4">
-          {isLoading ? (
-            <><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
-          ) : filteredItems.length > 0 ? (
-            filteredItems.map(item => {
-              const qty = cart[item.id] || 0;
-              const catName = item.category ? item.category.toLowerCase() : 'others';
-              const colorClass = categoryColors[catName] || categoryColors['others'];
-              const showRange = item.minRate && item.maxRate && item.minRate !== item.maxRate;
+        {/* ✅ MIDDLE CONTENT: Flex-1 and overflow-y-auto allows ONLY this area to scroll */}
+        <main className="flex-1 overflow-y-auto px-5 pb-24">
+          <div className="grid grid-cols-2 gap-4">
+            {isLoading ? (
+              <><SkeletonCard /><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+            ) : filteredItems.length > 0 ? (
+              filteredItems.map(item => {
+                const qty = cart[item.id] || 0;
+                const catName = item.category ? item.category.toLowerCase() : 'others';
+                const colorClass = categoryColors[catName] || categoryColors['others'];
+                const showRange = item.minRate && item.maxRate && item.minRate !== item.maxRate;
 
-              return (
-                <div key={item.id} className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden">
-                  <span className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-bold uppercase tracking-wider border-b border-l ${colorClass}`}>
-                    {catName}
-                  </span>
+                return (
+                  <div key={item.id} className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden">
+                    <span className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-bold uppercase tracking-wider border-b border-l ${colorClass}`}>
+                      {catName}
+                    </span>
 
-                  <div className="mt-4">
-                    <h3 className="text-lg font-bold text-gray-800 leading-tight">{item.name}</h3>
-                    <p className="text-green-600 font-extrabold mt-1 text-sm md:text-base">
-                      {showRange ? `₹${item.minRate}-₹${item.maxRate}` : `₹${item.rate || item.minRate || 0}`}
-                      <span className="text-gray-400 font-medium text-xs"> / {item.unit || 'kg'}</span>
-                    </p>
+                    <div className="mt-4">
+                      <h3 className="text-lg font-bold text-gray-800 leading-tight">{item.name}</h3>
+                      <p className="text-green-600 font-extrabold mt-1 text-sm md:text-base">
+                        {showRange ? `₹${item.minRate}-₹${item.maxRate}` : `₹${item.rate || item.minRate || 0}`}
+                        <span className="text-gray-400 font-medium text-xs"> / {item.unit || 'kg'}</span>
+                      </p>
+                    </div>
+
+                    <div className="mt-4 h-10">
+                      {qty === 0 ? (
+                        <button onClick={() => updateCart(item.id, 1)} className="w-full h-full bg-white border-2 border-green-500 text-green-600 font-bold rounded-xl hover:bg-green-50 transition-colors flex items-center justify-center gap-1 shadow-sm">
+                          <FaPlus size={12} /> ADD
+                        </button>
+                      ) : (
+                        <div className="flex items-center justify-between w-full h-full bg-green-500 text-white rounded-xl shadow-md overflow-hidden">
+                          <button onClick={() => updateCart(item.id, -1)} className="w-1/3 h-full flex items-center justify-center hover:bg-green-600 active:bg-green-700 transition"><FaMinus size={12} /></button>
+                          <span className="w-1/3 text-center font-bold text-lg">{qty}</span>
+                          <button onClick={() => updateCart(item.id, 1)} className="w-1/3 h-full flex items-center justify-center hover:bg-green-600 active:bg-green-700 transition"><FaPlus size={12} /></button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-
-                  <div className="mt-4 h-10">
-                    {qty === 0 ? (
-                      <button onClick={() => updateCart(item.id, 1)} className="w-full h-full bg-white border-2 border-green-500 text-green-600 font-bold rounded-xl hover:bg-green-50 transition-colors flex items-center justify-center gap-1 shadow-sm">
-                        <FaPlus size={12} /> ADD
-                      </button>
-                    ) : (
-                      <div className="flex items-center justify-between w-full h-full bg-green-500 text-white rounded-xl shadow-md overflow-hidden">
-                        <button onClick={() => updateCart(item.id, -1)} className="w-1/3 h-full flex items-center justify-center hover:bg-green-600 active:bg-green-700 transition"><FaMinus size={12} /></button>
-                        <span className="w-1/3 text-center font-bold text-lg">{qty}</span>
-                        <button onClick={() => updateCart(item.id, 1)} className="w-1/3 h-full flex items-center justify-center hover:bg-green-600 active:bg-green-700 transition"><FaPlus size={12} /></button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="col-span-2 text-center mt-10 p-8 bg-white rounded-3xl shadow-sm border border-gray-100">
-              <p className="text-gray-500 font-bold text-lg">No items available yet.</p>
-              <p className="text-gray-400 text-sm mt-2">We are currently updating prices for {location}. Check back soon!</p>
-            </div>
-          )}
-
-          {/* ✅ FIX: Spacer div guarantees you can scroll completely past the floating cart */}
-          <div className="col-span-2 h-40"></div>
+                );
+              })
+            ) : (
+              <div className="col-span-2 text-center mt-10 p-8 bg-white rounded-3xl shadow-sm border border-gray-100">
+                <p className="text-gray-500 font-bold text-lg">No items available yet.</p>
+                <p className="text-gray-400 text-sm mt-2">We are currently updating prices for {location}. Check back soon!</p>
+              </div>
+            )}
+          </div>
         </main>
 
+        {/* ✅ FLOATING CART: Adjusted to sit precisely above the real footer */}
         {totalCartItems > 0 && (
-          <div className="fixed bottom-20 left-0 right-0 px-5 z-40 animate-fade-in-up">
+          <div className="absolute bottom-[88px] left-0 right-0 px-5 z-40 animate-fade-in-up">
             <div onClick={handleCheckout} className="bg-green-600 text-white p-4 rounded-2xl shadow-2xl flex justify-between items-center cursor-pointer hover:bg-green-700 transition-colors active:scale-95 border border-green-500">
               <div className="flex flex-col">
                 <span className="text-xs text-green-200 font-bold uppercase tracking-wider">{totalCartItems} Items in Bin</span>
@@ -240,12 +244,15 @@ const HelloUser = () => {
           </div>
         )}
 
-        <footer className="fixed bottom-0 w-full flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
+        {/* ✅ FOOTER: Flex-none. It is now part of the natural document flow! No fixed positioning. */}
+        <footer className="flex-none w-full flex justify-around items-center p-3 bg-white rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
           <Link to="/hello" className="flex flex-col items-center text-green-600 p-2"><FaHome className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Home</span></Link>
           <Link to="/task" className="flex flex-col items-center text-gray-400 p-2 hover:text-green-600 transition-colors"><FaTasks className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Orders</span></Link>
           <Link to="/account" className="flex flex-col items-center text-gray-400 p-2 hover:text-green-600 transition-colors"><FaUserAlt className="text-2xl mb-1" /><span className="text-[10px] font-bold uppercase tracking-wider">Profile</span></Link>
         </footer>
+
       </div>
+
       <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
     </>
   );
