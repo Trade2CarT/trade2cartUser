@@ -60,7 +60,7 @@ const LoginPage = () => {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalContent, setModalContent] = useState(null); // ✅ Changed to accept React Nodes safely
+  const [modalContent, setModalContent] = useState(null);
 
   const { setUserMobile, location, language } = useSettings();
   const navigate = useNavigate();
@@ -143,11 +143,11 @@ const LoginPage = () => {
   const openModal = (content) => { setModalContent(content); setIsModalOpen(true); };
 
   const handleOtpChange = (index, e) => {
-    const value = e.target.value.replace(/\D/g, ''); 
+    const value = e.target.value.replace(/\D/g, '');
     if (!value) return;
 
     const newOtp = [...otpArray];
-    newOtp[index] = value.substring(value.length - 1); 
+    newOtp[index] = value.substring(value.length - 1);
     setOtpArray(newOtp);
 
     if (index < 5 && value) {
@@ -183,8 +183,7 @@ const LoginPage = () => {
       <SEO title="Login to Trade2Cart" description="Login to schedule scrap pickups." />
       <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 sm:p-6 font-sans">
         <div id="recaptcha-container"></div>
-        
-        {/* MODAL IS NOW RENDERED SAFELY */}
+
         {isModalOpen && <Modal content={modalContent} onClose={() => setIsModalOpen(false)} />}
 
         <div className="w-full max-w-md">
@@ -223,28 +222,27 @@ const LoginPage = () => {
                   </div>
 
                   <div className="space-y-4 mb-8 bg-gray-50 p-4 sm:p-5 rounded-xl border border-gray-100">
-                    {/* ✅ FIX 2: Passing clean React components to the Modal instead of strings */}
-                    <CheckboxLink 
-                      label={t.terms} 
-                      checked={termsAccepted} 
-                      onChange={setTermsAccepted} 
+                    <CheckboxLink
+                      label={t.terms}
+                      checked={termsAccepted}
+                      onChange={setTermsAccepted}
                       onLinkClick={() => openModal(
                         <div className="text-left space-y-3">
                           <h2 className="text-2xl font-black text-gray-900">Terms & Conditions</h2>
                           <p className="text-gray-600 font-medium leading-relaxed">By using Trade2Cart, you agree to our standard pickup policies. Final prices are determined by the vendor upon accurate weighing at your location.</p>
                         </div>
-                      )} 
+                      )}
                     />
-                    <CheckboxLink 
-                      label={t.privacy} 
-                      checked={privacyAccepted} 
-                      onChange={setPrivacyAccepted} 
+                    <CheckboxLink
+                      label={t.privacy}
+                      checked={privacyAccepted}
+                      onChange={setPrivacyAccepted}
                       onLinkClick={() => openModal(
                         <div className="text-left space-y-3">
                           <h2 className="text-2xl font-black text-gray-900">Privacy Policy</h2>
                           <p className="text-gray-600 font-medium leading-relaxed">We securely store your phone number and address solely for the purpose of completing your scrap pickup requests. We do not sell your data.</p>
                         </div>
-                      )} 
+                      )}
                     />
                   </div>
 
@@ -258,8 +256,8 @@ const LoginPage = () => {
                 </>
               ) : (
                 <>
-                  {/* ✅ FIX 1: Fully Responsive OTP Grid using gap-1 for tiny phones and smaller base widths */}
-                  <div className="flex justify-between gap-1 sm:gap-2 mb-8 mt-4" onPaste={handleOtpPaste}>
+                  {/* ✅ THE FIX: Perfectly centered and responsive OTP Grid */}
+                  <div className="flex justify-center items-center gap-2 sm:gap-3 mb-8 mt-4 w-full" onPaste={handleOtpPaste}>
                     {otpArray.map((data, index) => (
                       <input
                         key={index}
@@ -271,7 +269,7 @@ const LoginPage = () => {
                         value={data}
                         onChange={(e) => handleOtpChange(index, e)}
                         onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                        className="w-10 h-12 sm:w-12 sm:h-14 md:w-14 md:h-16 text-center text-xl sm:text-2xl font-black text-gray-900 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-green-50 focus:border-green-500 focus:ring-4 focus:ring-green-500/20 outline-none transition-all shadow-inner"
+                        className="w-[12%] sm:w-12 md:w-14 aspect-[4/5] sm:h-14 md:h-16 text-center text-xl sm:text-2xl font-black text-gray-900 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-green-50 focus:border-green-500 focus:ring-4 focus:ring-green-500/20 outline-none transition-all shadow-inner"
                       />
                     ))}
                   </div>

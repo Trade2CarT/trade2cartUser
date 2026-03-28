@@ -286,18 +286,24 @@ const TradePage = () => {
                   {entries.map((entry, idx) => (
                     <div key={idx} className="flex justify-between items-center bg-gray-50 px-4 py-3 rounded-xl border border-gray-100">
 
-                      {/* ✅ FIX 3: Display the scrap image or a neat placeholder! */}
+                      {/* ✅ THE FIX: Perfectly loads "imageUrl", "image", "icon", or "imgUrl" from the DB */}
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 shadow-sm flex items-center justify-center overflow-hidden flex-shrink-0">
-                          {entry.image || entry.icon || entry.imgUrl ? (
-                            <img src={entry.image || entry.icon || entry.imgUrl} alt={entry.name} className="w-full h-full object-cover" />
+                        <div className="w-12 h-12 rounded-xl bg-white border border-gray-200 shadow-sm flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {entry.imageUrl || entry.image || entry.icon || entry.imgUrl ? (
+                            <img
+                              src={entry.imageUrl || entry.image || entry.icon || entry.imgUrl}
+                              alt={entry.name || entry.text}
+                              className="w-full h-full object-cover"
+                            />
                           ) : (
                             <span className="text-[10px] font-bold text-gray-400">N/A</span>
                           )}
                         </div>
                         <div>
                           <p className="font-extrabold text-gray-800 text-sm capitalize">{entry.name || entry.text}</p>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{entry.quantity} {entry.unit} × {entry.minRate ? `₹${entry.minRate}-₹${entry.maxRate}` : `₹${entry.rate}`}</p>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                            {entry.quantity} {entry.unit} × {entry.minRate ? `₹${entry.minRate}-₹${entry.maxRate}` : `₹${entry.rate}`}
+                          </p>
                         </div>
                       </div>
 
