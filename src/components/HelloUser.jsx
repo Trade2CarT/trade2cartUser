@@ -34,7 +34,6 @@ const HelloUser = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [cart, setCart] = useState({});
 
-  // ✅ NEW: PWA Install States
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isInstallable, setIsInstallable] = useState(false);
 
@@ -42,7 +41,6 @@ const HelloUser = () => {
   const { location } = useSettings();
   const auth = getAuth();
 
-  // ✅ FIX 1: Fetch actual User Name from Realtime Database
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
@@ -50,7 +48,6 @@ const HelloUser = () => {
         onValue(userRef, (snapshot) => {
           if (snapshot.exists()) {
             const userData = snapshot.val();
-            // Grab just the first name for the greeting
             setUserName(userData.name ? userData.name.split(' ')[0] : 'User');
           }
         });
@@ -62,12 +59,11 @@ const HelloUser = () => {
     return () => unsubscribeAuth();
   }, [auth]);
 
-  // ✅ FIX 2: PWA Install Prompt Listener
   useEffect(() => {
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      setIsInstallable(true); // Shows the Install Banner
+      setIsInstallable(true);
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -78,13 +74,12 @@ const HelloUser = () => {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
-        setIsInstallable(false); // Hide banner if they installed it
+        setIsInstallable(false);
       }
       setDeferredPrompt(null);
     }
   };
 
-  // Fetch Items based on location
   useEffect(() => {
     const itemsRef = ref(db, 'items');
     const unsubscribe = onValue(itemsRef, (snapshot) => {
@@ -109,7 +104,6 @@ const HelloUser = () => {
     return () => unsubscribe();
   }, [location]);
 
-  // Load existing cart from LocalStorage
   useEffect(() => {
     if (items.length > 0) {
       const savedCart = localStorage.getItem('wasteEntries');
@@ -140,11 +134,13 @@ const HelloUser = () => {
   };
 
   const handleCheckout = () => {
+    // ✅ FIX 2: Added imageUrl to the data saved in the cart so TradePage can use it
     const entriesToSave = Object.keys(cart).map(id => {
       const item = items.find(i => i.id === id);
       return {
         id: item.id,
         name: item.name,
+        imageUrl: item.imageUrl || item.image || item.icon || item.imgUrl || null,
         quantity: cart[id],
         unit: item.unit,
         rate: item.rate || item.minRate,
@@ -203,7 +199,6 @@ const HelloUser = () => {
           </div>
         </header>
 
-        {/* ✅ NEW: Premium PWA Install Banner */}
         {isInstallable && (
           <div className="flex-none px-5 pt-4 animate-fade-in-down">
             <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-4 flex justify-between items-center shadow-lg border border-gray-700">
@@ -249,13 +244,25 @@ const HelloUser = () => {
                 const colorClass = categoryColors[catName] || categoryColors['others'];
                 const showRange = item.minRate && item.maxRate && item.minRate !== item.maxRate;
 
+                // Derive the best image link securely
+                const itemImage = item.imageUrl || item.image || item.icon || item.imgUrl;
+
                 return (
                   <div key={item.id} className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden">
                     <span className={`absolute top-0 right-0 px-3 py-1 rounded-bl-xl text-[10px] font-bold uppercase tracking-wider border-b border-l ${colorClass}`}>
                       {catName}
                     </span>
 
-                    <div className="mt-4">
+                    {/* ✅ FIX 1: Display the Scrap Image directly on the Card */}
+                    <div className="mt-5 flex flex-col items-center text-center">
+                      <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-gray-100 shadow-inner flex items-center justify-center overflow-hidden mb-3">
+                        {itemImage ? (
+                          <img src={itemImage} alt={item.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-xs font-bold text-gray-300">N/A</span>
+                        )}
+                      </div>
+
                       <h3 className="text-lg font-bold text-gray-800 leading-tight">{item.name}</h3>
                       <p className="text-green-600 font-extrabold mt-1 text-sm md:text-base">
                         {showRange ? `₹${item.minRate}-₹${item.maxRate}` : `₹${item.rate || item.minRate || 0}`}
@@ -263,7 +270,7 @@ const HelloUser = () => {
                       </p>
                     </div>
 
-                    <div className="mt-4 h-10">
+                    <div className="mt-4 h-10 w-full">
                       {qty === 0 ? (
                         <button onClick={() => updateCart(item.id, 1)} className="w-full h-full bg-white border-2 border-green-500 text-green-600 font-bold rounded-xl hover:bg-green-50 transition-colors flex items-center justify-center gap-1 shadow-sm">
                           <FaPlus size={12} /> ADD
