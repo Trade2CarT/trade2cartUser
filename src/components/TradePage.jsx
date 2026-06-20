@@ -157,13 +157,38 @@ const TradePage = () => {
     );
   };
 
-  const handleImageChange = (e) => {
+  // Resize + compress the photo BEFORE storing it. A raw phone photo as base64
+  // is several MB; written onto every entry and loaded whole by the vendor it
+  // caused low-memory crashes. This shrinks it to ~1024px JPEG (~50-150 KB).
+  const compressImage = (file, maxDim = 1024, quality = 0.7) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDim) { height = Math.round((height * maxDim) / width); width = maxDim; }
+        else if (height >= width && height > maxDim) { width = Math.round((width * maxDim) / height); height = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = ev.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setTradeImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setImagePreview(reader.result);
-      reader.readAsDataURL(file);
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file); // already a base64 JPEG string
+      setTradeImage(compressed);
+      setImagePreview(compressed);
+    } catch {
+      toast.error('Could not process that image. Please try another photo.');
     }
   };
 
@@ -184,13 +209,8 @@ const TradePage = () => {
     setIsSubmitting(true);
 
     try {
-      const imageBase64 = await new Promise((resolve) => {
-        if (!tradeImage) return resolve(null);
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(tradeImage);
-      });
+      // tradeImage is already a compressed base64 JPEG from handleImageChange.
+      const imageBase64 = tradeImage || null;
 
       const mapLink = exactCoords
         ? `https://maps.google.com/maps?q=${exactCoords.lat},${exactCoords.lng}`
