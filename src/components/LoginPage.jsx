@@ -86,6 +86,16 @@ const LoginPage = () => {
 
   const t = translations[language] || translations['English'];
 
+  // Onboarding order is Language → Location → Login. If someone lands on /login
+  // directly without a location, the new user record would be created with
+  // location 'Unknown' (breaks item loading & vendor assignment). Send them to
+  // pick language + location first.
+  useEffect(() => {
+    if (!location) {
+      navigate('/language', { replace: true });
+    }
+  }, [location, navigate]);
+
   useEffect(() => {
     if (!recaptchaVerifierRef.current) {
       recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
