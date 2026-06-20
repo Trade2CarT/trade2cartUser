@@ -115,6 +115,7 @@ const LoginPage = () => {
     if (!snapshot.exists()) {
       await set(userRef, {
         name: trimmedName,
+        phone: userPhone,
         phoneNumber: userPhone,
         location: location || 'Unknown',
         language: language || 'en',
