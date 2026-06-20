@@ -24,7 +24,10 @@ const translations = {
     sentTo: "Sent securely to",
     verify: "Verify & Continue",
     changeNumber: "← Change Number",
-    processing: "Processing..."
+    processing: "Processing...",
+    nameTitle: "One last step",
+    namePrompt: "What should we call you?",
+    finish: "Continue"
   },
   Tamil: {
     welcome: "மீண்டும் வருக",
@@ -37,7 +40,10 @@ const translations = {
     sentTo: "பாதுகாப்பாக அனுப்பப்பட்டது",
     verify: "சரிபார்த்து தொடரவும்",
     changeNumber: "← எண்ணை மாற்றவும்",
-    processing: "செயலாக்குகிறது..."
+    processing: "செயலாக்குகிறது...",
+    nameTitle: "ஒரு கடைசி படி",
+    namePrompt: "உங்களை எப்படி அழைப்பது?",
+    finish: "தொடரவும்"
   },
   Hindi: {
     welcome: "वापसी पर स्वागत है",
@@ -50,7 +56,10 @@ const translations = {
     sentTo: "सुरक्षित रूप से भेजा गया",
     verify: "सत्यापित करें और आगे बढ़ें",
     changeNumber: "← नंबर बदलें",
-    processing: "प्रोसेसिंग..."
+    processing: "प्रोसेसिंग...",
+    nameTitle: "एक आख़िरी कदम",
+    namePrompt: "हम आपको क्या कहें?",
+    finish: "जारी रखें"
   }
 };
 
@@ -62,6 +71,7 @@ const LoginPage = () => {
 
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [otpSent, setOtpSent] = useState(false);
+  const [needsName, setNeedsName] = useState(false); // new users get asked for name AFTER otp
   const [loading, setLoading] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
@@ -86,7 +96,6 @@ const LoginPage = () => {
 
   const handleGetOtp = async () => {
     if (!termsAccepted || !privacyAccepted) return toast.error("Please accept the Terms & Privacy Policy.");
-    if (name.trim().length < 2) return toast.error('Please enter your name.');
     if (!/^[6-9]\d{9}$/.test(phone)) return toast.error('Enter a valid 10-digit mobile number.');
     if (navigator.vibrate) navigator.vibrate(50);
 
@@ -108,26 +117,6 @@ const LoginPage = () => {
     }
   };
 
-  const ensureUserExistsInFirebase = async (userId, userPhone) => {
-    const userRef = ref(db, `users/${userId}`);
-    const snapshot = await get(userRef);
-    const trimmedName = name.trim();
-    if (!snapshot.exists()) {
-      await set(userRef, {
-        name: trimmedName,
-        phone: userPhone,
-        phoneNumber: userPhone,
-        location: location || 'Unknown',
-        language: language || 'en',
-        createdAt: new Date().toISOString(),
-        Status: 'Active'
-      });
-    } else if (trimmedName && !snapshot.val().name) {
-      // Returning user who never had a name saved — backfill it.
-      await update(userRef, { name: trimmedName });
-    }
-  };
-
   const handleVerify = async () => {
     const fullOtp = otpArray.join('');
     if (fullOtp.length !== 6) return toast.error('Enter the complete 6-digit OTP.');
@@ -137,12 +126,31 @@ const LoginPage = () => {
     try {
       await confirmationResult.confirm(fullOtp);
       const user = auth.currentUser;
-      if (user) {
-        await ensureUserExistsInFirebase(user.uid, user.phoneNumber);
+      if (!user) return;
+
+      const userRef = ref(db, `users/${user.uid}`);
+      const snapshot = await get(userRef);
+
+      // Returning user who already has a name → straight in (no name prompt).
+      if (snapshot.exists() && snapshot.val().name) {
         setUserMobile(user.phoneNumber);
-        toast.success('Login Successful!');
+        toast.success('Welcome back!');
         navigate('/hello', { replace: true });
+        return;
       }
+
+      // New user (or no name yet): make sure the record exists, then ask for name.
+      if (!snapshot.exists()) {
+        await set(userRef, {
+          phone: user.phoneNumber,
+          phoneNumber: user.phoneNumber,
+          location: location || 'Unknown',
+          language: language || 'en',
+          createdAt: new Date().toISOString(),
+          Status: 'Active'
+        });
+      }
+      setNeedsName(true);
     } catch (error) {
       toast.error('Incorrect OTP. Please try again.');
     } finally {
@@ -150,8 +158,27 @@ const LoginPage = () => {
     }
   };
 
+  const handleSaveName = async () => {
+    if (name.trim().length < 2) return toast.error('Please enter your name.');
+    if (navigator.vibrate) navigator.vibrate(50);
+
+    setLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) { navigate('/login'); return; }
+      await update(ref(db, `users/${user.uid}`), { name: name.trim() });
+      setUserMobile(user.phoneNumber);
+      toast.success('All set!');
+      navigate('/hello', { replace: true });
+    } catch (error) {
+      toast.error('Could not save your name. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleChangeNumber = () => {
-    setOtpSent(false); setOtpArray(['', '', '', '', '', '']); setPhone(''); setConfirmationResult(null);
+    setOtpSent(false); setNeedsName(false); setOtpArray(['', '', '', '', '', '']); setPhone(''); setConfirmationResult(null);
   };
 
   const handleOtpChange = (index, e) => {
@@ -224,26 +251,37 @@ const LoginPage = () => {
               <div className="flex flex-col items-center mb-8">
                 <img src={logo} alt="Trade2Cart Logo" className="w-16 h-16 rounded-2xl mb-4 shadow-md border border-gray-100" />
                 <h1 className="text-2xl font-black tracking-tight text-gray-900 text-center">
-                  {otpSent ? t.enterOtp : t.welcome}
+                  {needsName ? t.nameTitle : otpSent ? t.enterOtp : t.welcome}
                 </h1>
                 <p className="text-gray-500 text-sm font-medium text-center mt-1">
-                  {otpSent ? `${t.sentTo} +91 ${phone}` : t.enterNumber}
+                  {needsName ? t.namePrompt : otpSent ? `${t.sentTo} +91 ${phone}` : t.enterNumber}
                 </p>
               </div>
 
-              {!otpSent ? (
+              {needsName ? (
                 <>
-                  <div className="relative mb-4">
+                  <div className="relative mb-6">
                     <input
                       type="text"
                       placeholder={t.fullName}
                       value={name}
                       onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z\s.'-]/g, ''))}
                       maxLength={40}
-                      className="w-full px-4 py-3.5 bg-white border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:ring-0 outline-none font-bold text-lg text-gray-800 transition-colors"
+                      autoFocus
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); }}
+                      className="w-full px-4 py-3.5 bg-white border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:ring-0 outline-none font-bold text-lg text-gray-800 transition-colors text-center"
                     />
                   </div>
-
+                  <button
+                    onClick={handleSaveName}
+                    disabled={name.trim().length < 2}
+                    className="w-full py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white font-bold text-lg rounded-xl hover:from-brand-600 hover:to-brand-700 transition-all active:scale-[0.98] disabled:from-gray-300 disabled:to-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed shadow-md"
+                  >
+                    {t.finish}
+                  </button>
+                </>
+              ) : !otpSent ? (
+                <>
                   <div className="relative mb-6">
                     <span className="absolute inset-y-0 left-0 flex items-center text-gray-600 font-bold bg-gray-100 rounded-l-xl border-r-2 border-gray-200 px-4">
                       +91
@@ -276,7 +314,7 @@ const LoginPage = () => {
 
                   <button
                     onClick={handleGetOtp}
-                    disabled={!termsAccepted || !privacyAccepted || phone.length !== 10 || name.trim().length < 2}
+                    disabled={!termsAccepted || !privacyAccepted || phone.length !== 10}
                     className="w-full py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white font-bold text-lg rounded-xl hover:from-brand-600 hover:to-brand-700 transition-all active:scale-[0.98] disabled:from-gray-300 disabled:to-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed shadow-md"
                   >
                     {t.getOtp}
