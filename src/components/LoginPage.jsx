@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { db } from '../firebase';
-import { get, ref, set } from 'firebase/database';
+import { get, ref, set, update } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
 
 import SEO from './SEO';
@@ -15,7 +15,8 @@ import PoliciesAndTerms from './account/PoliciesAndTerms';
 const translations = {
   English: {
     welcome: "Welcome Back",
-    enterNumber: "Enter your mobile number to continue",
+    fullName: "Full Name",
+    enterNumber: "Enter your name and mobile number to continue",
     getOtp: "GET OTP",
     terms: "Terms & Conditions",
     privacy: "Privacy Policy",
@@ -27,7 +28,8 @@ const translations = {
   },
   Tamil: {
     welcome: "மீண்டும் வருக",
-    enterNumber: "தொடர உங்கள் மொபைல் எண்ணை உள்ளிடவும்",
+    fullName: "முழு பெயர்",
+    enterNumber: "தொடர உங்கள் பெயர் மற்றும் மொபைல் எண்ணை உள்ளிடவும்",
     getOtp: "OTP பெறுங்கள்",
     terms: "விதிமுறைகள்",
     privacy: "தனியுரிமை கொள்கை",
@@ -39,7 +41,8 @@ const translations = {
   },
   Hindi: {
     welcome: "वापसी पर स्वागत है",
-    enterNumber: "जारी रखने के लिए अपना मोबाइल नंबर दर्ज करें",
+    fullName: "पूरा नाम",
+    enterNumber: "जारी रखने के लिए अपना नाम और मोबाइल नंबर दर्ज करें",
     getOtp: "OTP प्राप्त करें",
     terms: "नियम और शर्तें",
     privacy: "गोपनीयता नीति",
@@ -52,6 +55,7 @@ const translations = {
 };
 
 const LoginPage = () => {
+  const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [otpArray, setOtpArray] = useState(['', '', '', '', '', '']);
   const inputRefs = useRef([]);
@@ -82,6 +86,7 @@ const LoginPage = () => {
 
   const handleGetOtp = async () => {
     if (!termsAccepted || !privacyAccepted) return toast.error("Please accept the Terms & Privacy Policy.");
+    if (name.trim().length < 2) return toast.error('Please enter your name.');
     if (!/^[6-9]\d{9}$/.test(phone)) return toast.error('Enter a valid 10-digit mobile number.');
     if (navigator.vibrate) navigator.vibrate(50);
 
@@ -106,14 +111,19 @@ const LoginPage = () => {
   const ensureUserExistsInFirebase = async (userId, userPhone) => {
     const userRef = ref(db, `users/${userId}`);
     const snapshot = await get(userRef);
+    const trimmedName = name.trim();
     if (!snapshot.exists()) {
       await set(userRef, {
+        name: trimmedName,
         phoneNumber: userPhone,
         location: location || 'Unknown',
         language: language || 'en',
         createdAt: new Date().toISOString(),
         Status: 'Active'
       });
+    } else if (trimmedName && !snapshot.val().name) {
+      // Returning user who never had a name saved — backfill it.
+      await update(userRef, { name: trimmedName });
     }
   };
 
@@ -222,6 +232,17 @@ const LoginPage = () => {
 
               {!otpSent ? (
                 <>
+                  <div className="relative mb-4">
+                    <input
+                      type="text"
+                      placeholder={t.fullName}
+                      value={name}
+                      onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z\s.'-]/g, ''))}
+                      maxLength={40}
+                      className="w-full px-4 py-3.5 bg-white border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:ring-0 outline-none font-bold text-lg text-gray-800 transition-colors"
+                    />
+                  </div>
+
                   <div className="relative mb-6">
                     <span className="absolute inset-y-0 left-0 flex items-center text-gray-600 font-bold bg-gray-100 rounded-l-xl border-r-2 border-gray-200 px-4">
                       +91
@@ -254,7 +275,7 @@ const LoginPage = () => {
 
                   <button
                     onClick={handleGetOtp}
-                    disabled={!termsAccepted || !privacyAccepted || phone.length !== 10}
+                    disabled={!termsAccepted || !privacyAccepted || phone.length !== 10 || name.trim().length < 2}
                     className="w-full py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white font-bold text-lg rounded-xl hover:from-brand-600 hover:to-brand-700 transition-all active:scale-[0.98] disabled:from-gray-300 disabled:to-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed shadow-md"
                   >
                     {t.getOtp}
