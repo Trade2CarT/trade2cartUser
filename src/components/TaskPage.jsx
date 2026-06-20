@@ -32,7 +32,9 @@ const TaskPage = () => {
         const unsubscribeDb = onValue(userRef, async (snapshot) => {
           if (snapshot.exists()) {
             const userData = snapshot.val();
-            const currentStatus = userData.Status || 'Active';
+            // Recovery: a leftover lowercase `status === 'active'` means a past
+            // order completed even if capital Status got left on On-Schedule.
+            const currentStatus = userData.status === 'active' ? 'Active' : (userData.Status || 'Active');
             setStatus(currentStatus);
 
             if (currentStatus.toLowerCase() !== 'on-schedule') {

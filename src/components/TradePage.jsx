@@ -69,10 +69,13 @@ const TradePage = () => {
             if (userData.name) setUserName(userData.name);
             if (userData.email) setEmail(userData.email);
             if (userData.address) setAddress(userData.address);
-            setUserStatus(userData.Status || 'Active');
+            // Recovery: a leftover lowercase `status === 'active'` means a past
+            // order was completed even if capital Status was left on On-Schedule.
+            const effectiveStatus = userData.status === 'active' ? 'Active' : (userData.Status || 'Active');
+            setUserStatus(effectiveStatus);
 
             if (initialCheckRef.current) {
-              if (userData.Status === 'Pending' || userData.Status === 'On-Schedule') {
+              if (effectiveStatus === 'Pending' || effectiveStatus === 'On-Schedule') {
                 toast.error("You already have an active pickup.");
                 navigate('/task');
               }
