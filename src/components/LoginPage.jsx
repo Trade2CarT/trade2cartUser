@@ -1,0 +1,325 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { db } from '../firebase';
+import { get, ref, set } from 'firebase/database';
+import { useSettings } from '../context/SettingsContext';
+
+import SEO from './SEO';
+import logo from '../assets/images/logo.PNG';
+
+// ✅ THE FIX: We import your actual component instead of using the broken string-based Modal
+import PoliciesAndTerms from './account/PoliciesAndTerms';
+
+const translations = {
+  English: {
+    welcome: "Welcome Back",
+    enterNumber: "Enter your mobile number to continue",
+    getOtp: "GET OTP",
+    terms: "Terms & Conditions",
+    privacy: "Privacy Policy",
+    enterOtp: "Enter OTP Code",
+    sentTo: "Sent securely to",
+    verify: "Verify & Continue",
+    changeNumber: "← Change Number",
+    processing: "Processing..."
+  },
+  Tamil: {
+    welcome: "மீண்டும் வருக",
+    enterNumber: "தொடர உங்கள் மொபைல் எண்ணை உள்ளிடவும்",
+    getOtp: "OTP பெறுங்கள்",
+    terms: "விதிமுறைகள்",
+    privacy: "தனியுரிமை கொள்கை",
+    enterOtp: "OTP குறியீட்டை உள்ளிடவும்",
+    sentTo: "பாதுகாப்பாக அனுப்பப்பட்டது",
+    verify: "சரிபார்த்து தொடரவும்",
+    changeNumber: "← எண்ணை மாற்றவும்",
+    processing: "செயலாக்குகிறது..."
+  },
+  Hindi: {
+    welcome: "वापसी पर स्वागत है",
+    enterNumber: "जारी रखने के लिए अपना मोबाइल नंबर दर्ज करें",
+    getOtp: "OTP प्राप्त करें",
+    terms: "नियम और शर्तें",
+    privacy: "गोपनीयता नीति",
+    enterOtp: "OTP कोड दर्ज करें",
+    sentTo: "सुरक्षित रूप से भेजा गया",
+    verify: "सत्यापित करें और आगे बढ़ें",
+    changeNumber: "← नंबर बदलें",
+    processing: "प्रोसेसिंग..."
+  }
+};
+
+const LoginPage = () => {
+  const [phone, setPhone] = useState('');
+  const [otpArray, setOtpArray] = useState(['', '', '', '', '', '']);
+  const inputRefs = useRef([]);
+
+  const [confirmationResult, setConfirmationResult] = useState(null);
+  const [otpSent, setOtpSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+
+  // ✅ THE FIX: State to control the full-screen overlay for Policies
+  const [showPolicies, setShowPolicies] = useState(false);
+
+  const { setUserMobile, location, language } = useSettings();
+  const navigate = useNavigate();
+  const auth = getAuth();
+  const recaptchaVerifierRef = useRef(null);
+
+  const t = translations[language] || translations['English'];
+
+  useEffect(() => {
+    if (!recaptchaVerifierRef.current) {
+      recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        'size': 'invisible'
+      });
+    }
+  }, [auth]);
+
+  const handleGetOtp = async () => {
+    if (!termsAccepted || !privacyAccepted) return toast.error("Please accept the Terms & Privacy Policy.");
+    if (!/^[6-9]\d{9}$/.test(phone)) return toast.error('Enter a valid 10-digit mobile number.');
+    if (navigator.vibrate) navigator.vibrate(50);
+
+    setLoading(true);
+    try {
+      const verifier = recaptchaVerifierRef.current;
+      const result = await signInWithPhoneNumber(auth, `+91${phone}`, verifier);
+      setConfirmationResult(result);
+      setOtpSent(true);
+      toast.success('OTP Sent!');
+
+      setTimeout(() => { if (inputRefs.current[0]) inputRefs.current[0].focus(); }, 300);
+
+    } catch (error) {
+      toast.error('Failed to send OTP. Try again later.');
+      recaptchaVerifierRef.current.render().then(widgetId => window.grecaptcha.reset(widgetId));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const ensureUserExistsInFirebase = async (userId, userPhone) => {
+    const userRef = ref(db, `users/${userId}`);
+    const snapshot = await get(userRef);
+    if (!snapshot.exists()) {
+      await set(userRef, {
+        phoneNumber: userPhone,
+        location: location || 'Unknown',
+        language: language || 'en',
+        createdAt: new Date().toISOString(),
+        Status: 'Active'
+      });
+    }
+  };
+
+  const handleVerify = async () => {
+    const fullOtp = otpArray.join('');
+    if (fullOtp.length !== 6) return toast.error('Enter the complete 6-digit OTP.');
+    if (navigator.vibrate) navigator.vibrate(50);
+
+    setLoading(true);
+    try {
+      await confirmationResult.confirm(fullOtp);
+      const user = auth.currentUser;
+      if (user) {
+        await ensureUserExistsInFirebase(user.uid, user.phoneNumber);
+        setUserMobile(user.phoneNumber);
+        toast.success('Login Successful!');
+        navigate('/hello', { replace: true });
+      }
+    } catch (error) {
+      toast.error('Incorrect OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChangeNumber = () => {
+    setOtpSent(false); setOtpArray(['', '', '', '', '', '']); setPhone(''); setConfirmationResult(null);
+  };
+
+  const handleOtpChange = (index, e) => {
+    const value = e.target.value.replace(/\D/g, '');
+    if (!value) return;
+
+    const newOtp = [...otpArray];
+    newOtp[index] = value.substring(value.length - 1);
+    setOtpArray(newOtp);
+
+    if (index < 5 && value) {
+      inputRefs.current[index + 1].focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace') {
+      const newOtp = [...otpArray];
+      if (otpArray[index] === '' && index > 0) {
+        inputRefs.current[index - 1].focus();
+      }
+      newOtp[index] = '';
+      setOtpArray(newOtp);
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pastedData) {
+      const newOtp = [...otpArray];
+      pastedData.split('').forEach((char, i) => { newOtp[i] = char; });
+      setOtpArray(newOtp);
+      const focusIndex = Math.min(pastedData.length, 5);
+      inputRefs.current[focusIndex].focus();
+    }
+  };
+
+  return (
+    <>
+      <SEO title="Login to Trade2Cart" description="Login to schedule scrap pickups." />
+      <main className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4 sm:p-6 font-sans relative">
+        <div id="recaptcha-container"></div>
+
+        {/* ✅ THE FIX: Rendering your actual PoliciesAndTerms file in a sleek, scrollable overlay */}
+        {showPolicies && (
+          <div className="fixed inset-0 z-50 bg-white flex flex-col animate-slide-up overflow-hidden">
+            <div className="flex-none flex justify-between items-center p-4 bg-white border-b border-gray-100 shadow-sm">
+              <h2 className="text-xl font-black text-gray-900">Legal Policies</h2>
+              <button onClick={() => setShowPolicies(false)} className="px-4 py-2 bg-gray-100 text-gray-800 rounded-full font-bold text-sm hover:bg-gray-200 transition-colors">
+                ✕ Close
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 pb-20">
+              {/* This pulls your exact component! */}
+              <PoliciesAndTerms />
+            </div>
+          </div>
+        )}
+
+        <div className="w-full max-w-md">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-gray-500 font-bold uppercase tracking-widest text-sm animate-pulse">{t.processing}</p>
+            </div>
+          ) : (
+            <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-gray-100 transition-all duration-300 animate-fade-in-up">
+
+              <div className="flex flex-col items-center mb-8">
+                <img src={logo} alt="Trade2Cart Logo" className="w-16 h-16 rounded-2xl mb-4 shadow-md border border-gray-100" />
+                <h1 className="text-2xl font-black tracking-tight text-gray-900 text-center">
+                  {otpSent ? t.enterOtp : t.welcome}
+                </h1>
+                <p className="text-gray-500 text-sm font-medium text-center mt-1">
+                  {otpSent ? `${t.sentTo} +91 ${phone}` : t.enterNumber}
+                </p>
+              </div>
+
+              {!otpSent ? (
+                <>
+                  <div className="relative mb-6">
+                    <span className="absolute inset-y-0 left-0 flex items-center text-gray-600 font-bold bg-gray-100 rounded-l-xl border-r-2 border-gray-200 px-4">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      placeholder="Mobile Number"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                      maxLength={10}
+                      className="w-full pl-20 pr-4 py-3.5 bg-white border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:ring-0 outline-none font-bold text-lg text-gray-800 transition-colors"
+                    />
+                  </div>
+
+                  <div className="space-y-4 mb-8 bg-gray-50 p-4 sm:p-5 rounded-xl border border-gray-100">
+                    {/* Checkboxes now trigger the sleek overlay instead of the broken modal */}
+                    <CheckboxLink
+                      label={t.terms}
+                      checked={termsAccepted}
+                      onChange={setTermsAccepted}
+                      onLinkClick={() => setShowPolicies(true)}
+                    />
+                    <CheckboxLink
+                      label={t.privacy}
+                      checked={privacyAccepted}
+                      onChange={setPrivacyAccepted}
+                      onLinkClick={() => setShowPolicies(true)}
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleGetOtp}
+                    disabled={!termsAccepted || !privacyAccepted || phone.length !== 10}
+                    className="w-full py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white font-bold text-lg rounded-xl hover:from-brand-600 hover:to-brand-700 transition-all active:scale-[0.98] disabled:from-gray-300 disabled:to-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed shadow-md"
+                  >
+                    {t.getOtp}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-center items-center gap-2 sm:gap-3 mb-8 mt-4 w-full" onPaste={handleOtpPaste}>
+                    {otpArray.map((data, index) => (
+                      <input
+                        key={index}
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete={index === 0 ? "one-time-code" : "off"}
+                        maxLength={1}
+                        ref={(el) => (inputRefs.current[index] = el)}
+                        value={data}
+                        onChange={(e) => handleOtpChange(index, e)}
+                        onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                        className="w-[12%] sm:w-12 md:w-14 aspect-[4/5] sm:h-14 md:h-16 text-center text-xl sm:text-2xl font-black text-gray-900 bg-gray-50 border-2 border-gray-200 rounded-xl focus:bg-green-50 focus:border-green-500 focus:ring-4 focus:ring-green-500/20 outline-none transition-all shadow-inner"
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={handleVerify}
+                    className="w-full py-4 bg-gradient-to-r from-brand-500 to-brand-600 text-white font-bold text-lg rounded-xl shadow-md hover:from-brand-600 hover:to-brand-700 transition-all active:scale-[0.98] mb-4"
+                  >
+                    {t.verify}
+                  </button>
+
+                  <div className="text-center mt-6">
+                    <button onClick={handleChangeNumber} className="text-gray-400 hover:text-gray-800 font-bold text-sm transition-colors uppercase tracking-wider">
+                      {t.changeNumber}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
+    </>
+  );
+};
+
+const CheckboxLink = ({ label, checked, onChange, onLinkClick }) => (
+  <div className="flex items-center space-x-3">
+    <div
+      onClick={() => onChange(!checked)}
+      className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 ${checked ? 'bg-green-500 border-green-500' : 'border-gray-300 bg-white hover:border-green-400'}`}
+    >
+      {checked && <span className="text-white font-bold text-xs">✓</span>}
+    </div>
+    <span className="text-sm font-medium text-gray-600 flex-1">
+      <span onClick={() => onChange(!checked)} className="cursor-pointer">I agree to the </span>
+      <button
+        type="button"
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onLinkClick(); }}
+        className="text-brand-600 font-bold hover:underline ml-1"
+      >
+        {label}
+      </button>
+    </span>
+  </div>
+);
+
+export default LoginPage;

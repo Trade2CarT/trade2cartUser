@@ -1,0 +1,125 @@
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
+
+import SEO from './components/SEO'; // Import the SEO component
+import Splash from './components/Splash';
+import LanguageSelection from './components/LanguageSelection';
+import LocationPage from './components/LocationPage';
+import LoginPage from './components/LoginPage';
+import HelloUser from './components/HelloUser';
+import TradePage from './components/TradePage';
+import TaskPage from './components/TaskPage';
+import AccountPage from './components/AccountPage';
+import ErrorBoundary from './components/ErrorBoundary';
+import { useSettings } from './context/SettingsContext';
+
+// Public and Protected route logic remains the same...
+const PublicRoutes = () => {
+  const { userMobile } = useSettings();
+  return userMobile ? <Navigate to="/hello" replace /> : <Outlet />;
+};
+
+const ProtectedRoutes = () => {
+  const { userMobile } = useSettings();
+  return userMobile ? <Outlet /> : <Navigate to="/language" replace />;
+};
+
+// ✅ NEW: Animated Route Wrapper (Preserves your routing logic inside)
+const AnimatedRoutes = () => {
+  const location = useLocation();
+
+  return (
+    <div key={location.pathname} className="page-transition">
+      <Routes location={location}>
+        {/* --- Protected Routes --- */}
+        <Route element={<ProtectedRoutes />}>
+          <Route path="/hello" element={<HelloUser />} />
+          <Route path="/trade" element={<TradePage />} />
+          <Route path="/task" element={<TaskPage />} />
+          <Route path="/account" element={<AccountPage />} />
+        </Route>
+
+        {/* --- Public Routes --- */}
+        <Route element={<PublicRoutes />}>
+          <Route path="/language" element={<LanguageSelection />} />
+          <Route path="/location" element={<LocationPage />} />
+          <Route path="/login" element={<LoginPage />} />
+        </Route>
+
+        {/* --- Fallback Redirect --- */}
+        <Route path="*" element={<Navigate to="/hello" replace />} />
+      </Routes>
+    </div>
+  );
+};
+
+
+const App = () => {
+  const [showSplash, setShowSplash] = useState(true);
+
+  // Your Schema Markup for Google
+  const schemaMarkup = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "name": "Trade2Cart",
+    "image": "https://trade2cart.in/logo.png",
+    "@id": "https://trade2cart.in",
+    "url": "https://trade2cart.in",
+    "telephone": "+91-9876543210",
+    "description": "Trade2Cart is an online scrap pickup service in India that connects sellers with verified scrap buyers. Book pickup online and get instant payment.",
+    "address": {
+      "@type": "PostalAddress",
+      "addressCountry": "IN",
+      "addressLocality": "Bengaluru",
+      "addressRegion": "KA"
+    },
+    "sameAs": [
+      "https://www.facebook.com/trade2cart",
+      "https://www.instagram.com/trade2cart",
+      "https://www.linkedin.com/company/trade2cart"
+    ]
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSplash(false), 2500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (showSplash) {
+    return <Splash />;
+  }
+
+  return (
+    <ErrorBoundary>
+      {/* Default SEO and sitewide Schema */}
+      <SEO>
+        <script type="application/ld+json">
+          {JSON.stringify(schemaMarkup)}
+        </script>
+      </SEO>
+
+      <Router>
+        {/* Upgraded Toaster UI */}
+        <Toaster
+          position="top-center"
+          reverseOrder={false}
+          toastOptions={{
+            style: {
+              borderRadius: '16px',
+              background: '#333',
+              color: '#fff',
+              fontWeight: 'bold',
+              padding: '16px',
+            },
+          }}
+        />
+
+        {/* Using the AnimatedRoutes wrapper here */}
+        <AnimatedRoutes />
+      </Router>
+    </ErrorBoundary>
+  );
+};
+
+export default App;

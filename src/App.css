@@ -1,0 +1,154 @@
+@import 'tailwindcss';
+
+/* =================================================================
+   TRADE2CART · BRAND PALETTE  (sampled directly from the logo)
+   Green swoosh  → brand   (primary)
+   Orange "2"    → accent  (highlights / secondary)
+   Black wordmark→ slate/ink (emphasis & neutrals)
+================================================================= */
+@theme {
+    /* Primary — logo green (~#41AB66) */
+    --color-brand-50: #edf9f1;
+    --color-brand-100: #d3f0dd;
+    --color-brand-200: #a9e1bd;
+    --color-brand-300: #7ed09a;
+    --color-brand-400: #57c07c;
+    --color-brand-500: #41ab66;
+    --color-brand-600: #2f9354;
+    --color-brand-700: #267544;
+    --color-brand-800: #205c38;
+    --color-brand-900: #1b4b2f;
+
+    /* Accent — logo orange (~#F2911E) */
+    --color-accent-50: #fef5e8;
+    --color-accent-100: #fde6c5;
+    --color-accent-200: #fbcd8b;
+    --color-accent-300: #f8b153;
+    --color-accent-400: #f59e30;
+    --color-accent-500: #f2911e;
+    --color-accent-600: #d97a10;
+    --color-accent-700: #b35f0d;
+}
+
+:root {
+    --ink: #171717;
+    --muted: #64748b;
+    --surface: #ffffff;
+    --canvas: #f1f5f9;
+}
+
+html,
+body,
+#root {
+    background-color: var(--canvas);
+}
+
+body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+/* =================================================================
+   PAGE TRANSITIONS
+================================================================= */
+@keyframes nativeSlideUp {
+    0% {
+        opacity: 0;
+        transform: translateY(15px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.page-transition {
+    animation: nativeSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* =================================================================
+   SHARED ENTRANCE ANIMATIONS
+================================================================= */
+@keyframes fadeInDown {
+    0% { opacity: 0; transform: translateY(-14px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInUp {
+    0% { opacity: 0; transform: translateY(14px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+@keyframes slideUpSheet {
+    0% { transform: translateY(100%); }
+    100% { transform: translateY(0); }
+}
+
+@keyframes popIn {
+    0% { opacity: 0; transform: scale(0.96); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in-down { animation: fadeInDown 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-fade-in-up { animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-fade-in { animation: fadeIn 0.4s ease-out both; }
+.animate-slide-up { animation: slideUpSheet 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-pop-in { animation: popIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Staggered list reveal helper */
+.stagger > * { animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.stagger > *:nth-child(7) { animation-delay: 0.26s; }
+.stagger > *:nth-child(8) { animation-delay: 0.30s; }
+
+/* =================================================================
+   UTILITIES
+================================================================= */
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Subtle, branded scrollbar for desktop scroll areas */
+.nice-scrollbar::-webkit-scrollbar { width: 10px; height: 10px; }
+.nice-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.nice-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+.nice-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: content-box; }
+
+/* Reusable card surface */
+.t2c-card {
+    background: #fff;
+    border: 1px solid #eef2f6;
+    border-radius: 1.5rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -16px rgba(15, 23, 42, 0.12);
+}
+
+/* =================================================================
+   ACCESSIBILITY
+================================================================= */
+@media (prefers-reduced-motion: reduce) {
+    .page-transition,
+    .animate-fade-in-down,
+    .animate-fade-in-up,
+    .animate-fade-in,
+    .animate-slide-up,
+    .animate-pop-in,
+    .stagger > * {
+        animation: none;
+    }
+}
