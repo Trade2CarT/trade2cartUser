@@ -26,16 +26,27 @@ const AMOUNTS = [
   { label: 'A lot', kg: 10 },
 ];
 
-// Maps a generic object the on-device model can detect to a material keyword
-// we look for (case-insensitive) inside each catalog item's free-text category.
+// Maps a generic object the on-device model can detect to a material keyword.
 const DETECTION_TO_KEYWORD = {
   bottle: 'plastic', 'wine glass': 'plastic', cup: 'plastic',
   book: 'paper',
-  knife: 'metal', fork: 'metal', spoon: 'metal', scissors: 'metal',
+  knife: 'metal', fork: 'metal', spoon: 'metal', scissors: 'metal', sink: 'metal',
   'cell phone': 'electronic', laptop: 'electronic', keyboard: 'electronic',
   mouse: 'electronic', tv: 'electronic', remote: 'electronic',
-  microwave: 'electronic', toaster: 'electronic',
+  microwave: 'electronic', toaster: 'electronic', oven: 'electronic',
+  refrigerator: 'electronic', clock: 'electronic', 'hair drier': 'electronic',
   bowl: 'glass', vase: 'glass',
+};
+
+// Each material keyword expands to the many free-text names a catalog category
+// (or item name) might actually use. Matching on any of these — not just the bare
+// keyword — is what lets "metal" find an "Iron"/"Aluminium" category, etc.
+const KEYWORD_SYNONYMS = {
+  plastic: ['plastic', 'pet', 'bottle', 'polythene'],
+  paper: ['paper', 'cardboard', 'carton', 'newspaper', 'book', 'magazine'],
+  metal: ['metal', 'iron', 'steel', 'aluminium', 'aluminum', 'tin', 'copper', 'brass'],
+  electronic: ['electronic', 'e-waste', 'ewaste', 'e waste', 'gadget', 'appliance', 'battery'],
+  glass: ['glass'],
 };
 
 const SkeletonCard = () => (
@@ -173,9 +184,9 @@ const HelloUser = () => {
   // map detected objects to catalog categories, and seed the cart. No API key,
   // no server — the model weights download once from Google's CDN and cache.
   const handleScan = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // allow re-selecting the same file
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    e.target.value = ''; // allow re-selecting the same file(s)
+    if (files.length === 0) return;
 
     setScanning(true);
     try {
@@ -188,21 +199,33 @@ const HelloUser = () => {
         modelRef.current = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
       }
 
-      // Decode the photo into an <img> the detector can read.
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-        img.src = url;
-      });
-      const predictions = await modelRef.current.detect(img);
-      URL.revokeObjectURL(url);
+      // Run detection on every selected image and pool the results, so one tap
+      // can cover plastic, metal, etc. across several photos.
+      const predictions = [];
+      for (const file of files) {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        try {
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = url;
+          });
+          const perImage = await modelRef.current.detect(img);
+          predictions.push(...perImage);
+        } catch {
+          // Skip an unreadable image but keep processing the rest.
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      }
+      // Diagnostic: what the detector actually saw (open DevTools console to read).
+      console.log('Scan detections:', predictions.map(p => `${p.class} ${(p.score * 100).toFixed(0)}%`));
 
-      // Which catalog categories did we spot? (keyword match, case-insensitive)
+      // Which material keywords did we spot? (lowered threshold — scrap photos are noisy)
       const keywords = new Set(
         predictions
-          .filter(p => p.score >= 0.4)
+          .filter(p => p.score >= 0.33)
           .map(p => DETECTION_TO_KEYWORD[p.class])
           .filter(Boolean)
       );
@@ -210,9 +233,13 @@ const HelloUser = () => {
       const additions = {};
       const namesAdded = [];
       keywords.forEach(keyword => {
-        const match = filteredItems.find(
-          it => (it.category || '').toLowerCase().includes(keyword)
-        );
+        const synonyms = KEYWORD_SYNONYMS[keyword] || [keyword];
+        // Search the WHOLE catalog (not the active tab), matching either the
+        // item's category or its name against any synonym of the keyword.
+        const match = items.find(it => {
+          const hay = `${it.category || ''} ${it.name || ''}`.toLowerCase();
+          return synonyms.some(s => hay.includes(s));
+        });
         if (match && !cart[match.id] && !additions[match.id]) {
           additions[match.id] = 5; // seed at "Medium"; user adjusts below
           namesAdded.push(match.name);
@@ -223,7 +250,14 @@ const HelloUser = () => {
         setCart(prev => ({ ...prev, ...additions }));
         toast.success(`Spotted ${namesAdded.join(', ')} — added a starting guess, adjust below.`);
       } else {
-        toast('Couldn\'t spot catalog items — add them manually.', { icon: '🔍' });
+        // Surface what was detected so a mismatch is diagnosable, not silent.
+        const seen = predictions.filter(p => p.score >= 0.33).map(p => p.class);
+        toast(
+          seen.length
+            ? `Saw ${[...new Set(seen)].join(', ')} but no catalog match — add manually.`
+            : 'Couldn\'t spot catalog items — add them manually.',
+          { icon: '🔍' }
+        );
       }
     } catch (err) {
       console.error('Scan failed:', err);
@@ -339,7 +373,7 @@ const HelloUser = () => {
               ref={scanInputRef}
               type="file"
               accept="image/*"
-              capture="environment"
+              multiple
               className="hidden"
               onChange={handleScan}
             />

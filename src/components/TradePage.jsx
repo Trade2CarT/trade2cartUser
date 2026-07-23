@@ -259,14 +259,21 @@ const TradePage = () => {
 
       await Promise.all(promises);
 
-      // 🚨 Ping the Admin API instantly so alerts fire
-      fetch('https://trade2cart.trade.admin.trade2cart.in/api/send-alerts')
-        .then(res => {
-          if (!res.ok) throw new Error("Server not ready");
-          return res.json();
-        })
-        .then(data => console.log("Email API triggered successfully!", data))
-        .catch(() => console.log("Email triggered in background."));
+      // 🚨 Email the admin that a pickup was scheduled (fire-and-forget).
+      fetch('https://trade2cart.trade.admin.trade2cart.in/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'scheduled',
+          customerName: userName,
+          customerPhone: validPhone,
+          address,
+          items: entries.map(e => `${e.name || e.text} (${e.quantity} ${e.unit})`).join(', '),
+        }),
+      })
+        .then(res => { if (!res.ok) throw new Error('Server not ready'); return res.json(); })
+        .then(data => console.log('Schedule email triggered!', data))
+        .catch(() => console.log('Schedule email triggered in background.'));
 
       toast.success('✅ Pickup Scheduled Successfully!');
       localStorage.removeItem('wasteEntries');
