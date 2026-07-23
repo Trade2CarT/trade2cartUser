@@ -79,22 +79,17 @@ const LoginPage = () => {
   // ✅ THE FIX: State to control the full-screen overlay for Policies
   const [showPolicies, setShowPolicies] = useState(false);
 
-  const { setUserMobile, location, language } = useSettings();
+  const { setUserMobile, setLocation, location, language } = useSettings();
   const navigate = useNavigate();
   const auth = getAuth();
   const recaptchaVerifierRef = useRef(null);
 
   const t = translations[language] || translations['English'];
 
-  // Onboarding order is Language → Location → Login. If someone lands on /login
-  // directly without a location, the new user record would be created with
-  // location 'Unknown' (breaks item loading & vendor assignment). Send them to
-  // pick language + location first.
-  useEffect(() => {
-    if (!location) {
-      navigate('/language', { replace: true });
-    }
-  }, [location, navigate]);
+  // Onboarding order is now Language → Login → Location. Location is chosen
+  // AFTER login: returning users have it restored from their account below, and
+  // new users pick it right after entering their name. So /login no longer needs
+  // a location to be set beforehand.
 
   useEffect(() => {
     if (!recaptchaVerifierRef.current) {
@@ -145,7 +140,15 @@ const LoginPage = () => {
       if (snapshot.exists() && snapshot.val().name) {
         setUserMobile(user.phoneNumber);
         toast.success('Welcome back!');
-        navigate('/hello', { replace: true });
+        // Restore the city saved on their account so they never re-pick it.
+        // ('Unknown' is the signup placeholder, treated as "not yet set".)
+        const savedLoc = snapshot.val().location;
+        if (savedLoc && savedLoc !== 'Unknown') {
+          setLocation(savedLoc);
+          navigate('/hello', { replace: true });
+        } else {
+          navigate('/location', { replace: true });
+        }
         return;
       }
 
@@ -179,7 +182,8 @@ const LoginPage = () => {
       await update(ref(db, `users/${user.uid}`), { name: name.trim() });
       setUserMobile(user.phoneNumber);
       toast.success('All set!');
-      navigate('/hello', { replace: true });
+      // New user: pick a city next (it gets saved to their account there).
+      navigate('/location', { replace: true });
     } catch (error) {
       toast.error('Could not save your name. Please try again.');
     } finally {

@@ -11,7 +11,7 @@ const LanguageSelection = () => {
   const handleSelect = (lang) => {
     if (navigator.vibrate) navigator.vibrate(50); // Haptic feedback
     setLanguage(lang);
-    navigate('/location');
+    navigate('/login');
   };
 
   return (

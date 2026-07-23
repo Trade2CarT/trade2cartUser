@@ -43,9 +43,13 @@ const AnimatedRoutes = () => {
         {/* --- Public Routes --- */}
         <Route element={<PublicRoutes />}>
           <Route path="/language" element={<LanguageSelection />} />
-          <Route path="/location" element={<LocationPage />} />
           <Route path="/login" element={<LoginPage />} />
         </Route>
+
+        {/* Standalone: location is picked AFTER login (when userMobile is set),
+            so it must NOT sit under PublicRoutes — that would bounce a logged-in
+            user to /hello and loop with the HelloUser !location guard. */}
+        <Route path="/location" element={<LocationPage />} />
 
         {/* --- Fallback Redirect --- */}
         <Route path="*" element={<Navigate to="/hello" replace />} />

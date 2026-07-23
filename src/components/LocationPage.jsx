@@ -1,15 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FaMapMarkerAlt, FaSearch } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
+import { ref, onValue, update } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
 import { getAuth } from 'firebase/auth'; // ✅ Imported to check login status
+import { db } from '../firebase';
 import SEO from './SEO';
 
 const LocationPage = () => {
   const { setLocation } = useSettings();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  const [cities, setCities] = useState([]);
   const auth = getAuth();
+
+  // Cities are derived from the `location` field on each item in the `items`
+  // node (same source HelloUser reads), so the list always matches the areas
+  // that actually have items available.
+  useEffect(() => {
+    const itemsRef = ref(db, 'items');
+    const unsubscribe = onValue(itemsRef, (snapshot) => {
+      const data = snapshot.val();
+      const uniqueCities = data
+        ? [
+            ...new Set(
+              Object.values(data)
+                .map((item) => item?.location)
+                .filter((loc) => typeof loc === 'string' && loc.trim())
+                .map((loc) => loc.trim())
+            ),
+          ].sort((a, b) => a.localeCompare(b))
+        : [];
+      setCities(uniqueCities);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleSelect = (loc) => {
     if (navigator.vibrate) navigator.vibrate(50);
@@ -18,19 +43,17 @@ const LocationPage = () => {
     setLocation(loc);
 
     // ✅ FIX 2: Smart Routing!
-    // If the user is already logged in, send them back to the Home Dashboard. 
-    // If they aren't logged in, send them to the Login screen.
+    // If the user is already logged in, persist the city to their account (so it
+    // is restored on the next login and can't drift out of sync) and send them
+    // to the Home Dashboard. If they aren't logged in, send them to Login.
     if (auth.currentUser) {
+      update(ref(db, `users/${auth.currentUser.uid}`), { location: loc })
+        .catch(() => { /* non-blocking: local state already updated */ });
       navigate('/hello');
     } else {
       navigate('/login');
     }
   };
-
-  const cities = [
-    'Arcot', 'Bagayam', 'Kadappanthangal', 'Katpadi', 'Konavattam',
-    'Latheri', 'Melvisharam', 'Ranipet', 'SIPCOT', 'Vellore', 'VIT', 'Walajapet'
-  ];
 
   const filteredCities = cities.filter(city =>
     city.toLowerCase().includes(searchTerm.toLowerCase())

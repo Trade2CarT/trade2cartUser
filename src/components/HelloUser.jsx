@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaPlus, FaMinus, FaShoppingCart, FaDownload, FaImage, FaMapMarkerAlt, FaLeaf, FaArrowRight } from 'react-icons/fa';
+import { toast } from 'react-hot-toast';
+import { FaShoppingCart, FaDownload, FaImage, FaMapMarkerAlt, FaLeaf, FaArrowRight, FaCamera } from 'react-icons/fa';
 import { useSettings } from '../context/SettingsContext';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { db } from '../firebase';
@@ -15,6 +16,26 @@ const categoryColors = {
   'metal': 'bg-slate-100 border-slate-300 text-slate-700',
   'e-waste': 'bg-purple-50 border-purple-200 text-purple-700',
   'others': 'bg-brand-50 border-brand-200 text-brand-700'
+};
+
+// Rough quantity buckets — users don't know exact kg, and the agent re-weighs
+// at pickup anyway, so we just need a ballpark for the on-screen estimate.
+const AMOUNTS = [
+  { label: 'Little', kg: 2 },
+  { label: 'Medium', kg: 5 },
+  { label: 'A lot', kg: 10 },
+];
+
+// Maps a generic object the on-device model can detect to a material keyword
+// we look for (case-insensitive) inside each catalog item's free-text category.
+const DETECTION_TO_KEYWORD = {
+  bottle: 'plastic', 'wine glass': 'plastic', cup: 'plastic',
+  book: 'paper',
+  knife: 'metal', fork: 'metal', spoon: 'metal', scissors: 'metal',
+  'cell phone': 'electronic', laptop: 'electronic', keyboard: 'electronic',
+  mouse: 'electronic', tv: 'electronic', remote: 'electronic',
+  microwave: 'electronic', toaster: 'electronic',
+  bowl: 'glass', vase: 'glass',
 };
 
 const SkeletonCard = () => (
@@ -37,6 +58,10 @@ const HelloUser = () => {
 
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isInstallable, setIsInstallable] = useState(false);
+
+  const [scanning, setScanning] = useState(false);
+  const modelRef = useRef(null);      // cached tf detector (loaded once)
+  const scanInputRef = useRef(null);  // hidden file input for the camera
 
   const navigate = useNavigate();
 
@@ -132,16 +157,80 @@ const HelloUser = () => {
     }
   }, [items]);
 
-  const updateCart = (id, delta) => {
+  // Set a rough quantity from the amount picker. Tapping the already-selected
+  // bucket clears the item (back to 0 / removed from cart).
+  const setAmount = (id, kg) => {
     if (navigator.vibrate) navigator.vibrate(20);
     setCart(prev => {
-      const current = prev[id] || 0;
-      const next = Math.max(0, current + delta);
       const updated = { ...prev };
-      if (next === 0) delete updated[id];
-      else updated[id] = next;
+      if (prev[id] === kg) delete updated[id];
+      else updated[id] = kg;
       return updated;
     });
+  };
+
+  // On-device scrap scan: run a pre-trained object detector in the browser,
+  // map detected objects to catalog categories, and seed the cart. No API key,
+  // no server — the model weights download once from Google's CDN and cache.
+  const handleScan = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+
+    setScanning(true);
+    try {
+      // Lazy-load the model libraries only when the user actually scans.
+      const [cocoSsd] = await Promise.all([
+        import('@tensorflow-models/coco-ssd'),
+        import('@tensorflow/tfjs'),
+      ]);
+      if (!modelRef.current) {
+        modelRef.current = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+      }
+
+      // Decode the photo into an <img> the detector can read.
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = url;
+      });
+      const predictions = await modelRef.current.detect(img);
+      URL.revokeObjectURL(url);
+
+      // Which catalog categories did we spot? (keyword match, case-insensitive)
+      const keywords = new Set(
+        predictions
+          .filter(p => p.score >= 0.4)
+          .map(p => DETECTION_TO_KEYWORD[p.class])
+          .filter(Boolean)
+      );
+
+      const additions = {};
+      const namesAdded = [];
+      keywords.forEach(keyword => {
+        const match = filteredItems.find(
+          it => (it.category || '').toLowerCase().includes(keyword)
+        );
+        if (match && !cart[match.id] && !additions[match.id]) {
+          additions[match.id] = 5; // seed at "Medium"; user adjusts below
+          namesAdded.push(match.name);
+        }
+      });
+
+      if (namesAdded.length > 0) {
+        setCart(prev => ({ ...prev, ...additions }));
+        toast.success(`Spotted ${namesAdded.join(', ')} — added a starting guess, adjust below.`);
+      } else {
+        toast('Couldn\'t spot catalog items — add them manually.', { icon: '🔍' });
+      }
+    } catch (err) {
+      console.error('Scan failed:', err);
+      toast.error('Scan failed. Please add items manually.');
+    } finally {
+      setScanning(false);
+    }
   };
 
   const handleCheckout = () => {
@@ -216,7 +305,7 @@ const HelloUser = () => {
             <div>
               <p className="text-brand-50/80 text-xs lg:text-sm font-bold uppercase tracking-widest mb-1">Welcome back</p>
               <h1 className="text-2xl lg:text-4xl font-black text-white tracking-tight">Hello, {userName || 'there'}! 👋</h1>
-              <p className="text-brand-50/90 text-sm lg:text-base font-medium mt-2 max-w-md">Pick the scrap you want to sell — we'll send a verified agent to your door.</p>
+              <p className="text-brand-50/90 text-sm lg:text-base font-medium mt-2 max-w-md">Pick the scrap you want to sell — a rough amount is fine, we weigh it at pickup.</p>
             </div>
             <div className="hidden lg:flex flex-col items-center justify-center bg-white/15 rounded-2xl px-6 py-4 backdrop-blur-sm">
               <FaLeaf className="text-white text-2xl mb-1" />
@@ -240,6 +329,35 @@ const HelloUser = () => {
                 <FaDownload /> Get
               </button>
             </div>
+          </div>
+        )}
+
+        {/* AI SCRAP SCAN — runs entirely on-device (no key, no server, free) */}
+        {!isLoading && items.length > 0 && (
+          <div className="mt-4">
+            <input
+              ref={scanInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleScan}
+            />
+            <button
+              onClick={() => scanInputRef.current?.click()}
+              disabled={scanning}
+              className="w-full flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-md active:scale-[0.99] transition disabled:opacity-70"
+            >
+              <span className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+                {scanning
+                  ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <FaCamera size={16} />}
+              </span>
+              <span className="text-left leading-tight">
+                <span className="block font-black text-sm">{scanning ? 'Scanning your scrap…' : '📷 Snap your scrap'}</span>
+                <span className="block text-[11px] text-slate-300 font-bold">{scanning ? 'Reading the photo on your phone' : "We'll fill the cart — then just adjust the amount"}</span>
+              </span>
+            </button>
           </div>
         )}
 
@@ -298,18 +416,24 @@ const HelloUser = () => {
                       </p>
                     </div>
 
-                    <div className="mt-3 h-10 sm:h-11 w-full">
-                      {qty === 0 ? (
-                        <button onClick={() => updateCart(item.id, 1)} className="w-full h-full bg-white border-2 border-brand-500 text-brand-600 font-black text-sm rounded-xl hover:bg-brand-50 transition-colors flex items-center justify-center gap-1.5 active:scale-95">
-                          <FaPlus size={10} /> ADD
-                        </button>
-                      ) : (
-                        <div className="flex items-center justify-between w-full h-full bg-brand-600 text-white rounded-xl shadow-md overflow-hidden">
-                          <button onClick={() => updateCart(item.id, -1)} className="w-1/3 h-full flex items-center justify-center hover:bg-brand-700 active:bg-brand-800 transition"><FaMinus size={12} /></button>
-                          <span className="w-1/3 text-center font-black text-lg">{qty}</span>
-                          <button onClick={() => updateCart(item.id, 1)} className="w-1/3 h-full flex items-center justify-center hover:bg-brand-700 active:bg-brand-800 transition"><FaPlus size={12} /></button>
-                        </div>
-                      )}
+                    <div className="mt-3 w-full">
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {AMOUNTS.map(({ label, kg }) => {
+                          const active = qty === kg;
+                          return (
+                            <button
+                              key={label}
+                              onClick={() => setAmount(item.id, kg)}
+                              className={`h-10 sm:h-11 rounded-xl font-black text-[11px] leading-tight flex flex-col items-center justify-center transition active:scale-95 ${active
+                                ? 'bg-brand-600 text-white shadow-md'
+                                : 'bg-white border-2 border-slate-200 text-slate-600 hover:border-brand-400'}`}
+                            >
+                              <span>{label}</span>
+                              <span className={`text-[9px] font-bold ${active ? 'text-brand-100' : 'text-slate-400'}`}>~{kg}kg</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 );
@@ -347,15 +471,28 @@ const HelloUser = () => {
                     {cartLines.map(({ item, qty }) => {
                       const rate = item.minRate || item.rate || 0;
                       return (
-                        <div key={item.id} className="flex items-center gap-3 px-5 py-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-black text-slate-800 truncate capitalize">{item.name}</p>
-                            <p className="text-[11px] font-bold text-slate-400">₹{rate} / {item.unit || 'kg'}</p>
+                        <div key={item.id} className="px-5 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-black text-slate-800 truncate capitalize">{item.name}</p>
+                              <p className="text-[11px] font-bold text-slate-400">₹{rate} / {item.unit || 'kg'} · ~{qty}kg</p>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 bg-brand-600 text-white rounded-lg overflow-hidden">
-                            <button onClick={() => updateCart(item.id, -1)} className="px-2 py-1.5 hover:bg-brand-700"><FaMinus size={9} /></button>
-                            <span className="text-sm font-black w-5 text-center">{qty}</span>
-                            <button onClick={() => updateCart(item.id, 1)} className="px-2 py-1.5 hover:bg-brand-700"><FaPlus size={9} /></button>
+                          <div className="grid grid-cols-3 gap-1.5 mt-2">
+                            {AMOUNTS.map(({ label, kg }) => {
+                              const active = qty === kg;
+                              return (
+                                <button
+                                  key={label}
+                                  onClick={() => setAmount(item.id, kg)}
+                                  className={`h-8 rounded-lg font-black text-[10px] transition active:scale-95 ${active
+                                    ? 'bg-brand-600 text-white'
+                                    : 'bg-slate-50 border border-slate-200 text-slate-500 hover:border-brand-400'}`}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       );
