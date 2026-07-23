@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaUserAlt, FaSignOutAlt, FaUserCog, FaShieldAlt, FaChevronRight, FaTimes, FaHistory, FaLeaf } from 'react-icons/fa';
+import { FaUserAlt, FaSignOutAlt, FaUserCog, FaShieldAlt, FaChevronRight, FaTimes, FaHistory, FaLeaf, FaHeadset } from 'react-icons/fa';
 import { db } from '../firebase';
 import { ref, onValue } from 'firebase/database';
 import { toast } from 'react-hot-toast';
@@ -13,6 +13,7 @@ import TradeHistorySection from './account/TradeHistorySection';
 import BillModal from './account/BillModal';
 import ProfileSection from './account/ProfileSection';
 import PoliciesAndTerms from './account/PoliciesAndTerms';
+import SupportSection from './account/SupportSection';
 
 const AccountSkeleton = () => (
   <div className="animate-pulse space-y-6">
@@ -55,6 +56,7 @@ const AccountPage = () => {
   const [billToView, setBillToView] = useState(null);
   const [isProfileModalOpen, setProfileModalOpen] = useState(false);
   const [isPoliciesModalOpen, setPoliciesModalOpen] = useState(false);
+  const [isSupportModalOpen, setSupportModalOpen] = useState(false);
 
   useEffect(() => {
     let unsubscribeFromAuth;
@@ -120,6 +122,14 @@ const AccountPage = () => {
                 <FaChevronRight className="text-slate-300 group-hover:text-accent-500 transition-colors" />
               </button>
 
+              <button onClick={() => setSupportModalOpen(true)} className="flex justify-between items-center w-full p-5 text-left hover:bg-slate-50 transition-colors group">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-brand-50 text-brand-600 rounded-xl flex items-center justify-center group-hover:bg-brand-600 group-hover:text-white transition-colors"><FaHeadset /></div>
+                  <span className="font-black text-slate-800">Help & Support</span>
+                </div>
+                <FaChevronRight className="text-slate-300 group-hover:text-brand-600 transition-colors" />
+              </button>
+
               <button onClick={() => setPoliciesModalOpen(true)} className="flex justify-between items-center w-full p-5 text-left hover:bg-slate-50 transition-colors group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 bg-brand-50 text-brand-500 rounded-xl flex items-center justify-center group-hover:bg-brand-500 group-hover:text-white transition-colors"><FaShieldAlt /></div>
@@ -161,6 +171,12 @@ const AccountPage = () => {
       {isProfileModalOpen && (
         <Modal title="Account Details" onClose={() => setProfileModalOpen(false)}>
           <ProfileSection user={userData} />
+        </Modal>
+      )}
+
+      {isSupportModalOpen && (
+        <Modal title="Help & Support" onClose={() => setSupportModalOpen(false)}>
+          <SupportSection user={userData} onDone={() => setSupportModalOpen(false)} />
         </Modal>
       )}
 
