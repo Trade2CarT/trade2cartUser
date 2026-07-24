@@ -19,12 +19,12 @@ const SEO = ({ title, description, keywords, children }) => {
             <meta property="og:title" content={title} />
             <meta property="og:description" content={description} />
             <meta property="og:type" content="website" />
-            <meta property="og:url" content="https://trade2cart.in" />
-            <meta property="og:image" content="https://trade2cart.in/logo.png" />
+            <meta property="og:url" content="https://user.trade2cart.in" />
+            <meta property="og:image" content="https://user.trade2cart.in/logo.png" />
             <meta name="twitter:card" content="summary_large_image" />
             <meta name="twitter:title" content={title} />
             <meta name="twitter:description" content={description} />
-            <meta name="twitter:image" content="https://trade2cart.in/logo.png" />
+            <meta name="twitter:image" content="https://user.trade2cart.in/logo.png" />
             {children}
         </>
     );
@@ -33,7 +33,7 @@ const SEO = ({ title, description, keywords, children }) => {
 SEO.defaultProps = {
     title: 'Scrap Pickup & Recycling Platform – Sell Scrap Online | Trade2Cart India',
     description: 'Trade2Cart connects you with verified scrap buyers. Book scrap pickup online, get instant payment, and contribute to eco-friendly recycling in India.',
-    keywords: 'Trade2Cart, scrap pickup service, sell scrap online, scrap buyer India, online scrap selling, eco-friendly recycling, waste management service'
+    keywords: 'Trade2Cart, scrap pickup, sell scrap online, kabadiwala online, doorstep scrap pickup, book scrap pickup, e-waste pickup, best scrap rates, recycling, scrap pickup Arakkonam, scrap pickup Tiruttani, scrap pickup Sholinghur, scrap pickup Vellore'
 };
 
 export default SEO;
