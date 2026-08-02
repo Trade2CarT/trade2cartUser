@@ -18,14 +18,6 @@ const categoryColors = {
   'others': 'bg-brand-50 border-brand-200 text-brand-700'
 };
 
-// Rough quantity buckets — users don't know exact kg, and the agent re-weighs
-// at pickup anyway, so we just need a ballpark for the on-screen estimate.
-const AMOUNTS = [
-  { label: 'Little', kg: 2 },
-  { label: 'Medium', kg: 5 },
-  { label: 'A lot', kg: 10 },
-];
-
 // Maps a generic object the on-device model can detect to a material keyword.
 const DETECTION_TO_KEYWORD = {
   bottle: 'plastic', 'wine glass': 'plastic', cup: 'plastic',
@@ -179,7 +171,6 @@ const HelloUser = () => {
 
   const t = STR.English; // UI pinned to English — only item names follow the language toggle
   // Rough-amount bucket labels, translated for display only (kg values unchanged).
-  const amountLabels = { 'Little': t.little, 'Medium': t.medium, 'A lot': t.aLot };
   // Show the Tamil item name when available and the app is in Tamil.
   const displayName = (item) => (language === 'Tamil' && item.nameTamil) ? item.nameTamil : item.name;
 
@@ -271,17 +262,35 @@ const HelloUser = () => {
     }
   }, [items]);
 
-  // Set a rough quantity from the amount picker. Tapping the already-selected
-  // bucket clears the item (back to 0 / removed from cart).
-  const setAmount = (id, kg) => {
+  // Adjust quantity by ±1 in the item's own unit; 0 removes it from the cart.
+  const stepQty = (id, delta) => {
     if (navigator.vibrate) navigator.vibrate(20);
     setCart(prev => {
       const updated = { ...prev };
-      if (prev[id] === kg) delete updated[id];
-      else updated[id] = kg;
+      const next = Math.max(0, Math.min(99, (prev[id] || 0) + delta));
+      if (next === 0) delete updated[id];
+      else updated[id] = next;
       return updated;
     });
   };
+
+  // [−] qty unit [+] control shared by the item cards and the desktop cart.
+  const QtyStepper = ({ item, qty, compact = false }) => (
+    qty > 0 ? (
+      <div className={`flex items-center justify-between bg-white border-2 border-brand-500 rounded-xl overflow-hidden ${compact ? 'h-8' : 'h-10 sm:h-11'}`}>
+        <button onClick={() => stepQty(item.id, -1)} className={`${compact ? 'w-8' : 'w-10 sm:w-11'} h-full flex items-center justify-center font-black text-brand-600 hover:bg-brand-50 active:scale-90 transition`}>−</button>
+        <span className={`font-black text-slate-800 ${compact ? 'text-[11px]' : 'text-sm'}`}>{qty} <span className="text-slate-400 text-[9px] font-bold uppercase">{item.unit || 'kg'}</span></span>
+        <button onClick={() => stepQty(item.id, 1)} className={`${compact ? 'w-8' : 'w-10 sm:w-11'} h-full flex items-center justify-center font-black text-brand-600 hover:bg-brand-50 active:scale-90 transition`}>+</button>
+      </div>
+    ) : (
+      <button
+        onClick={() => stepQty(item.id, 1)}
+        className={`w-full ${compact ? 'h-8 text-[10px]' : 'h-10 sm:h-11 text-sm'} rounded-xl font-black bg-white border-2 border-slate-200 text-brand-600 hover:border-brand-400 active:scale-95 transition flex items-center justify-center gap-1`}
+      >
+        {t.add || 'Add'} +
+      </button>
+    )
+  );
 
   // On-device scrap scan: run a pre-trained object detector in the browser,
   // map detected objects to catalog categories, and seed the cart. No API key,
@@ -563,23 +572,7 @@ const HelloUser = () => {
                     </div>
 
                     <div className="mt-3 w-full">
-                      <div className="grid grid-cols-3 gap-1.5">
-                        {AMOUNTS.map(({ label, kg }) => {
-                          const active = qty === kg;
-                          return (
-                            <button
-                              key={label}
-                              onClick={() => setAmount(item.id, kg)}
-                              className={`h-10 sm:h-11 rounded-xl font-black text-[11px] leading-tight flex flex-col items-center justify-center transition active:scale-95 ${active
-                                ? 'bg-brand-600 text-white shadow-md'
-                                : 'bg-white border-2 border-slate-200 text-slate-600 hover:border-brand-400'}`}
-                            >
-                              <span>{amountLabels[label] || label}</span>
-                              <span className={`text-[9px] font-bold ${active ? 'text-brand-100' : 'text-slate-400'}`}>~{kg}kg</span>
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <QtyStepper item={item} qty={qty} />
                     </div>
                   </div>
                 );
@@ -621,24 +614,11 @@ const HelloUser = () => {
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-black text-slate-800 truncate capitalize">{displayName(item)}</p>
-                              <p className="text-[11px] font-bold text-slate-400">₹{rate} / {item.unit || 'kg'} · ~{qty}kg</p>
+                              <p className="text-[11px] font-bold text-slate-400">₹{rate} / {item.unit || 'kg'} · {qty} {item.unit || 'kg'}</p>
                             </div>
                           </div>
-                          <div className="grid grid-cols-3 gap-1.5 mt-2">
-                            {AMOUNTS.map(({ label, kg }) => {
-                              const active = qty === kg;
-                              return (
-                                <button
-                                  key={label}
-                                  onClick={() => setAmount(item.id, kg)}
-                                  className={`h-8 rounded-lg font-black text-[10px] transition active:scale-95 ${active
-                                    ? 'bg-brand-600 text-white'
-                                    : 'bg-slate-50 border border-slate-200 text-slate-500 hover:border-brand-400'}`}
-                                >
-                                  {amountLabels[label] || label}
-                                </button>
-                              );
-                            })}
+                          <div className="mt-2">
+                            <QtyStepper item={item} qty={qty} compact />
                           </div>
                         </div>
                       );
