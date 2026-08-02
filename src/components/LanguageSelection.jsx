@@ -41,7 +41,7 @@ const LanguageSelection = () => {
 
               // 💡 Note for you: To make a language clickable, just remove it from this list!
               // For example, when Kannada is ready, change it to: value === 'Tamil' || value === 'Hindi'
-              const isDisabled = value === 'Kannada' || value === 'Tamil' || value === 'Hindi';
+              const isDisabled = value === 'Kannada' || value === 'Hindi';
 
               return (
                 <button

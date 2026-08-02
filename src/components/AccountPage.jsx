@@ -15,6 +15,31 @@ import ProfileSection from './account/ProfileSection';
 import PoliciesAndTerms from './account/PoliciesAndTerms';
 import SupportSection from './account/SupportSection';
 
+const STR = {
+  English: {
+    myAccount: "My Account",
+    noPhone: "No phone linked",
+    accountDetails: "Account Details",
+    helpSupport: "Help & Support",
+    policiesTerms: "Policies & Terms",
+    tradeHistory: "Trade History",
+    impact: "Thanks for recycling with Trade2Cart — you're helping build a cleaner city.",
+    secureLogout: "Secure Logout",
+    loggedOut: "Logged out successfully!"
+  },
+  Tamil: {
+    myAccount: "என் கணக்கு",
+    noPhone: "தொலைபேசி எண் இணைக்கப்படவில்லை",
+    accountDetails: "கணக்கு விவரங்கள்",
+    helpSupport: "உதவி & ஆதரவு",
+    policiesTerms: "கொள்கைகள் & விதிமுறைகள்",
+    tradeHistory: "பரிவர்த்தனை வரலாறு",
+    impact: "Trade2Cart உடன் மறுசுழற்சி செய்ததற்கு நன்றி — தூய்மையான நகரத்தை உருவாக்க உதவுகிறீர்கள்.",
+    secureLogout: "பாதுகாப்பாக வெளியேறு",
+    loggedOut: "வெற்றிகரமாக வெளியேறினீர்கள்!"
+  }
+};
+
 const AccountSkeleton = () => (
   <div className="animate-pulse space-y-6">
     <div className="flex items-center gap-4 bg-white p-6 rounded-3xl border border-slate-100">
@@ -47,9 +72,11 @@ const Modal = ({ title, children, onClose }) => (
 );
 
 const AccountPage = () => {
-  const { setUserMobile } = useSettings();
+  const { setUserMobile, language } = useSettings();
   const navigate = useNavigate();
   const auth = getAuth();
+
+  const t = STR[language] || STR.English;
 
   const [userData, setUserData] = useState(null);
   const [userLoading, setUserLoading] = useState(true);
@@ -87,7 +114,7 @@ const AccountPage = () => {
     signOut(auth).then(() => {
       setUserMobile(null);
       localStorage.clear();
-      toast.success('Logged out successfully!');
+      toast.success(t.loggedOut);
       navigate('/language', { replace: true });
     });
   };
@@ -107,8 +134,8 @@ const AccountPage = () => {
                 {userData?.name ? userData.name.charAt(0).toUpperCase() : <FaUserAlt />}
               </div>
               <div className="z-10 min-w-0">
-                <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight truncate">{userData?.name || 'My Account'}</h1>
-                <p className="text-sm text-slate-300 font-medium truncate mt-0.5">{userData?.phoneNumber || auth.currentUser?.phoneNumber || 'No phone linked'}</p>
+                <h1 className="text-2xl lg:text-3xl font-black text-white tracking-tight truncate">{userData?.name || t.myAccount}</h1>
+                <p className="text-sm text-slate-300 font-medium truncate mt-0.5">{userData?.phoneNumber || auth.currentUser?.phoneNumber || t.noPhone}</p>
               </div>
             </div>
 
@@ -117,7 +144,7 @@ const AccountPage = () => {
               <button onClick={() => setProfileModalOpen(true)} className="flex justify-between items-center w-full p-5 text-left hover:bg-slate-50 transition-colors group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 bg-accent-50 text-accent-600 rounded-xl flex items-center justify-center group-hover:bg-accent-500 group-hover:text-white transition-colors"><FaUserCog /></div>
-                  <span className="font-black text-slate-800">Account Details</span>
+                  <span className="font-black text-slate-800">{t.accountDetails}</span>
                 </div>
                 <FaChevronRight className="text-slate-300 group-hover:text-accent-500 transition-colors" />
               </button>
@@ -125,7 +152,7 @@ const AccountPage = () => {
               <button onClick={() => setSupportModalOpen(true)} className="flex justify-between items-center w-full p-5 text-left hover:bg-slate-50 transition-colors group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 bg-brand-50 text-brand-600 rounded-xl flex items-center justify-center group-hover:bg-brand-600 group-hover:text-white transition-colors"><FaHeadset /></div>
-                  <span className="font-black text-slate-800">Help & Support</span>
+                  <span className="font-black text-slate-800">{t.helpSupport}</span>
                 </div>
                 <FaChevronRight className="text-slate-300 group-hover:text-brand-600 transition-colors" />
               </button>
@@ -133,7 +160,7 @@ const AccountPage = () => {
               <button onClick={() => setPoliciesModalOpen(true)} className="flex justify-between items-center w-full p-5 text-left hover:bg-slate-50 transition-colors group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 bg-brand-50 text-brand-500 rounded-xl flex items-center justify-center group-hover:bg-brand-500 group-hover:text-white transition-colors"><FaShieldAlt /></div>
-                  <span className="font-black text-slate-800">Policies & Terms</span>
+                  <span className="font-black text-slate-800">{t.policiesTerms}</span>
                 </div>
                 <FaChevronRight className="text-slate-300 group-hover:text-brand-500 transition-colors" />
               </button>
@@ -143,7 +170,7 @@ const AccountPage = () => {
             <div className="t2c-card p-6">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-8 h-8 bg-slate-900 text-white rounded-xl flex items-center justify-center"><FaHistory size={12} /></div>
-                <h2 className="text-xl font-black text-slate-900">Trade History</h2>
+                <h2 className="text-xl font-black text-slate-900">{t.tradeHistory}</h2>
               </div>
               <div className="bg-slate-50 rounded-2xl p-2 border border-slate-100">
                 <TradeHistorySection userId={userData?.id} originalUserData={userData} onViewBill={setBillToView} />
@@ -153,13 +180,13 @@ const AccountPage = () => {
             {/* IMPACT STRIP */}
             <div className="flex items-center gap-3 bg-brand-50 border border-brand-100 rounded-2xl px-5 py-4">
               <FaLeaf className="text-brand-600 text-lg flex-shrink-0" />
-              <p className="text-sm font-bold text-brand-800">Thanks for recycling with Trade2Cart — you're helping build a cleaner city.</p>
+              <p className="text-sm font-bold text-brand-800">{t.impact}</p>
             </div>
 
             {/* LOGOUT */}
             <div className="pt-1 pb-4">
               <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-4 bg-red-50 text-red-600 rounded-2xl font-black border border-red-100 hover:bg-red-500 hover:text-white transition-colors">
-                <FaSignOutAlt /> Secure Logout
+                <FaSignOutAlt /> {t.secureLogout}
               </button>
             </div>
           </div>
@@ -169,19 +196,19 @@ const AccountPage = () => {
       {billToView && <BillModal bill={billToView} onClose={() => setBillToView(null)} />}
 
       {isProfileModalOpen && (
-        <Modal title="Account Details" onClose={() => setProfileModalOpen(false)}>
+        <Modal title={t.accountDetails} onClose={() => setProfileModalOpen(false)}>
           <ProfileSection user={userData} />
         </Modal>
       )}
 
       {isSupportModalOpen && (
-        <Modal title="Help & Support" onClose={() => setSupportModalOpen(false)}>
+        <Modal title={t.helpSupport} onClose={() => setSupportModalOpen(false)}>
           <SupportSection user={userData} onDone={() => setSupportModalOpen(false)} />
         </Modal>
       )}
 
       {isPoliciesModalOpen && (
-        <Modal title="Policies & Terms" onClose={() => setPoliciesModalOpen(false)}>
+        <Modal title={t.policiesTerms} onClose={() => setPoliciesModalOpen(false)}>
           <PoliciesAndTerms />
         </Modal>
       )}

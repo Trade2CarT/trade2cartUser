@@ -7,8 +7,26 @@ import { getAuth } from 'firebase/auth'; // ✅ Imported to check login status
 import { db } from '../firebase';
 import SEO from './SEO';
 
+// UI strings (English / Tamil) — follows the LoginPage pattern.
+// City names come from the database and are shown as stored.
+const STR = {
+  English: {
+    title: "Where are you?",
+    subtitle: "Choose your area for scrap pickup",
+    searchPlaceholder: "Search your area...",
+    noAreas: "No areas found.",
+  },
+  Tamil: {
+    title: "நீங்கள் எங்கே இருக்கிறீர்கள்?",
+    subtitle: "பழைய பொருள் பிக்கப்புக்கு உங்கள் பகுதியைத் தேர்வு செய்யவும்",
+    searchPlaceholder: "உங்கள் பகுதியைத் தேடுங்கள்...",
+    noAreas: "பகுதிகள் எதுவும் கிடைக்கவில்லை.",
+  },
+};
+
 const LocationPage = () => {
-  const { setLocation } = useSettings();
+  const { setLocation, language } = useSettings();
+  const t = STR[language] || STR.English;
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [cities, setCities] = useState([]);
@@ -69,8 +87,8 @@ const LocationPage = () => {
             <div className="w-16 h-16 bg-brand-100 text-brand-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
               <FaMapMarkerAlt size={28} />
             </div>
-            <h1 className="text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">Where are you?</h1>
-            <p className="text-gray-500 font-medium">Choose your area for scrap pickup</p>
+            <h1 className="text-3xl font-extrabold text-gray-900 mb-2 tracking-tight">{t.title}</h1>
+            <p className="text-gray-500 font-medium">{t.subtitle}</p>
           </div>
 
           <div className="bg-white rounded-3xl shadow-sm p-5 sm:p-6 border border-gray-100 flex flex-col h-[55vh] animate-fade-in-up">
@@ -79,7 +97,7 @@ const LocationPage = () => {
               <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search your area..."
+                placeholder={t.searchPlaceholder}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:ring-0 outline-none font-bold text-gray-700 transition-colors"
@@ -101,7 +119,7 @@ const LocationPage = () => {
               )) : (
                 <div className="flex flex-col items-center justify-center h-full opacity-50">
                   <FaMapMarkerAlt className="text-4xl text-gray-300 mb-2" />
-                  <p className="text-gray-500 font-bold">No areas found.</p>
+                  <p className="text-gray-500 font-bold">{t.noAreas}</p>
                 </div>
               )}
             </div>

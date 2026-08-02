@@ -9,6 +9,93 @@ import { useSettings } from '../context/SettingsContext';
 import SEO from './SEO';
 import AppLayout from './layout/AppLayout';
 
+const STR = {
+  English: {
+    cartEmpty: "Your cart is empty.",
+    activePickup: "You already have an active pickup.",
+    gpsNotSupported: "GPS not supported by your browser.",
+    findingLocation: "Finding exact location...",
+    addressMapped: "Exact address mapped!",
+    gpsCapturedToast: "GPS Captured! Add door number below.",
+    gpsDenied: "GPS Denied. Please type your address manually.",
+    weakSignal: "Weak signal. Retrying GPS (Attempt {attempts}/3)...",
+    gpsFailed: "Could not auto-detect after 3 attempts. Please type your address manually.",
+    imageError: "Could not process that image. Please try another photo.",
+    fillDetails: "Please fill in your name, email, and address.",
+    clickDetect: "Please click 'Detect Exact Location' or choose manual entry.",
+    detailedAddressError: "Please provide a detailed address including Door No, Street, and Landmark.",
+    scheduledSuccess: "✅ Pickup Scheduled Successfully!",
+    scheduleFailed: "Scheduling failed. Please check connection.",
+    secureCheckout: "Secure Checkout",
+    stepInfo: "Step 2 of 2 · Confirm pickup details",
+    contactDetails: "Contact Details",
+    fullName: "Full Name",
+    emailPlaceholder: "Email Address (For Bill)",
+    noNumber: "No number linked",
+    pickupLocation: "Pickup Location",
+    tryGpsAgain: "Try GPS Again",
+    gpsCaptured: "GPS Captured",
+    agentNavigate: "Agent will navigate here",
+    detectLocation: "Detect Exact Location",
+    enterManually: "Or enter address manually",
+    manualMode: "Manual Mode",
+    provideDetailed: "Please provide a detailed address",
+    manualAddressPh: "Enter full House No, Street, Landmark, and Pincode...",
+    addDoorPh: "Add Door No, Floor, or Landmark...",
+    addPhoto: "Add Photo",
+    optional: "Optional",
+    tapToCapture: "Tap to Capture",
+    noImage: "No Image",
+    scrapSummary: "Scrap Summary",
+    estValue: "Est. Value",
+    finalValue: "Final value calculated upon weighing.",
+    scheduling: "Scheduling Pickup...",
+    confirmBook: "Confirm & Book Pickup"
+  },
+  Tamil: {
+    cartEmpty: "உங்கள் கார்ட் காலியாக உள்ளது.",
+    activePickup: "உங்களுக்கு ஏற்கனவே ஒரு பிக்-அப் திட்டமிடப்பட்டுள்ளது.",
+    gpsNotSupported: "உங்கள் உலாவியில் GPS ஆதரவு இல்லை.",
+    findingLocation: "துல்லியமான இருப்பிடத்தைக் கண்டறிகிறது...",
+    addressMapped: "துல்லியமான முகவரி கண்டறியப்பட்டது!",
+    gpsCapturedToast: "GPS பதிவானது! கீழே கதவு எண்ணைச் சேர்க்கவும்.",
+    gpsDenied: "GPS அனுமதி மறுக்கப்பட்டது. உங்கள் முகவரியை நேரடியாக உள்ளிடவும்.",
+    weakSignal: "சிக்னல் பலவீனமாக உள்ளது. GPS மீண்டும் முயற்சிக்கிறது (முயற்சி {attempts}/3)...",
+    gpsFailed: "3 முயற்சிகளுக்குப் பிறகும் கண்டறிய முடியவில்லை. உங்கள் முகவரியை நேரடியாக உள்ளிடவும்.",
+    imageError: "அந்தப் படத்தைச் செயலாக்க முடியவில்லை. வேறு புகைப்படத்தை முயற்சிக்கவும்.",
+    fillDetails: "உங்கள் பெயர், மின்னஞ்சல் மற்றும் முகவரியை நிரப்பவும்.",
+    clickDetect: "'துல்லியமான இருப்பிடத்தைக் கண்டறி' என்பதை அழுத்தவும் அல்லது முகவரியை நேரடியாக உள்ளிடவும்.",
+    detailedAddressError: "கதவு எண், தெரு மற்றும் அடையாள இடம் உட்பட விரிவான முகவரியை வழங்கவும்.",
+    scheduledSuccess: "✅ பிக்-அப் வெற்றிகரமாக பதிவு செய்யப்பட்டது!",
+    scheduleFailed: "பதிவு செய்ய முடியவில்லை. இணைய இணைப்பைச் சரிபார்க்கவும்.",
+    secureCheckout: "பாதுகாப்பான செக்அவுட்",
+    stepInfo: "படி 2 / 2 · பிக்-அப் விவரங்களை உறுதிப்படுத்தவும்",
+    contactDetails: "தொடர்பு விவரங்கள்",
+    fullName: "முழு பெயர்",
+    emailPlaceholder: "மின்னஞ்சல் முகவரி (பில்லுக்காக)",
+    noNumber: "எண் இணைக்கப்படவில்லை",
+    pickupLocation: "பிக்-அப் இடம்",
+    tryGpsAgain: "GPS மீண்டும் முயற்சிக்கவும்",
+    gpsCaptured: "GPS பதிவானது",
+    agentNavigate: "எங்கள் நபர் இங்கு வருவார்",
+    detectLocation: "துல்லியமான இருப்பிடத்தைக் கண்டறி",
+    enterManually: "அல்லது முகவரியை நேரடியாக உள்ளிடவும்",
+    manualMode: "நேரடி முகவரி முறை",
+    provideDetailed: "விரிவான முகவரியை வழங்கவும்",
+    manualAddressPh: "வீட்டு எண், தெரு, அடையாள இடம் மற்றும் பின்கோடு முழுவதையும் உள்ளிடவும்...",
+    addDoorPh: "கதவு எண், மாடி அல்லது அடையாள இடத்தைச் சேர்க்கவும்...",
+    addPhoto: "புகைப்படம் சேர்க்கவும்",
+    optional: "விருப்பத்தேர்வு",
+    tapToCapture: "படமெடுக்க தட்டவும்",
+    noImage: "படம் இல்லை",
+    scrapSummary: "ஸ்கிராப் சுருக்கம்",
+    estValue: "மதிப்பிடப்பட்ட மதிப்பு",
+    finalValue: "எடை போட்ட பிறகு இறுதி மதிப்பு கணக்கிடப்படும்.",
+    scheduling: "பிக்-அப் பதிவாகிறது...",
+    confirmBook: "உறுதிசெய்து பிக்-அப் பதிவு செய்யவும்"
+  }
+};
+
 const CheckoutSkeleton = () => (
   <div className="space-y-4 animate-pulse mt-2">
     <div className="h-32 bg-white rounded-3xl w-full border border-slate-100"></div>
@@ -35,9 +122,12 @@ const TradePage = () => {
   const [userStatus, setUserStatus] = useState(null);
 
   const navigate = useNavigate();
-  const { userMobile } = useSettings();
+  const { userMobile, language } = useSettings();
   const auth = getAuth();
   const initialCheckRef = useRef(true);
+
+  const t = STR[language] || STR.English;
+  const displayName = (entry) => (language === 'Tamil' && entry.nameTamil) ? entry.nameTamil : (entry.name || entry.text);
 
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';
 
@@ -47,7 +137,7 @@ const TradePage = () => {
       try {
         const parsedEntries = JSON.parse(localEntries);
         if (parsedEntries.length === 0) {
-          toast.error("Your cart is empty.");
+          toast.error(t.cartEmpty);
           navigate('/hello');
           return;
         }
@@ -76,7 +166,7 @@ const TradePage = () => {
 
             if (initialCheckRef.current) {
               if (effectiveStatus === 'Pending' || effectiveStatus === 'On-Schedule') {
-                toast.error("You already have an active pickup.");
+                toast.error(t.activePickup);
                 navigate('/task');
               }
               initialCheckRef.current = false;
@@ -97,12 +187,12 @@ const TradePage = () => {
   const handleDetectLocation = () => {
     if (navigator.vibrate) navigator.vibrate(50);
     if (!navigator.geolocation) {
-      toast.error("GPS not supported by your browser.");
+      toast.error(t.gpsNotSupported);
       return setManualMode(true);
     }
 
     setIsDetectingLocation(true);
-    toast.loading("Finding exact location...", { id: 'gps' });
+    toast.loading(t.findingLocation, { id: 'gps' });
 
     let attempts = 0;
 
@@ -118,11 +208,11 @@ const TradePage = () => {
           const data = await res.json();
           if (data.status === "OK" && data.results[0]) {
             setAddress(data.results[0].formatted_address);
-            toast.success("Exact address mapped!", { id: 'gps' });
+            toast.success(t.addressMapped, { id: 'gps' });
           }
         } catch { /* reverse-geocode is best-effort; coords already captured */ }
       } else {
-        toast.success("GPS Captured! Add door number below.", { id: 'gps' });
+        toast.success(t.gpsCapturedToast, { id: 'gps' });
       }
       setIsDetectingLocation(false);
     };
@@ -131,7 +221,7 @@ const TradePage = () => {
       console.warn("GPS Error:", error);
 
       if (error.code === 1) {
-        toast.error("GPS Denied. Please type your address manually.", { id: 'gps', duration: 4000 });
+        toast.error(t.gpsDenied, { id: 'gps', duration: 4000 });
         setManualMode(true);
         setIsDetectingLocation(false);
         return;
@@ -139,14 +229,14 @@ const TradePage = () => {
 
       if (attempts < 3) {
         attempts++;
-        toast.loading(`Weak signal. Retrying GPS (Attempt ${attempts}/3)...`, { id: 'gps' });
+        toast.loading(t.weakSignal.replace('{attempts}', attempts), { id: 'gps' });
         navigator.geolocation.getCurrentPosition(
           handleSuccess,
           handleError,
           { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
         );
       } else {
-        toast.error("Could not auto-detect after 3 attempts. Please type your address manually.", { id: 'gps', duration: 5000 });
+        toast.error(t.gpsFailed, { id: 'gps', duration: 5000 });
         setManualMode(true);
         setIsDetectingLocation(false);
       }
@@ -191,20 +281,20 @@ const TradePage = () => {
       setTradeImage(compressed);
       setImagePreview(compressed);
     } catch {
-      toast.error('Could not process that image. Please try another photo.');
+      toast.error(t.imageError);
     }
   };
 
   const handleConfirmTrade = async () => {
     if (!userName.trim() || !email.trim() || !address.trim()) {
-      return toast.error("Please fill in your name, email, and address.");
+      return toast.error(t.fillDetails);
     }
 
     if (!exactCoords && !manualMode) {
-      return toast.error("Please click 'Detect Exact Location' or choose manual entry.");
+      return toast.error(t.clickDetect);
     }
     if (manualMode && address.trim().length < 15) {
-      return toast.error("Please provide a detailed address including Door No, Street, and Landmark.");
+      return toast.error(t.detailedAddressError);
     }
 
     if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
@@ -275,13 +365,13 @@ const TradePage = () => {
         .then(data => console.log('Schedule email triggered!', data))
         .catch(() => console.log('Schedule email triggered in background.'));
 
-      toast.success('✅ Pickup Scheduled Successfully!');
+      toast.success(t.scheduledSuccess);
       localStorage.removeItem('wasteEntries');
       navigate('/task');
 
     } catch (error) {
       console.error("Firebase Submission Error:", error);
-      toast.error("Scheduling failed. Please check connection.");
+      toast.error(t.scheduleFailed);
     } finally {
       setIsSubmitting(false);
     }
@@ -301,8 +391,8 @@ const TradePage = () => {
             <FaArrowLeft size={15} />
           </button>
           <div>
-            <h1 className="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight leading-none">Secure Checkout</h1>
-            <p className="text-sm font-medium text-slate-400 mt-1">Step 2 of 2 · Confirm pickup details</p>
+            <h1 className="text-2xl lg:text-3xl font-black text-slate-900 tracking-tight leading-none">{t.secureCheckout}</h1>
+            <p className="text-sm font-medium text-slate-400 mt-1">{t.stepInfo}</p>
           </div>
         </div>
 
@@ -316,19 +406,19 @@ const TradePage = () => {
               <div className="t2c-card p-5 lg:p-6">
                 <h2 className="text-[13px] font-black uppercase tracking-widest mb-4 text-slate-800 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center"><FaUserAlt size={12} /></div>
-                  Contact Details
+                  {t.contactDetails}
                 </h2>
                 <div className="space-y-3">
                   <div className="relative">
                     <FaUserAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                    <input type="text" placeholder="Full Name" value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none font-bold text-slate-700 transition-all" />
+                    <input type="text" placeholder={t.fullName} value={userName} onChange={(e) => setUserName(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none font-bold text-slate-700 transition-all" />
                   </div>
                   <div className="relative">
                     <FaEnvelope className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                    <input type="email" placeholder="Email Address (For Bill)" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none font-bold text-slate-700 transition-all" />
+                    <input type="email" placeholder={t.emailPlaceholder} value={email} onChange={(e) => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none font-bold text-slate-700 transition-all" />
                   </div>
                   <div className="w-full pl-10 pr-4 py-3 bg-slate-100 border border-slate-200 rounded-2xl font-bold text-slate-500 flex items-center relative cursor-not-allowed">
-                    <span className="absolute left-4 text-slate-400">📱</span> {userMobile || 'No number linked'}
+                    <span className="absolute left-4 text-slate-400">📱</span> {userMobile || t.noNumber}
                   </div>
                 </div>
               </div>
@@ -338,11 +428,11 @@ const TradePage = () => {
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-[13px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-3">
                     <div className="w-8 h-8 rounded-xl bg-accent-50 text-accent-600 flex items-center justify-center"><FaMapMarkerAlt size={12} /></div>
-                    Pickup Location
+                    {t.pickupLocation}
                   </h2>
                   {manualMode && !exactCoords && (
                     <button onClick={() => { setManualMode(false); handleDetectLocation(); }} className="text-[10px] font-black text-slate-600 uppercase tracking-widest hover:underline">
-                      Try GPS Again
+                      {t.tryGpsAgain}
                     </button>
                   )}
                 </div>
@@ -359,8 +449,8 @@ const TradePage = () => {
                     <div className="bg-brand-50 border border-brand-100 p-3 rounded-xl flex items-center gap-3">
                       <FaCheckCircle className="text-brand-600 text-xl flex-shrink-0" />
                       <div>
-                        <p className="font-black text-brand-900 text-sm leading-tight">GPS Captured</p>
-                        <p className="text-[10px] uppercase tracking-wider font-black text-brand-600 mt-0.5">Agent will navigate here</p>
+                        <p className="font-black text-brand-900 text-sm leading-tight">{t.gpsCaptured}</p>
+                        <p className="text-[10px] uppercase tracking-wider font-black text-brand-600 mt-0.5">{t.agentNavigate}</p>
                       </div>
                     </div>
                   </div>
@@ -371,11 +461,11 @@ const TradePage = () => {
                       disabled={isDetectingLocation}
                       className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[15px] flex items-center justify-center gap-2 hover:bg-slate-800 active:scale-[0.98] transition-all shadow-md"
                     >
-                      {isDetectingLocation ? <div className="w-5 h-5 border-4 border-white border-t-transparent rounded-full animate-spin"></div> : <><FaCrosshairs /> Detect Exact Location</>}
+                      {isDetectingLocation ? <div className="w-5 h-5 border-4 border-white border-t-transparent rounded-full animate-spin"></div> : <><FaCrosshairs /> {t.detectLocation}</>}
                     </button>
                     <p className="text-center mt-3">
                       <button onClick={() => setManualMode(true)} className="text-xs font-black text-slate-500 uppercase tracking-widest hover:text-slate-800 transition-colors underline decoration-slate-300 underline-offset-4">
-                        Or enter address manually
+                        {t.enterManually}
                       </button>
                     </p>
                   </div>
@@ -383,14 +473,14 @@ const TradePage = () => {
                   <div className="mb-4 bg-accent-50 border border-accent-100 p-3 rounded-xl flex items-center gap-3 animate-fade-in-down">
                     <FaInfoCircle className="text-accent-500 text-xl flex-shrink-0" />
                     <div>
-                      <p className="font-black text-accent-700 text-sm leading-tight">Manual Mode</p>
-                      <p className="text-[10px] uppercase tracking-wider font-black text-accent-600 mt-0.5">Please provide a detailed address</p>
+                      <p className="font-black text-accent-700 text-sm leading-tight">{t.manualMode}</p>
+                      <p className="text-[10px] uppercase tracking-wider font-black text-accent-600 mt-0.5">{t.provideDetailed}</p>
                     </div>
                   </div>
                 )}
 
                 <textarea
-                  placeholder={manualMode ? "Enter full House No, Street, Landmark, and Pincode..." : "Add Door No, Floor, or Landmark..."}
+                  placeholder={manualMode ? t.manualAddressPh : t.addDoorPh}
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   rows={manualMode ? 3 : 2}
@@ -403,15 +493,15 @@ const TradePage = () => {
                 <div className="flex justify-between items-center mb-3">
                   <h2 className="text-[13px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-3">
                     <div className="w-8 h-8 rounded-xl bg-accent-50 text-accent-600 flex items-center justify-center"><FaCamera size={12} /></div>
-                    Add Photo
+                    {t.addPhoto}
                   </h2>
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded-md">Optional</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded-md">{t.optional}</span>
                 </div>
 
                 <div className="flex items-center gap-4">
                   <label className="flex-1 cursor-pointer bg-accent-50/50 border-2 border-dashed border-accent-200 text-accent-700 font-black text-sm text-center py-5 rounded-2xl hover:bg-accent-50 transition-colors">
                     <FaCamera className="mx-auto text-2xl mb-1 opacity-70" />
-                    <span>Tap to Capture</span>
+                    <span>{t.tapToCapture}</span>
                     <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} className="hidden" />
                   </label>
                   {imagePreview && (
@@ -428,20 +518,20 @@ const TradePage = () => {
               <div className="t2c-card overflow-hidden">
                 <h2 className="text-[13px] font-black uppercase tracking-widest px-5 lg:px-6 pt-5 pb-3 text-slate-800 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center"><FaTasks size={12} /></div>
-                  Scrap Summary
+                  {t.scrapSummary}
                 </h2>
                 <div className="px-4 lg:px-5 space-y-2.5 max-h-72 overflow-y-auto nice-scrollbar">
                   {entries.map((entry, idx) => (
                     <div key={idx} className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center gap-3">
                       <div className="w-16 h-16 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden flex-shrink-0">
                         {entry.imageUrl || entry.image || entry.icon || entry.imgUrl ? (
-                          <img src={entry.imageUrl || entry.image || entry.icon || entry.imgUrl} alt={entry.name || entry.text} className="w-full h-full object-cover" />
+                          <img src={entry.imageUrl || entry.image || entry.icon || entry.imgUrl} alt={displayName(entry)} className="w-full h-full object-cover" />
                         ) : (
-                          <span className="text-[10px] font-bold text-slate-400">No Image</span>
+                          <span className="text-[10px] font-bold text-slate-400">{t.noImage}</span>
                         )}
                       </div>
                       <div className="flex flex-col justify-center min-w-0">
-                        <p className="font-black text-slate-900 text-sm capitalize leading-tight truncate">{entry.name || entry.text}</p>
+                        <p className="font-black text-slate-900 text-sm capitalize leading-tight truncate">{displayName(entry)}</p>
                         <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{entry.quantity} {entry.unit}</p>
                         <p className="text-sm font-black text-brand-600 mt-0.5">
                           {entry.minRate ? `₹${entry.minRate}-₹${entry.maxRate}` : `₹${entry.rate}`}
@@ -453,16 +543,16 @@ const TradePage = () => {
 
                 <div className="mt-3 bg-brand-50/60 border-t border-slate-100 p-5 lg:p-6">
                   <div className="flex justify-between items-center font-black text-xl mb-1">
-                    <p className="text-slate-800">Est. Value</p>
+                    <p className="text-slate-800">{t.estValue}</p>
                     <p className="text-brand-600">{estLabel}</p>
                   </div>
-                  <p className="text-[10px] font-black text-slate-500 flex items-center gap-1 uppercase tracking-widest"><FaInfoCircle /> Final value calculated upon weighing.</p>
+                  <p className="text-[10px] font-black text-slate-500 flex items-center gap-1 uppercase tracking-widest"><FaInfoCircle /> {t.finalValue}</p>
                 </div>
               </div>
 
               {/* CONFIRM */}
               <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled} className="mt-4 w-full py-4 bg-brand-600 text-white rounded-2xl font-black text-lg shadow-lg shadow-brand-600/25 hover:bg-brand-700 active:scale-[0.98] transition-all disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none">
-                {isSubmitting ? 'Scheduling Pickup...' : 'Confirm & Book Pickup'}
+                {isSubmitting ? t.scheduling : t.confirmBook}
               </button>
             </div>
           </div>
