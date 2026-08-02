@@ -4,7 +4,6 @@ import { Toaster } from 'react-hot-toast';
 
 import SEO from './components/SEO'; // Import the SEO component
 import Splash from './components/Splash';
-import LanguageSelection from './components/LanguageSelection';
 import LocationPage from './components/LocationPage';
 import LoginPage from './components/LoginPage';
 import HelloUser from './components/HelloUser';
@@ -22,7 +21,7 @@ const PublicRoutes = () => {
 
 const ProtectedRoutes = () => {
   const { userMobile } = useSettings();
-  return userMobile ? <Outlet /> : <Navigate to="/language" replace />;
+  return userMobile ? <Outlet /> : <Navigate to="/login" replace />;
 };
 
 // ✅ NEW: Animated Route Wrapper (Preserves your routing logic inside)
@@ -42,7 +41,8 @@ const AnimatedRoutes = () => {
 
         {/* --- Public Routes --- */}
         <Route element={<PublicRoutes />}>
-          <Route path="/language" element={<LanguageSelection />} />
+          {/* Language screen removed from the flow — item-name language is a home-page toggle now */}
+          <Route path="/language" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
         </Route>
 

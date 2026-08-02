@@ -76,7 +76,7 @@ const AccountPage = () => {
   const navigate = useNavigate();
   const auth = getAuth();
 
-  const t = STR[language] || STR.English;
+  const t = STR.English; // UI pinned to English — only item names follow the language toggle
 
   const [userData, setUserData] = useState(null);
   const [userLoading, setUserLoading] = useState(true);

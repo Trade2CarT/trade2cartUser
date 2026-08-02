@@ -37,7 +37,7 @@ const STR = {
 
 const ProfileSection = ({ user }) => {
     const { userMobile, language } = useSettings();
-    const t = STR[language] || STR.English;
+    const t = STR.English; // UI pinned to English — only item names follow the language toggle
     const auth = getAuth();
 
     const [name, setName] = useState('');

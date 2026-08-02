@@ -26,7 +26,7 @@ const STR = {
 
 const LocationPage = () => {
   const { setLocation, language } = useSettings();
-  const t = STR[language] || STR.English;
+  const t = STR.English; // UI pinned to English — only item names follow the language toggle
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [cities, setCities] = useState([]);

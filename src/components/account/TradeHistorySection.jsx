@@ -59,7 +59,7 @@ const TradeHistorySection = ({ userId, originalUserData, onViewBill }) => {
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState(null);
     const { language } = useSettings();
-    const t = STR[language] || STR.English;
+    const t = STR.English; // UI pinned to English — only item names follow the language toggle
 
     // EXACT FIREBASE LOGIC PRESERVED
     useEffect(() => {

@@ -35,7 +35,7 @@ const SupportSection = ({ user, onDone }) => {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { language } = useSettings();
-  const t = STR[language] || STR.English;
+  const t = STR.English; // UI pinned to English — only item names follow the language toggle
 
   const handleSubmit = async () => {
     const text = message.trim();

@@ -84,7 +84,7 @@ const LoginPage = () => {
   const auth = getAuth();
   const recaptchaVerifierRef = useRef(null);
 
-  const t = translations[language] || translations['English'];
+  const t = translations['English']; // UI pinned to English — only item names follow the language toggle
 
   // Onboarding order is now Language → Login → Location. Location is chosen
   // AFTER login: returning users have it restored from their account below, and

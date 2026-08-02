@@ -126,7 +126,7 @@ const TradePage = () => {
   const auth = getAuth();
   const initialCheckRef = useRef(true);
 
-  const t = STR[language] || STR.English;
+  const t = STR.English; // UI pinned to English — only item names follow the language toggle
   const displayName = (entry) => (language === 'Tamil' && entry.nameTamil) ? entry.nameTamil : (entry.name || entry.text);
 
   const isSchedulingDisabled = userStatus === 'Pending' || userStatus === 'On-Schedule';

@@ -159,10 +159,25 @@ const HelloUser = () => {
   const navigate = useNavigate();
 
   // Now relies on the persistent LocalStorage from SettingsContext
-  const { location, language } = useSettings();
+  const { location, language, setLanguage } = useSettings();
+
+  // Compact EN | த pill — switches ONLY item-name display, not the UI language.
+  const LangToggle = () => (
+    <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+      {[{ code: 'English', label: 'EN' }, { code: 'Tamil', label: 'த' }].map(({ code, label }) => (
+        <button
+          key={code}
+          onClick={() => setLanguage(code)}
+          className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition-all ${language === code ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
   const auth = getAuth();
 
-  const t = STR[language] || STR.English;
+  const t = STR.English; // UI pinned to English — only item names follow the language toggle
   // Rough-amount bucket labels, translated for display only (kg values unchanged).
   const amountLabels = { 'Little': t.little, 'Medium': t.medium, 'A lot': t.aLot };
   // Show the Tamil item name when available and the app is in Tamil.
@@ -415,9 +430,17 @@ const HelloUser = () => {
               </span>
             </button>
           </div>
-          <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex justify-center items-center text-white font-black shadow-md">
-            {userName.charAt(0).toUpperCase()}
+          <div className="flex items-center gap-2.5">
+            <LangToggle />
+            <div className="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-600 rounded-full flex justify-center items-center text-white font-black shadow-md">
+              {userName.charAt(0).toUpperCase()}
+            </div>
           </div>
+        </div>
+
+        {/* DESKTOP LANGUAGE TOGGLE (mobile bar is hidden on lg) */}
+        <div className="hidden lg:flex justify-end mb-3">
+          <LangToggle />
         </div>
 
         {/* GREETING HERO */}

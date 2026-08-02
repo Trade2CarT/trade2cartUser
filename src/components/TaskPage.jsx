@@ -78,7 +78,7 @@ const TaskPage = () => {
   const navigate = useNavigate();
   const auth = getAuth();
   const { language } = useSettings();
-  const t = STR[language] || STR.English;
+  const t = STR.English; // UI pinned to English — only item names follow the language toggle
 
   useEffect(() => {
     setLoading(true);
