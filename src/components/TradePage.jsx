@@ -9,6 +9,23 @@ import { useSettings } from '../context/SettingsContext';
 import SEO from './SEO';
 import AppLayout from './layout/AppLayout';
 
+// Approximate service-city centers for the soft out-of-area warning. Cities
+// not listed here are simply not distance-checked.
+const CITY_COORDS = {
+  arakkonam: { lat: 13.0778, lng: 79.6714 },
+  tiruttani: { lat: 13.1746, lng: 79.6117 },
+  sholinghur: { lat: 13.1176, lng: 79.42 },
+};
+const SERVICE_RADIUS_KM = 25;
+
+const haversineKm = (a, b) => {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+};
+
 const STR = {
   English: {
     cartEmpty: "Your cart is empty.",
@@ -122,7 +139,8 @@ const TradePage = () => {
   const [userStatus, setUserStatus] = useState(null);
 
   const navigate = useNavigate();
-  const { userMobile, language } = useSettings();
+  const { userMobile, language, location: selectedCity } = useSettings();
+  const [farWarning, setFarWarning] = useState(null); // { km, city } once triggered; second confirm proceeds
   const auth = getAuth();
   const initialCheckRef = useRef(true);
 
@@ -295,6 +313,19 @@ const TradePage = () => {
     }
     if (manualMode && address.trim().length < 15) {
       return toast.error(t.detailedAddressError);
+    }
+
+    // Soft out-of-area guard: warn (never block) when GPS is far from the
+    // selected service city. A second tap on Confirm proceeds anyway — GPS can
+    // be wrong, and someone may book for a relative's house in the city.
+    const cityCenter = exactCoords && CITY_COORDS[(selectedCity || '').trim().toLowerCase()];
+    if (cityCenter && !farWarning) {
+      const km = haversineKm(exactCoords, cityCenter);
+      if (km > SERVICE_RADIUS_KM) {
+        setFarWarning({ km: Math.round(km), city: selectedCity });
+        toast(`You appear to be ~${Math.round(km)} km from ${selectedCity}. Pickup may not be possible — tap Confirm again to book anyway.`, { icon: '⚠️', duration: 7000 });
+        return;
+      }
     }
 
     if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
@@ -551,6 +582,11 @@ const TradePage = () => {
               </div>
 
               {/* CONFIRM */}
+              {farWarning && (
+                <div className="mt-4 p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl text-sm font-bold text-amber-800">
+                  ⚠️ You appear to be ~{farWarning.km} km from {farWarning.city}. We currently only pick up in and around {farWarning.city} — your pickup may not be possible. Tap the button again to book anyway.
+                </div>
+              )}
               <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled} className="mt-4 w-full py-4 bg-brand-600 text-white rounded-2xl font-black text-lg shadow-lg shadow-brand-600/25 hover:bg-brand-700 active:scale-[0.98] transition-all disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none">
                 {isSubmitting ? t.scheduling : t.confirmBook}
               </button>
