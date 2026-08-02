@@ -33,15 +33,39 @@ const DETECTION_TO_KEYWORD = {
   knife: 'metal', fork: 'metal', spoon: 'metal', scissors: 'metal', sink: 'metal',
   'cell phone': 'electronic', laptop: 'electronic', keyboard: 'electronic',
   mouse: 'electronic', tv: 'electronic', remote: 'electronic',
-  microwave: 'electronic', toaster: 'electronic', oven: 'electronic',
-  refrigerator: 'electronic', clock: 'electronic', 'hair drier': 'electronic',
+  toaster: 'electronic', clock: 'electronic', 'hair drier': 'electronic',
+  // Specific appliances the catalog carries as dedicated items:
+  microwave: 'microwave', oven: 'microwave', refrigerator: 'fridge',
   bowl: 'glass', vase: 'glass',
 };
 
-// Each material keyword expands to the many free-text names a catalog category
-// (or item name) might actually use. Matching on any of these — not just the bare
+// MobileNet (ImageNet, 1000 classes) sees far more object types than the
+// detector above. Class names are comma-separated synonym strings — we match
+// by substring against these patterns, checked in order (specific first).
+const MOBILENET_TO_KEYWORD = [
+  ['washer', 'washingmachine'], ['washing machine', 'washingmachine'],
+  ['refrigerator', 'fridge'], ['icebox', 'fridge'],
+  ['microwave', 'microwave'],
+  ['dishwasher', 'electronic'], ['space heater', 'electronic'], ['vacuum', 'electronic'],
+  ['laptop', 'electronic'], ['notebook', 'electronic'], ['cellular telephone', 'electronic'],
+  ['television', 'electronic'], ['monitor', 'electronic'], ['desktop computer', 'electronic'],
+  ['computer keyboard', 'electronic'], ['mouse', 'electronic'], ['modem', 'electronic'],
+  ['smoothing iron', 'metal'], ['tin can', 'metal'], ['radiator', 'metal'],
+  ['water bottle', 'plastic'], ['pop bottle', 'plastic'], ['beer bottle', 'plastic'],
+  ['wine bottle', 'plastic'], ['pill bottle', 'plastic'], ['plastic bag', 'plastic'],
+  ['carton', 'paper'], ['packet', 'paper'], ['book jacket', 'paper'],
+  ['binder', 'paper'], ['envelope', 'paper'], ['comic book', 'paper'],
+];
+
+// Each keyword expands to the many free-text names a catalog category or item
+// name might actually use. Matching on any of these — not just the bare
 // keyword — is what lets "metal" find an "Iron"/"Aluminium" category, etc.
+// Specific keywords (fridge, washingmachine, microwave) are listed first so a
+// recognized appliance lands on its dedicated catalog item, not generic e-waste.
 const KEYWORD_SYNONYMS = {
+  fridge: ['fridge', 'refrigerator'],
+  washingmachine: ['washing machine'],
+  microwave: ['microwave'],
   plastic: ['plastic', 'pet', 'bottle', 'polythene'],
   paper: ['paper', 'cardboard', 'carton', 'newspaper', 'book', 'magazine'],
   metal: ['metal', 'iron', 'steel', 'aluminium', 'aluminum', 'tin', 'copper', 'brass'],
@@ -326,17 +350,26 @@ const HelloUser = () => {
     setScanning(true);
     try {
       // Lazy-load the model libraries only when the user actually scans.
-      const [cocoSsd] = await Promise.all([
+      // Two free on-device models pool their sightings: coco-ssd detects ~80
+      // object types with locations; MobileNet classifies against 1000 types
+      // (washing machines, fridges, monitors, cartons... that coco-ssd lacks).
+      const [cocoSsd, mobilenetLib] = await Promise.all([
         import('@tensorflow-models/coco-ssd'),
+        import('@tensorflow-models/mobilenet'),
         import('@tensorflow/tfjs'),
       ]);
       if (!modelRef.current) {
-        modelRef.current = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+        const [detector, classifier] = await Promise.all([
+          cocoSsd.load({ base: 'lite_mobilenet_v2' }),
+          mobilenetLib.load({ version: 2, alpha: 0.5 }),
+        ]);
+        modelRef.current = { detector, classifier };
       }
 
-      // Run detection on every selected image and pool the results, so one tap
-      // can cover plastic, metal, etc. across several photos.
+      // Run both models on every selected image and pool the results, so one
+      // tap can cover plastic, metal, appliances, etc. across several photos.
       const predictions = [];
+      const classifications = [];
       for (const file of files) {
         const url = URL.createObjectURL(file);
         const img = new Image();
@@ -346,24 +379,36 @@ const HelloUser = () => {
             img.onerror = reject;
             img.src = url;
           });
-          const perImage = await modelRef.current.detect(img);
+          const [perImage, perImageClasses] = await Promise.all([
+            modelRef.current.detector.detect(img),
+            modelRef.current.classifier.classify(img, 3),
+          ]);
           predictions.push(...perImage);
+          classifications.push(...perImageClasses);
         } catch {
           // Skip an unreadable image but keep processing the rest.
         } finally {
           URL.revokeObjectURL(url);
         }
       }
-      // Diagnostic: what the detector actually saw (open DevTools console to read).
+      // Diagnostic: what the models actually saw (open DevTools console to read).
       console.log('Scan detections:', predictions.map(p => `${p.class} ${(p.score * 100).toFixed(0)}%`));
+      console.log('Scan classifications:', classifications.map(c => `${c.className} ${(c.probability * 100).toFixed(0)}%`));
 
-      // Which material keywords did we spot? (lowered threshold — scrap photos are noisy)
+      // Which keywords did we spot? (lowered thresholds — scrap photos are noisy)
       const keywords = new Set(
         predictions
           .filter(p => p.score >= 0.33)
           .map(p => DETECTION_TO_KEYWORD[p.class])
           .filter(Boolean)
       );
+      classifications
+        .filter(c => c.probability >= 0.22)
+        .forEach(c => {
+          const name = c.className.toLowerCase();
+          const hit = MOBILENET_TO_KEYWORD.find(([pattern]) => name.includes(pattern));
+          if (hit) keywords.add(hit[1]);
+        });
 
       const additions = {};
       const namesAdded = [];
@@ -376,7 +421,8 @@ const HelloUser = () => {
           return synonyms.some(s => hay.includes(s));
         });
         if (match && !cart[match.id] && !additions[match.id]) {
-          additions[match.id] = 5; // seed at "Medium"; user adjusts below
+          // Weight items seed at ~Medium (5 kg); piece items seed at 1 unit.
+          additions[match.id] = isWeightBased(match) ? 5 : 1;
           namesAdded.push(displayName(match));
         }
       });
@@ -386,7 +432,10 @@ const HelloUser = () => {
         toast.success(t.scanSpotted.replace('{names}', namesAdded.join(', ')));
       } else {
         // Surface what was detected so a mismatch is diagnosable, not silent.
-        const seen = predictions.filter(p => p.score >= 0.33).map(p => p.class);
+        const seen = [
+          ...predictions.filter(p => p.score >= 0.33).map(p => p.class),
+          ...classifications.filter(c => c.probability >= 0.22).map(c => c.className.split(',')[0]),
+        ];
         toast(
           seen.length
             ? t.scanNoMatch.replace('{names}', [...new Set(seen)].join(', '))
