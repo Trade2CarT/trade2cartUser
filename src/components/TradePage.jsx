@@ -140,7 +140,37 @@ const TradePage = () => {
 
   const navigate = useNavigate();
   const { userMobile, language, location: selectedCity } = useSettings();
-  const [farWarning, setFarWarning] = useState(null); // { km, city } once triggered; second confirm proceeds
+  const [outOfArea, setOutOfArea] = useState(null); // { km, city } — hard stop, booking not allowed
+  const [areaName, setAreaName] = useState('');
+  const [areaRequestState, setAreaRequestState] = useState('idle'); // idle | sending | sent
+
+  // A fresh GPS fix or switching to manual entry clears the out-of-area stop.
+  useEffect(() => {
+    setOutOfArea(null);
+    setAreaRequestState('idle');
+  }, [exactCoords, manualMode]);
+
+  // Out-of-area: capture the locality as an expansion request instead of booking.
+  const handleAreaRequest = async () => {
+    const area = areaName.trim();
+    if (!area) return toast.error('Please enter your area name.');
+    setAreaRequestState('sending');
+    try {
+      await push(ref(db, 'cityRequests'), {
+        city: area,
+        phone: userMobile || '',
+        name: userName || '',
+        address: address || '',
+        distanceKm: outOfArea?.km || null,
+        source: 'booking',
+        requestedAt: new Date().toISOString(),
+      });
+      setAreaRequestState('sent');
+    } catch {
+      setAreaRequestState('idle');
+      toast.error('Could not send. Please try again.');
+    }
+  };
   const auth = getAuth();
   const initialCheckRef = useRef(true);
 
@@ -315,17 +345,17 @@ const TradePage = () => {
       return toast.error(t.detailedAddressError);
     }
 
-    // Soft out-of-area guard: warn (never block) when GPS is far from the
-    // selected service city. A second tap on Confirm proceeds anyway — GPS can
-    // be wrong, and someone may book for a relative's house in the city.
+    // Hard out-of-area stop: when GPS is outside the service radius we never
+    // book — no order, no user-status change. The customer instead leaves an
+    // area request that shows up grouped on the admin dashboard.
     const cityCenter = exactCoords && CITY_COORDS[(selectedCity || '').trim().toLowerCase()];
-    if (cityCenter && !farWarning) {
+    if (cityCenter) {
       const km = haversineKm(exactCoords, cityCenter);
       if (km > SERVICE_RADIUS_KM) {
-        setFarWarning({ km: Math.round(km), city: selectedCity });
-        toast(`You appear to be ~${Math.round(km)} km from ${selectedCity}. Pickup may not be possible — tap Confirm again to book anyway.`, { icon: '⚠️', duration: 7000 });
+        setOutOfArea({ km: Math.round(km), city: selectedCity });
         return;
       }
+      if (outOfArea) setOutOfArea(null);
     }
 
     if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
@@ -582,12 +612,38 @@ const TradePage = () => {
               </div>
 
               {/* CONFIRM */}
-              {farWarning && (
-                <div className="mt-4 p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl text-sm font-bold text-amber-800">
-                  ⚠️ You appear to be ~{farWarning.km} km from {farWarning.city}. We currently only pick up in and around {farWarning.city} — your pickup may not be possible. Tap the button again to book anyway.
+              {outOfArea && (
+                <div className="mt-4 p-5 bg-amber-50 border-2 border-amber-200 rounded-2xl text-center">
+                  {areaRequestState === 'sent' ? (
+                    <>
+                      <span className="text-3xl">🎉</span>
+                      <p className="text-sm font-black text-amber-900 mt-2">Request received!</p>
+                      <p className="text-xs font-bold text-amber-700 mt-1">We'll notify you as soon as Trade2Cart launches in your area.</p>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-3xl">😔</span>
+                      <p className="text-sm font-black text-amber-900 mt-2">We haven't reached your locality yet</p>
+                      <p className="text-xs font-bold text-amber-700 mt-1 mb-3">You're ~{outOfArea.km} km from {outOfArea.city}, so we can't schedule this pickup. Tell us your area and we'll notify you when we launch there.</p>
+                      <input
+                        type="text"
+                        value={areaName}
+                        onChange={(e) => setAreaName(e.target.value)}
+                        placeholder="Your area name (e.g. Vellore)"
+                        className="w-full mb-3 px-4 py-3 bg-white border-2 border-amber-200 rounded-xl focus:border-brand-500 focus:ring-0 outline-none font-bold text-slate-800 text-sm"
+                      />
+                      <button
+                        onClick={handleAreaRequest}
+                        disabled={areaRequestState === 'sending'}
+                        className="w-full py-3 bg-brand-600 text-white rounded-xl font-black text-sm hover:bg-brand-700 active:scale-[0.98] transition-all disabled:bg-slate-300"
+                      >
+                        {areaRequestState === 'sending' ? 'Sending…' : 'Request My Area'}
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
-              <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled} className="mt-4 w-full py-4 bg-brand-600 text-white rounded-2xl font-black text-lg shadow-lg shadow-brand-600/25 hover:bg-brand-700 active:scale-[0.98] transition-all disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none">
+              <button onClick={handleConfirmTrade} disabled={isLoading || isSubmitting || isSchedulingDisabled || !!outOfArea} className="mt-4 w-full py-4 bg-brand-600 text-white rounded-2xl font-black text-lg shadow-lg shadow-brand-600/25 hover:bg-brand-700 active:scale-[0.98] transition-all disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none">
                 {isSubmitting ? t.scheduling : t.confirmBook}
               </button>
             </div>
