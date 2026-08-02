@@ -10,6 +10,14 @@ import SEO from './SEO';
 import AppLayout from './layout/AppLayout';
 import logo from '../assets/images/logo.PNG';
 
+// Rough weight buckets for kg-priced items — customers don't know exact kg and
+// the vendor re-weighs at pickup. Piece/unit items use the exact ± stepper instead.
+const AMOUNTS = [
+  { label: 'Little', kg: 2 },
+  { label: 'Medium', kg: 5 },
+  { label: 'A lot', kg: 10 },
+];
+
 const categoryColors = {
   'paper': 'bg-blue-50 border-blue-200 text-blue-700',
   'plastic': 'bg-amber-50 border-amber-200 text-amber-700',
@@ -261,6 +269,21 @@ const HelloUser = () => {
       }
     }
   }, [items]);
+
+  // Weight-based items keep the rough buckets (customers don't know exact kg —
+  // the vendor re-weighs at pickup). Piece/unit items get an exact ± stepper.
+  const isWeightBased = (item) => ['kg', 'kgs', 'kilogram', 'kilograms'].includes((item.unit || 'kg').trim().toLowerCase());
+
+  // Bucket picker for kg items: tapping the selected bucket clears the item.
+  const setAmount = (id, kg) => {
+    if (navigator.vibrate) navigator.vibrate(20);
+    setCart(prev => {
+      const updated = { ...prev };
+      if (prev[id] === kg) delete updated[id];
+      else updated[id] = kg;
+      return updated;
+    });
+  };
 
   // Adjust quantity by ±1 in the item's own unit; 0 removes it from the cart.
   const stepQty = (id, delta) => {
@@ -572,7 +595,27 @@ const HelloUser = () => {
                     </div>
 
                     <div className="mt-3 w-full">
-                      <QtyStepper item={item} qty={qty} />
+                      {isWeightBased(item) ? (
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {AMOUNTS.map(({ label, kg }) => {
+                            const active = qty === kg;
+                            return (
+                              <button
+                                key={label}
+                                onClick={() => setAmount(item.id, kg)}
+                                className={`h-10 sm:h-11 rounded-xl font-black text-[11px] leading-tight flex flex-col items-center justify-center transition active:scale-95 ${active
+                                  ? 'bg-brand-600 text-white shadow-md'
+                                  : 'bg-white border-2 border-slate-200 text-slate-600 hover:border-brand-400'}`}
+                              >
+                                <span>{label}</span>
+                                <span className={`text-[9px] font-bold ${active ? 'text-brand-100' : 'text-slate-400'}`}>~{kg}kg</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <QtyStepper item={item} qty={qty} />
+                      )}
                     </div>
                   </div>
                 );
@@ -614,11 +657,30 @@ const HelloUser = () => {
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-black text-slate-800 truncate capitalize">{displayName(item)}</p>
-                              <p className="text-[11px] font-bold text-slate-400">₹{rate} / {item.unit || 'kg'} · {qty} {item.unit || 'kg'}</p>
+                              <p className="text-[11px] font-bold text-slate-400">₹{rate} / {item.unit || 'kg'} · {isWeightBased(item) ? `~${qty}kg` : `${qty} ${item.unit}`}</p>
                             </div>
                           </div>
                           <div className="mt-2">
-                            <QtyStepper item={item} qty={qty} compact />
+                            {isWeightBased(item) ? (
+                              <div className="grid grid-cols-3 gap-1.5">
+                                {AMOUNTS.map(({ label, kg }) => {
+                                  const active = qty === kg;
+                                  return (
+                                    <button
+                                      key={label}
+                                      onClick={() => setAmount(item.id, kg)}
+                                      className={`h-8 rounded-lg font-black text-[10px] transition active:scale-95 ${active
+                                        ? 'bg-brand-600 text-white'
+                                        : 'bg-slate-50 border border-slate-200 text-slate-500 hover:border-brand-400'}`}
+                                    >
+                                      {label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <QtyStepper item={item} qty={qty} compact />
+                            )}
                           </div>
                         </div>
                       );
