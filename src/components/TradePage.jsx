@@ -8,15 +8,16 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { useSettings } from '../context/SettingsContext';
 import SEO from './SEO';
 import AppLayout from './layout/AppLayout';
+import { notifyAdmin } from '../utils/notify';
 
-// Approximate service-city centers for the soft out-of-area warning. Cities
-// not listed here are simply not distance-checked.
-const CITY_COORDS = {
-  arakkonam: { lat: 13.0778, lng: 79.6714 },
-  tiruttani: { lat: 13.1746, lng: 79.6117 },
-  sholinghur: { lat: 13.1176, lng: 79.42 },
-};
-const SERVICE_RADIUS_KM = 25;
+// Service-area check: GPS bookings farther than SERVICE_RADIUS_KM from the
+// city's centre are blocked. Centres are set by the admin (Manage Items →
+// City Service Centres) at `cityCenters/{cityKey}`; a city without a saved
+// centre is not distance-checked.
+const SERVICE_RADIUS_KM = 5;
+
+// Firebase-safe key for a city name — must match cityKey() in the admin app.
+const cityKey = (name) => (name || '').trim().toLowerCase().replace(/[.#$[\]/]/g, '_');
 
 const haversineKm = (a, b) => {
   const toRad = (d) => (d * Math.PI) / 180;
@@ -143,6 +144,18 @@ const TradePage = () => {
   const [outOfArea, setOutOfArea] = useState(null); // { km, city } — hard stop, booking not allowed
   const [areaName, setAreaName] = useState('');
   const [areaRequestState, setAreaRequestState] = useState('idle'); // idle | sending | sent
+  const [cityCenter, setCityCenter] = useState(null); // { lat, lng } or null when not set
+
+  useEffect(() => {
+    const key = cityKey(selectedCity);
+    if (!key) { setCityCenter(null); return; }
+    return onValue(ref(db, `cityCenters/${key}`), (snap) => {
+      const c = snap.val();
+      const lat = Number(c?.lat);
+      const lng = Number(c?.lng);
+      setCityCenter(c && Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null);
+    }, () => setCityCenter(null));
+  }, [selectedCity]);
 
   // A fresh GPS fix or switching to manual entry clears the out-of-area stop.
   useEffect(() => {
@@ -164,6 +177,14 @@ const TradePage = () => {
         distanceKm: outOfArea?.km || null,
         source: 'booking',
         requestedAt: new Date().toISOString(),
+      });
+      notifyAdmin('city_request', {
+        city: area,
+        customerName: userName || '',
+        customerPhone: userMobile || '',
+        address: address || '',
+        distanceKm: outOfArea?.km ?? null,
+        source: 'booking',
       });
       setAreaRequestState('sent');
     } catch {
@@ -348,8 +369,7 @@ const TradePage = () => {
     // Hard out-of-area stop: when GPS is outside the service radius we never
     // book — no order, no user-status change. The customer instead leaves an
     // area request that shows up grouped on the admin dashboard.
-    const cityCenter = exactCoords && CITY_COORDS[(selectedCity || '').trim().toLowerCase()];
-    if (cityCenter) {
+    if (exactCoords && cityCenter) {
       const km = haversineKm(exactCoords, cityCenter);
       if (km > SERVICE_RADIUS_KM) {
         setOutOfArea({ km: Math.round(km), city: selectedCity });
@@ -401,6 +421,7 @@ const TradePage = () => {
           unit: entry.unit,
           rate: entry.rate || entry.minRate || 0,
           category: entry.category || 'others',
+          city: selectedCity || '',
           isAssigned: false,
           userID: userId,
           image: imageBase64,
@@ -411,20 +432,13 @@ const TradePage = () => {
       await Promise.all(promises);
 
       // 🚨 Email the admin that a pickup was scheduled (fire-and-forget).
-      fetch('https://trade2cart.trade.admin.trade2cart.in/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'scheduled',
-          customerName: userName,
-          customerPhone: validPhone,
-          address,
-          items: entries.map(e => `${e.name || e.text} (${e.quantity} ${e.unit})`).join(', '),
-        }),
-      })
-        .then(res => { if (!res.ok) throw new Error('Server not ready'); return res.json(); })
-        .then(data => console.log('Schedule email triggered!', data))
-        .catch(() => console.log('Schedule email triggered in background.'));
+      notifyAdmin('scheduled', {
+        customerName: userName,
+        customerPhone: validPhone,
+        city: selectedCity || '',
+        address,
+        items: entries.map(e => `${e.name || e.text} (${e.quantity} ${e.unit})`).join(', '),
+      });
 
       toast.success(t.scheduledSuccess);
       localStorage.removeItem('wasteEntries');

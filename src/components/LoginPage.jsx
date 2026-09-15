@@ -5,6 +5,7 @@ import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth
 import { db } from '../firebase';
 import { get, ref, set, update } from 'firebase/database';
 import { useSettings } from '../context/SettingsContext';
+import { notifyAdmin } from '../utils/notify';
 
 import SEO from './SEO';
 import logo from '../assets/images/logo.PNG';
@@ -180,6 +181,12 @@ const LoginPage = () => {
       const user = auth.currentUser;
       if (!user) { navigate('/login'); return; }
       await update(ref(db, `users/${user.uid}`), { name: name.trim() });
+      // Signup is complete once the new customer has a name.
+      notifyAdmin('user_signup', {
+        customerName: name.trim(),
+        customerPhone: user.phoneNumber || '',
+        city: location && location !== 'Unknown' ? location : '',
+      });
       setUserMobile(user.phoneNumber);
       toast.success('All set!');
       // New user: pick a city next (it gets saved to their account there).

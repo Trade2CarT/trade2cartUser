@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../firebase';
 import { ref, query, orderByChild, equalTo, get } from 'firebase/database';
-import { FaEye, FaSpinner, FaFileInvoiceDollar, FaUser, FaRupeeSign, FaInfoCircle, FaCheckCircle } from 'react-icons/fa';
+import { FaEye, FaSpinner, FaFileInvoiceDollar, FaUser, FaRupeeSign, FaInfoCircle, FaCheckCircle, FaMapMarkerAlt } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
 import { useSettings } from '../../context/SettingsContext';
 
@@ -105,7 +105,8 @@ const TradeHistorySection = ({ userId, originalUserData, onViewBill }) => {
                 assignedAt: assignment.assignedAt,
                 vendorName: assignment.vendorName,
                 userName: originalUserData?.name,
-                address: originalUserData?.address,
+                // The order's own address; older orders fall back to the profile.
+                address: assignment.pickup?.address || originalUserData?.address,
                 totalAmount: billDetails.totalBill,
                 products: billDetails.billItems.map(item => ({
                     name: item.item || item.name,
@@ -164,6 +165,13 @@ const TradeHistorySection = ({ userId, originalUserData, onViewBill }) => {
                                     <p className="text-2xl font-black text-green-600 tracking-tight">₹{assignment.totalAmount || '0'}</p>
                                 </div>
                             </div>
+
+                            {assignment.pickup?.address && (
+                                <div className="px-5 pb-4 -mt-1 flex items-start gap-2 text-xs font-medium text-gray-500">
+                                    <FaMapMarkerAlt className="mt-0.5 flex-shrink-0 text-gray-400" />
+                                    <span className="line-clamp-2">{assignment.pickup.address}</span>
+                                </div>
+                            )}
 
                             {/* Card Footer / Action */}
                             <div className="px-5 pb-5">

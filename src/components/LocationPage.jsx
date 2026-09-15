@@ -7,6 +7,7 @@ import { useSettings } from '../context/SettingsContext';
 import { getAuth } from 'firebase/auth'; // ✅ Imported to check login status
 import { db } from '../firebase';
 import SEO from './SEO';
+import { notifyAdmin } from '../utils/notify';
 
 // UI strings (English / Tamil) — follows the LoginPage pattern.
 // City names come from the database and are shown as stored.
@@ -41,12 +42,14 @@ const LocationPage = () => {
     const city = searchTerm.trim();
     if (!city) return;
     setRequestSubmitting(true);
+    const phone = (requestPhone || userMobile || '').trim();
     try {
       await push(ref(db, 'cityRequests'), {
         city,
-        phone: (requestPhone || userMobile || '').trim(),
+        phone,
         requestedAt: new Date().toISOString(),
       });
+      notifyAdmin('city_request', { city, customerPhone: phone, source: 'search' });
       setRequestSent(true);
     } catch {
       toast.error('Could not send. Please try again.');

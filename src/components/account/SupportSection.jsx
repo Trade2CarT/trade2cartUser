@@ -4,6 +4,7 @@ import { ref, push } from 'firebase/database';
 import { toast } from 'react-hot-toast';
 import { FaPaperPlane, FaHeadset } from 'react-icons/fa';
 import { useSettings } from '../../context/SettingsContext';
+import { notifyAdmin } from '../../utils/notify';
 
 const STR = {
   English: {
@@ -56,17 +57,7 @@ const SupportSection = ({ user, onDone }) => {
       });
 
       // 🚨 Email the admin that a concern was raised (fire-and-forget).
-      fetch('https://trade2cart.trade.admin.trade2cart.in/api/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'concern',
-          role: 'user',
-          customerName: name,
-          customerPhone: phone,
-          message: text,
-        }),
-      }).catch(() => console.log('Concern email triggered in background.'));
+      notifyAdmin('concern', { role: 'user', customerName: name, customerPhone: phone, message: text });
 
       toast.success(t.sent);
       setMessage('');

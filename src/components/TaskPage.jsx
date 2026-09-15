@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaTasks, FaTruck, FaPhoneAlt, FaClipboardList, FaCheckCircle, FaHourglassHalf, FaCopy } from 'react-icons/fa';
+import { FaTasks, FaTruck, FaPhoneAlt, FaClipboardList, FaCheckCircle, FaHourglassHalf, FaCopy, FaMapMarkerAlt } from 'react-icons/fa';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 import { ref, get, onValue } from 'firebase/database';
@@ -36,6 +36,7 @@ const STR = {
     viewReceipt: "View Receipt",
     otpCopied: "OTP Copied to clipboard!",
     fetchAssignmentFailed: "Failed to fetch assignment details.",
+    pickupAddress: "Pickup Address",
   },
   Tamil: {
     liveTracking: "நேரடி கண்காணிப்பு",
@@ -60,6 +61,7 @@ const STR = {
     viewReceipt: "ரசீதைப் பார்க்கவும்",
     otpCopied: "OTP நகலெடுக்கப்பட்டது!",
     fetchAssignmentFailed: "பிக்கப் விவரங்களைப் பெற முடியவில்லை.",
+    pickupAddress: "பிக்-அப் முகவரி",
   },
 };
 
@@ -75,6 +77,7 @@ const TaskPage = () => {
   const [loading, setLoading] = useState(true);
   const [otp, setOtp] = useState('');
   const [vendorDetails, setVendorDetails] = useState(null);
+  const [pickup, setPickup] = useState(null); // { address, lat, lng } of the active pickup
   const navigate = useNavigate();
   const auth = getAuth();
   const { language } = useSettings();
@@ -93,6 +96,9 @@ const TaskPage = () => {
             // order completed even if capital Status got left on On-Schedule.
             const currentStatus = userData.status === 'active' ? 'Active' : (userData.Status || 'Active');
             setStatus(currentStatus);
+            // The profile holds the latest booking's location — the active one.
+            // Once assigned, the order's own snapshot (assignment.pickup) wins.
+            setPickup({ address: userData.address || '', lat: userData.lastLat ?? null, lng: userData.lastLng ?? null });
 
             if (currentStatus.toLowerCase() !== 'on-schedule') {
               setVendorDetails(null);
@@ -106,6 +112,7 @@ const TaskPage = () => {
                 if (assignmentSnapshot.exists()) {
                   const activeAssignment = assignmentSnapshot.val();
                   setVendorDetails({ name: activeAssignment.vendorName, phone: activeAssignment.vendorPhone });
+                  if (activeAssignment.pickup) setPickup(activeAssignment.pickup);
                   setOtp(userData.otp || '');
                 }
               } catch {
@@ -152,6 +159,8 @@ const TaskPage = () => {
   };
 
   const statusIndex = getStatusIndex();
+  const isActive = statusIndex === 0 || statusIndex === 1;
+  const pickupHasCoords = pickup?.lat != null && pickup?.lng != null;
 
   return (
     <AppLayout active="orders" maxWidth="max-w-3xl" contentClassName="nice-scrollbar">
@@ -241,6 +250,25 @@ const TaskPage = () => {
                     <p className="text-xs text-slate-400 mt-5 relative z-10 font-medium">{t.shareOnlyOnArrival}</p>
                   </div>
                 ) : <div className="p-6 t2c-card text-center text-slate-500 flex items-center justify-center">{t.generatingOtp}</div>}
+              </div>
+            )}
+
+            {isActive && pickup && (pickup.address || pickupHasCoords) && (
+              <div className="t2c-card p-5 lg:p-6">
+                <h2 className="text-[13px] font-black uppercase tracking-widest mb-4 text-slate-800 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-accent-50 text-accent-600 flex items-center justify-center"><FaMapMarkerAlt size={12} /></div>
+                  {t.pickupAddress}
+                </h2>
+                {pickupHasCoords && (
+                  <div className="w-full h-40 rounded-2xl overflow-hidden border border-slate-200 mb-3">
+                    <iframe
+                      title="pickup-map"
+                      width="100%" height="100%" style={{ border: 0 }} loading="lazy" allowFullScreen
+                      src={`https://maps.google.com/maps?q=${pickup.lat},${pickup.lng}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
+                    ></iframe>
+                  </div>
+                )}
+                {pickup.address && <p className="text-sm font-bold text-slate-700 leading-relaxed">{pickup.address}</p>}
               </div>
             )}
 

@@ -5,6 +5,7 @@ import { ref, update } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 import { FaUserAlt, FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaSave } from 'react-icons/fa';
 import { useSettings } from '../../context/SettingsContext';
+import { notifyAdmin } from '../../utils/notify';
 
 const STR = {
     English: {
@@ -68,6 +69,7 @@ const ProfileSection = ({ user }) => {
                 address,
                 phoneNumber: displayPhone
             });
+            notifyAdmin('profile_updated', { customerName: name, customerPhone: displayPhone, email, address });
             toast.success(t.updated);
         } catch {
             toast.error(t.updateFailed);
